@@ -1,28 +1,38 @@
-Elm Template
+# Space Sim
 
-A default template for building Elm applications. Includes hot-module reload of Elm modules (courtesy of `vite-plugin-elm`).
+⚠️ WIP ⚠️
 
-> Elm is a functional language that compiles to JavaScript. It helps you make websites and web apps. It has a strong emphasis on simplicity and quality tooling.
+A 4X space game.
 
 ## Features
 
-- Hot Module Reload of all code
-- Basic unit test examples
-- Github Actions CI for running tests
-- Basic setup of elm-review
+- Galaxy generation
+  - Solar system generation
+    - Star generation
+    - Planet generation
 
 ## Get Started
 
-```bash
-# Clone the template locally, removing the template's Git log
-npx degit wolfadex/elm-template my-elm-app
+### Development
 
-# Enter the project, install dependencies, and get started!
-cd my-elm-app
+```bash
 npm install
 npm run dev
 ```
 
-To learn more about Elm, check out [Elm's official homepage](https://elm-lang.org/).
+```bash
+npm run review-watch
+```
 
-Forked from [lindsaykwardell/vite-elm-template](https://github.com/lindsaykwardell/vite-elm-template)
+```bash
+npm run test-watch
+```
+
+### Production
+
+```bash
+npm ci
+npm run build
+```
+
+To learn more about Elm, check out [Elm's official homepage](https://elm-lang.org/).
