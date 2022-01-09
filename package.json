@@ -1,7 +1,7 @@
 {
-  "name": "elm-template",
+  "name": "space-sim",
   "author": "Wolfgang Schuster",
-  "description": "A staring template for building Elm apps.",
+  "description": "A 4X space game",
   "version": "0.1.0",
   "license": "MIT",
   "scripts": {
