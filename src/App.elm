@@ -4,9 +4,12 @@ module App exposing
     , Model
     , Msg
     , Planet
+    , PlanetId
     , PlanetType
     , SolarSystem
+    , SolarSystemId
     , Star
+    , StarId
     , StarSize
     , exmptyGalaxy
     , init
@@ -15,13 +18,14 @@ module App exposing
     , view
     )
 
-import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Input as Input
+import Id exposing (Id)
+import IdDict exposing (IdDict)
+import IdSet exposing (IdSet)
 import Random exposing (Generator, Seed)
 import Random.Extra
-import Set exposing (Set)
 import Shared exposing (Flags)
 import View exposing (View)
 
@@ -34,28 +38,49 @@ type alias Model =
 
 
 type alias Galaxy =
-    { solarSystems : Dict Int SolarSystem
-    , stars : Dict ( Int, Int ) Star
-    , planets : Dict ( Int, Int ) Planet
+    { solarSystems : IdDict SolarSystem
+    , stars : IdDict Star
+    , planets : IdDict Planet
     }
 
 
-type alias SolarSystem =
-    { stars : Set Int
-    , planets : Set Int
+type alias SolarSystemId =
+    Id SolarSystem
+
+
+type alias StarId =
+    Id Star
+
+
+type alias PlanetId =
+    Id Planet
+
+
+type SolarSystem
+    = SolarSystem SolarSystemData
+
+
+type alias SolarSystemData =
+    { stars : IdSet
+    , planets : IdSet
     }
 
 
-type alias Star =
+type Star
+    = Star StarData
+
+
+type alias StarData =
     { size : StarSize
+    , solarSystem : SolarSystemId
     }
 
 
 type Focus
     = FGalaxy
-    | FSolarSystem Int
-    | FStar ( Int, Int )
-    | FPlanet ( Int, Int )
+    | FSolarSystem SolarSystemId
+    | FStar StarId
+    | FPlanet PlanetId
 
 
 type StarSize
@@ -66,9 +91,14 @@ type StarSize
     | BlackDwarf
 
 
-type alias Planet =
+type Planet
+    = Planet PlanetData
+
+
+type alias PlanetData =
     { type_ : PlanetType
     , orbit : Int
+    , solarSystem : SolarSystemId
     }
 
 
@@ -93,9 +123,9 @@ init flags =
 
 exmptyGalaxy : Galaxy
 exmptyGalaxy =
-    { solarSystems = Dict.empty
-    , stars = Dict.empty
-    , planets = Dict.empty
+    { solarSystems = IdDict.empty
+    , stars = IdDict.empty
+    , planets = IdDict.empty
     }
 
 
@@ -134,7 +164,7 @@ update msg model =
             )
 
         DeleteGalaxy ->
-            ( { model | galaxy = exmptyGalaxy }
+            ( { model | galaxy = exmptyGalaxy, focus = FGalaxy }
             , Effect.none
             )
 
@@ -147,48 +177,60 @@ generateGalaxy =
     Random.int 10 20
         |> Random.andThen
             (List.range 0
-                >> List.map generateSolarSystem
+                >> List.map
+                    (\_ ->
+                        Random.andThen generateSolarSystem
+                            Id.generate
+                    )
                 >> Random.Extra.combine
             )
         |> Random.map
             (List.foldl
                 (\galaxy finalGalaxy ->
-                    { solarSystems = Dict.union finalGalaxy.solarSystems galaxy.solarSystems
-                    , stars = Dict.union finalGalaxy.stars galaxy.stars
-                    , planets = Dict.union finalGalaxy.planets galaxy.planets
+                    { solarSystems = IdDict.union finalGalaxy.solarSystems galaxy.solarSystems
+                    , stars = IdDict.union finalGalaxy.stars galaxy.stars
+                    , planets = IdDict.union finalGalaxy.planets galaxy.planets
                     }
                 )
                 exmptyGalaxy
             )
 
 
-generateSolarSystem : Int -> Generator Galaxy
+generateSolarSystem : SolarSystemId -> Generator Galaxy
 generateSolarSystem solarSystemId =
     Random.map2
         (\stars planets ->
             { solarSystems =
-                Dict.singleton solarSystemId
-                    { stars = Dict.keys stars |> List.map Tuple.second |> Set.fromList
-                    , planets = Dict.keys planets |> List.map Tuple.second |> Set.fromList
-                    }
+                IdDict.singleton solarSystemId
+                    (SolarSystem
+                        { stars = IdSet.fromList (IdDict.keys stars)
+                        , planets = IdSet.fromList (IdDict.keys planets)
+                        }
+                    )
             , stars = stars
             , planets = planets
             }
         )
-        (generateRange 1 3 (generateStar solarSystemId)
-            |> Random.map Dict.fromList
+        (generateMinMax 1 3 (generateStar solarSystemId)
+            |> Random.map IdDict.fromList
         )
-        (generateRange 1 12 (generatePlanet solarSystemId)
-            |> Random.map Dict.fromList
+        (generateMinMax 1 12 (generatePlanet solarSystemId)
+            |> Random.map IdDict.fromList
         )
 
 
-generateStar : Int -> Int -> Generator ( ( Int, Int ), Star )
-generateStar solarSystemId id =
-    Random.map
-        (\size ->
-            ( ( solarSystemId, id ), { size = size } )
+generateStar : SolarSystemId -> Generator ( StarId, Star )
+generateStar solarSystemId =
+    Random.map2
+        (\id size ->
+            ( id
+            , Star
+                { size = size
+                , solarSystem = solarSystemId
+                }
+            )
         )
+        Id.generate
         (Random.uniform Yellow
             [ RedGiant
             , BlueGiant
@@ -198,24 +240,27 @@ generateStar solarSystemId id =
         )
 
 
-generatePlanet : Int -> Int -> Generator ( ( Int, Int ), Planet )
-generatePlanet solarSystemId id =
-    Random.map2
-        (\type_ orbit ->
-            ( ( solarSystemId, id )
-            , { type_ = type_
-              , orbit = orbit
-              }
+generatePlanet : SolarSystemId -> Generator ( PlanetId, Planet )
+generatePlanet solarSystemId =
+    Random.map3
+        (\id type_ orbit ->
+            ( id
+            , Planet
+                { type_ = type_
+                , orbit = orbit
+                , solarSystem = solarSystemId
+                }
             )
         )
+        Id.generate
         (Random.uniform Rocky [ Gas ])
         (Random.int 0 12)
 
 
-generateRange : Int -> Int -> (Int -> Generator a) -> Generator (List a)
-generateRange min max generator =
+generateMinMax : Int -> Int -> Generator a -> Generator (List a)
+generateMinMax min max generator =
     Random.andThen
-        (List.range 0 >> List.map generator >> Random.Extra.combine)
+        (\count -> Random.list count generator)
         (Random.int min max)
 
 
@@ -244,28 +289,28 @@ view model =
                     viewGalaxy model.galaxy
 
                 FSolarSystem id ->
-                    case Dict.get id model.galaxy.solarSystems of
+                    case IdDict.get id model.galaxy.solarSystems of
                         Nothing ->
                             text "Missing solar system"
 
                         Just solarSystem ->
                             viewSlice (viewSolarSystem model.galaxy ( id, solarSystem ))
 
-                FStar id ->
-                    case Dict.get id model.galaxy.stars of
+                FStar starId ->
+                    case IdDict.get starId model.galaxy.stars of
                         Nothing ->
                             text "Missing star"
 
                         Just star ->
-                            viewSlice (viewBody ( id, star ) viewStar)
+                            viewSlice (viewBody (\(Star s) -> s) ( starId, star ) viewStar)
 
-                FPlanet id ->
-                    case Dict.get id model.galaxy.planets of
+                FPlanet planetId ->
+                    case IdDict.get planetId model.galaxy.planets of
                         Nothing ->
                             text "Missing planet"
 
                         Just planet ->
-                            viewSlice (viewBody ( id, planet ) viewPlanet)
+                            viewSlice (viewBody (\(Planet p) -> p) ( planetId, planet ) viewPlanet)
             ]
     }
 
@@ -283,50 +328,50 @@ viewSlice slice =
         ]
 
 
-viewBody : ( ( Int, Int ), a ) -> (( ( Int, Int ), a ) -> Element Msg) -> Element Msg
-viewBody (( ( solarSystemId, _ ), _ ) as body) bodyFn =
+viewBody : (a -> { r | solarSystem : SolarSystemId }) -> ( Id a, a ) -> (( Id a, a ) -> Element Msg) -> Element Msg
+viewBody fn (( _, body ) as arg) bodyFn =
     column
         [ spacing 8 ]
         [ Input.button
             []
             { label = text "View System"
-            , onPress = Just (SetFocus (FSolarSystem solarSystemId))
+            , onPress =
+                fn body
+                    |> .solarSystem
+                    |> FSolarSystem
+                    |> SetFocus
+                    |> Just
             }
-        , bodyFn body
+        , bodyFn arg
         ]
 
 
 viewGalaxy : Galaxy -> Element Msg
 viewGalaxy galaxy =
-    Dict.toList galaxy.solarSystems
+    IdDict.toList galaxy.solarSystems
         |> List.map (viewSolarSystem galaxy)
         |> column []
 
 
-viewSolarSystem : Galaxy -> ( Int, SolarSystem ) -> Element Msg
-viewSolarSystem galaxy ( solarSystemId, solarSystem ) =
+viewSolarSystem : Galaxy -> ( SolarSystemId, SolarSystem ) -> Element Msg
+viewSolarSystem galaxy ( solarSystemId, SolarSystem solarSystem ) =
     let
-        getCelestialBody : (Galaxy -> Dict ( Int, Int ) a) -> Set Int -> List ( ( Int, Int ), a )
-        getCelestialBody bodyType =
-            Set.toList
+        getCelestialBodies : (Galaxy -> IdDict a) -> IdSet -> List ( Id a, a )
+        getCelestialBodies bodyType =
+            IdSet.toList
                 >> List.filterMap
                     (\bodyId ->
-                        let
-                            id : ( Int, Int )
-                            id =
-                                ( solarSystemId, bodyId )
-                        in
-                        Dict.get id (bodyType galaxy)
-                            |> Maybe.map (Tuple.pair id)
+                        IdDict.get bodyId (bodyType galaxy)
+                            |> Maybe.map (Tuple.pair bodyId)
                     )
 
-        stars : List ( ( Int, Int ), Star )
+        stars : List ( StarId, Star )
         stars =
-            getCelestialBody .stars solarSystem.stars
+            getCelestialBodies .stars solarSystem.stars
 
-        planets : List ( ( Int, Int ), Planet )
+        planets : List ( PlanetId, Planet )
         planets =
-            getCelestialBody .planets solarSystem.planets
+            getCelestialBodies .planets solarSystem.planets
     in
     column
         [ padding 8 ]
@@ -344,15 +389,15 @@ viewSolarSystem galaxy ( solarSystemId, solarSystem ) =
         , column [ padding 8 ]
             [ text "Planets:"
             , planets
-                |> List.sortBy (\( _, { orbit } ) -> orbit)
+                |> List.sortBy (\( _, Planet { orbit } ) -> orbit)
                 |> List.map viewPlanet
                 |> column [ padding 8 ]
             ]
         ]
 
 
-viewStar : ( ( Int, Int ), Star ) -> Element Msg
-viewStar ( id, star ) =
+viewStar : ( StarId, Star ) -> Element Msg
+viewStar ( id, Star star ) =
     Input.button
         []
         { label =
@@ -376,8 +421,8 @@ viewStar ( id, star ) =
         }
 
 
-viewPlanet : ( ( Int, Int ), Planet ) -> Element Msg
-viewPlanet ( id, planet ) =
+viewPlanet : ( PlanetId, Planet ) -> Element Msg
+viewPlanet ( id, Planet planet ) =
     Input.button
         []
         { label =
