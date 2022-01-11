@@ -111,6 +111,8 @@ type alias PlanetData =
     { type_ : PlanetType
     , orbit : Int
     , solarSystem : SolarSystemId
+    , radius : Float
+    , percentWater : Float
     }
 
 
@@ -315,26 +317,65 @@ generateStar solarSystemId =
 
 generatePlanet : SolarSystemId -> Generator ( PlanetId, Planet )
 generatePlanet solarSystemId =
-    Random.map3
-        (\id type_ orbit ->
-            ( id
-            , Planet
-                { type_ = type_
-                , orbit = orbit
-                , solarSystem = solarSystemId
-                }
+    Random.uniform Rocky [ Gas ]
+        |> Random.andThen
+            (\type_ ->
+                Random.map4
+                    (\id orbit radius percentWater ->
+                        ( id
+                        , Planet
+                            { type_ = type_
+                            , orbit = orbit
+                            , solarSystem = solarSystemId
+                            , radius = radius
+                            , percentWater = percentWater
+                            }
+                        )
+                    )
+                    Id.generate
+                    (case type_ of
+                        Rocky ->
+                            Random.int 0 7
+
+                        Gas ->
+                            Random.int 5 12
+                    )
+                    (generatePlanetRadius type_)
+                    generatePlanetWaterPercent
             )
-        )
-        Id.generate
-        (Random.uniform Rocky [ Gas ])
-        (Random.int 0 12)
 
 
+{-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
+-}
+generatePlanetWaterPercent : Generator Float
+generatePlanetWaterPercent =
+    Random.float 0.0 100
+
+
+{-| Generate the radius of a planet based on its type.
+
+The `Rocky` radius is based on exaggerated Mercurey and Earth
+The 'Gas' radius is based on exaggerated Neptude and Jupiter
+
+-}
+generatePlanetRadius : PlanetType -> Generator Float
+generatePlanetRadius type_ =
+    case type_ of
+        Rocky ->
+            Random.float 1000.0 8000.0
+
+        Gas ->
+            Random.float 22000.0 90000.0
+
+
+{-| Generate a list with a random size between minimum and maximum.
+Order doesn't matter as the function will sort the values.
+-}
 generateMinMax : Int -> Int -> Generator a -> Generator (List a)
-generateMinMax min max generator =
+generateMinMax minimum maximum generator =
     Random.andThen
         (\count -> Random.list count generator)
-        (Random.int min max)
+        (Random.int (min minimum maximum) (max minimum maximum))
 
 
 
