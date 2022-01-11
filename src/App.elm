@@ -1,5 +1,8 @@
 module App exposing
-    ( Focus(..)
+    ( CivilizationName
+    , CivilizationReproductionRate
+    , CivilizationSize
+    , Focus(..)
     , Galaxy
     , Model
     , Msg
@@ -24,9 +27,14 @@ import Element.Input as Input
 import Id exposing (Id)
 import IdDict exposing (IdDict)
 import IdSet exposing (IdSet)
+import Logic.Component exposing (Spec)
+import Logic.Entity
+import Logic.Entity.Extra
+import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Shared exposing (Flags)
+import Time
 import View exposing (View)
 
 
@@ -34,6 +42,10 @@ type alias Model =
     { seed : Seed
     , galaxy : Galaxy
     , focus : Focus
+    , ecsInternals : Logic.Entity.Extra.Internals
+    , civilizationSizes : Logic.Component.Set CivilizationSize
+    , civilizationNames : Logic.Component.Set CivilizationName
+    , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     }
 
 
@@ -113,12 +125,59 @@ type PlanetType
 
 init : Flags -> ( Model, Effect Msg )
 init flags =
-    ( { seed = Random.initialSeed flags.seed0
-      , galaxy = exmptyGalaxy
-      , focus = FGalaxy
-      }
-    , Effect.none
-    )
+    let
+        initialWorld : Model
+        initialWorld =
+            { seed = Random.initialSeed flags.seed0
+            , galaxy = exmptyGalaxy
+            , focus = FGalaxy
+            , ecsInternals = Logic.Entity.Extra.initInternals
+            , civilizationSizes = Logic.Component.empty
+            , civilizationNames = Logic.Component.empty
+            , civilizationReproductionRates = Logic.Component.empty
+            }
+
+        ( _, finalWorld ) =
+            Logic.Entity.Extra.create initialWorld
+                |> Logic.Entity.with ( civilizationSizeSpec, 100 )
+                |> Logic.Entity.with
+                    ( civilizationNameSpec
+                    , { singular = "Morlock"
+                      , plural = "Morlocks"
+                      }
+                    )
+                |> Logic.Entity.with ( civilizationReproductionRateSpec, 1.1 )
+    in
+    ( finalWorld, Effect.none )
+
+
+civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
+civilizationReproductionRateSpec =
+    Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
+
+
+type alias CivilizationReproductionRate =
+    Float
+
+
+civilizationSizeSpec : Spec CivilizationSize { world | civilizationSizes : Logic.Component.Set CivilizationSize }
+civilizationSizeSpec =
+    Logic.Component.Spec .civilizationSizes (\comps world -> { world | civilizationSizes = comps })
+
+
+type alias CivilizationSize =
+    Float
+
+
+civilizationNameSpec : Spec CivilizationName { world | civilizationNames : Logic.Component.Set CivilizationName }
+civilizationNameSpec =
+    Logic.Component.Spec .civilizationNames (\comps world -> { world | civilizationNames = comps })
+
+
+type alias CivilizationName =
+    { singular : String
+    , plural : String
+    }
 
 
 exmptyGalaxy : Galaxy
@@ -135,13 +194,14 @@ exmptyGalaxy =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Time.every 3000 (\_ -> Tick)
 
 
 type Msg
     = GenerateGlaxy
     | DeleteGalaxy
     | SetFocus Focus
+    | Tick
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -170,6 +230,19 @@ update msg model =
 
         SetFocus focus ->
             ( { model | focus = focus }, Effect.none )
+
+        Tick ->
+            ( birthSystem civilizationReproductionRateSpec civilizationSizeSpec model
+            , Effect.none
+            )
+
+
+birthSystem : Spec CivilizationReproductionRate world -> Spec CivilizationSize world -> System world
+birthSystem =
+    Logic.System.step2
+        (\( reproductionRate, _ ) ( populationSize, setPopulationSize ) ->
+            setPopulationSize (reproductionRate * populationSize)
+        )
 
 
 generateGalaxy : Generator Galaxy

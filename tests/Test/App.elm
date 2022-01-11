@@ -1,6 +1,8 @@
 module Test.App exposing (..)
 
 import App exposing (Focus(..))
+import Logic.Component
+import Logic.Entity.Extra
 import Random
 import Test exposing (Test)
 import Test.Element.Query as Query
@@ -16,6 +18,10 @@ suite =
                     { seed = Random.initialSeed 0
                     , galaxy = App.exmptyGalaxy
                     , focus = FGalaxy
+                    , ecsInternals = Logic.Entity.Extra.initInternals
+                    , civilizationSizes = Logic.Component.empty
+                    , civilizationNames = Logic.Component.empty
+                    , civilizationReproductionRates = Logic.Component.empty
                     }
                     |> .body
                     |> Query.fromElement
