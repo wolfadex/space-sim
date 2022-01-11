@@ -12,6 +12,10 @@ A 4X space game.
   - Solar system generation
     - Star generation
     - Planet generation
+- Civilizations, with:
+  - Population size
+  - Reproduction rate
+  - Names (singular, plural)
 
 ## Get Started
 
