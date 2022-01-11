@@ -1,18 +1,13 @@
 module App exposing
-    ( CivilizationName
+    ( CelestialBodyForm
     , CivilizationReproductionRate
     , CivilizationSize
     , Focus(..)
     , Galaxy
     , Model
     , Msg
-    , Planet
-    , PlanetId
-    , PlanetType
-    , SolarSystem
-    , SolarSystemId
-    , Star
-    , StarId
+    , Name
+    , Orbit
     , StarSize
     , exmptyGalaxy
     , init
@@ -24,15 +19,12 @@ module App exposing
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Input as Input
-import Id exposing (Id)
-import IdDict exposing (IdDict)
-import IdSet exposing (IdSet)
 import Logic.Component exposing (Spec)
-import Logic.Entity
+import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
-import Random.Extra
+import Set exposing (Set)
 import Shared exposing (Flags)
 import Time
 import View exposing (View)
@@ -40,85 +32,38 @@ import View exposing (View)
 
 type alias Model =
     { seed : Seed
-    , galaxy : Galaxy
     , focus : Focus
+
+    -- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
     , civilizationSizes : Logic.Component.Set CivilizationSize
-    , civilizationNames : Logic.Component.Set CivilizationName
+    , named : Logic.Component.Set Name
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
+    , celestialBodyForms : Logic.Component.Set CelestialBodyForm
+    , starForms : Logic.Component.Set StarSize
+    , parents : Logic.Component.Set EntityID
+    , children : Logic.Component.Set (Set EntityID)
+    , orbits : Logic.Component.Set Orbit
+
+    -- Book keeping for plants, stars, and their grouping (solar systems)
+    , planets : Set EntityID
+    , stars : Set EntityID
+    , solarSystems : Set EntityID
     }
 
 
 type alias Galaxy =
-    { solarSystems : IdDict SolarSystem
-    , stars : IdDict Star
-    , planets : IdDict Planet
-    }
-
-
-type alias SolarSystemId =
-    Id SolarSystem
-
-
-type alias StarId =
-    Id Star
-
-
-type alias PlanetId =
-    Id Planet
-
-
-type SolarSystem
-    = SolarSystem SolarSystemData
-
-
-type alias SolarSystemData =
-    { stars : IdSet
-    , planets : IdSet
-    }
-
-
-type Star
-    = Star StarData
-
-
-type alias StarData =
-    { size : StarSize
-    , solarSystem : SolarSystemId
+    { planets : Set EntityID
+    , stars : Set EntityID
+    , solarSystems : Set EntityID
     }
 
 
 type Focus
     = FGalaxy
-    | FSolarSystem SolarSystemId
-    | FStar StarId
-    | FPlanet PlanetId
-
-
-type StarSize
-    = Yellow
-    | RedGiant
-    | BlueGiant
-    | WhiteDwarf
-    | BlackDwarf
-
-
-type Planet
-    = Planet PlanetData
-
-
-type alias PlanetData =
-    { type_ : PlanetType
-    , orbit : Int
-    , solarSystem : SolarSystemId
-    , radius : Float
-    , percentWater : Float
-    }
-
-
-type PlanetType
-    = Rocky
-    | Gas
+    | FSolarSystem EntityID
+    | FStar EntityID
+    | FPlanet EntityID
 
 
 
@@ -131,21 +76,28 @@ init flags =
         initialWorld : Model
         initialWorld =
             { seed = Random.initialSeed flags.seed0
-            , galaxy = exmptyGalaxy
             , focus = FGalaxy
             , ecsInternals = Logic.Entity.Extra.initInternals
             , civilizationSizes = Logic.Component.empty
-            , civilizationNames = Logic.Component.empty
+            , named = Logic.Component.empty
             , civilizationReproductionRates = Logic.Component.empty
+            , celestialBodyForms = Logic.Component.empty
+            , starForms = Logic.Component.empty
+            , parents = Logic.Component.empty
+            , children = Logic.Component.empty
+            , orbits = Logic.Component.empty
+            , planets = Set.empty
+            , stars = Set.empty
+            , solarSystems = Set.empty
             }
 
         ( _, finalWorld ) =
             Logic.Entity.Extra.create initialWorld
                 |> Logic.Entity.with ( civilizationSizeSpec, 100 )
                 |> Logic.Entity.with
-                    ( civilizationNameSpec
+                    ( namedSpec
                     , { singular = "Morlock"
-                      , plural = "Morlocks"
+                      , plural = Just "Morlocks"
                       }
                     )
                 |> Logic.Entity.with ( civilizationReproductionRateSpec, 1.1 )
@@ -171,22 +123,64 @@ type alias CivilizationSize =
     Float
 
 
-civilizationNameSpec : Spec CivilizationName { world | civilizationNames : Logic.Component.Set CivilizationName }
-civilizationNameSpec =
-    Logic.Component.Spec .civilizationNames (\comps world -> { world | civilizationNames = comps })
+namedSpec : Spec Name { world | named : Logic.Component.Set Name }
+namedSpec =
+    Logic.Component.Spec .named (\comps world -> { world | named = comps })
 
 
-type alias CivilizationName =
+type alias Name =
     { singular : String
-    , plural : String
+    , plural : Maybe String
     }
+
+
+celestialBodySpec : Spec CelestialBodyForm { world | celestialBodyForms : Logic.Component.Set CelestialBodyForm }
+celestialBodySpec =
+    Logic.Component.Spec .celestialBodyForms (\comps world -> { world | celestialBodyForms = comps })
+
+
+type CelestialBodyForm
+    = Rocky
+    | Gas
+
+
+orbitSpec : Spec Orbit { world | orbits : Logic.Component.Set Orbit }
+orbitSpec =
+    Logic.Component.Spec .orbits (\comps world -> { world | orbits = comps })
+
+
+type alias Orbit =
+    Int
+
+
+starFormSpec : Spec StarSize { world | starForms : Logic.Component.Set StarSize }
+starFormSpec =
+    Logic.Component.Spec .starForms (\comps world -> { world | starForms = comps })
+
+
+type StarSize
+    = Yellow
+    | RedGiant
+    | BlueGiant
+    | WhiteDwarf
+    | BlackDwarf
+
+
+parentSpec : Spec EntityID { world | parents : Logic.Component.Set EntityID }
+parentSpec =
+    Logic.Component.Spec .parents (\comps world -> { world | parents = comps })
+
+
+childrenSpec : Spec (Set EntityID) { world | children : Logic.Component.Set (Set EntityID) }
+childrenSpec =
+    Logic.Component.Spec .children (\comps world -> { world | children = comps })
 
 
 exmptyGalaxy : Galaxy
 exmptyGalaxy =
-    { solarSystems = IdDict.empty
-    , stars = IdDict.empty
-    , planets = IdDict.empty
+    { solarSystems = Set.empty
+    , stars = Set.empty
+    , planets = Set.empty
     }
 
 
@@ -211,24 +205,18 @@ update msg model =
     case msg of
         GenerateGlaxy ->
             let
-                ( galaxy, seed ) =
-                    Random.step generateGalaxy model.seed
+                ( modelWithNewEntities, seed ) =
+                    Random.step (generateGalaxy model) model.seed
             in
-            ( { model
-                | seed = seed
-                , galaxy =
-                    { solarSystems = galaxy.solarSystems
-                    , stars = galaxy.stars
-                    , planets = galaxy.planets
-                    }
-              }
+            ( { modelWithNewEntities | seed = seed }
             , Effect.none
             )
 
         DeleteGalaxy ->
-            ( { model | galaxy = exmptyGalaxy, focus = FGalaxy }
-            , Effect.none
-            )
+            -- ( { model | galaxy = exmptyGalaxy, focus = FGalaxy }
+            -- , Effect.none
+            -- )
+            Debug.todo "TODO"
 
         SetFocus focus ->
             ( { model | focus = focus }, Effect.none )
@@ -247,65 +235,37 @@ birthSystem =
         )
 
 
-generateGalaxy : Generator Galaxy
-generateGalaxy =
-    Random.int 10 20
+generateGalaxy : Model -> Generator Model
+generateGalaxy model =
+    generateManyEntities 10 20 model generateSolarSystem
+        |> Random.map Tuple.second
+
+
+generateSolarSystem : ( EntityID, Model ) -> Generator ( EntityID, Model )
+generateSolarSystem ( solarSystemId, world ) =
+    generateManyEntities 1 3 world (generateStar solarSystemId)
         |> Random.andThen
-            (List.range 0
-                >> List.map
-                    (\_ ->
-                        Random.andThen generateSolarSystem
-                            Id.generate
+            (\( starIds, starWorld ) ->
+                Random.map
+                    (\( planetIds, finalWorld ) ->
+                        ( solarSystemId
+                        , { finalWorld | solarSystems = Set.insert solarSystemId finalWorld.solarSystems }
+                        )
+                            |> Logic.Entity.with ( childrenSpec, Set.union planetIds starIds )
                     )
-                >> Random.Extra.combine
-            )
-        |> Random.map
-            (List.foldl
-                (\galaxy finalGalaxy ->
-                    { solarSystems = IdDict.union finalGalaxy.solarSystems galaxy.solarSystems
-                    , stars = IdDict.union finalGalaxy.stars galaxy.stars
-                    , planets = IdDict.union finalGalaxy.planets galaxy.planets
-                    }
-                )
-                exmptyGalaxy
+                    (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
             )
 
 
-generateSolarSystem : SolarSystemId -> Generator Galaxy
-generateSolarSystem solarSystemId =
-    Random.map2
-        (\stars planets ->
-            { solarSystems =
-                IdDict.singleton solarSystemId
-                    (SolarSystem
-                        { stars = IdSet.fromList (IdDict.keys stars)
-                        , planets = IdSet.fromList (IdDict.keys planets)
-                        }
-                    )
-            , stars = stars
-            , planets = planets
-            }
+generateStar : EntityID -> ( EntityID, Model ) -> Generator ( EntityID, Model )
+generateStar solarSystemId ( starId, world ) =
+    Random.map
+        (\size ->
+            ( starId, world )
+                |> Logic.Entity.with ( starFormSpec, size )
+                |> Logic.Entity.with ( parentSpec, solarSystemId )
+                |> Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars })
         )
-        (generateMinMax 1 3 (generateStar solarSystemId)
-            |> Random.map IdDict.fromList
-        )
-        (generateMinMax 1 12 (generatePlanet solarSystemId)
-            |> Random.map IdDict.fromList
-        )
-
-
-generateStar : SolarSystemId -> Generator ( StarId, Star )
-generateStar solarSystemId =
-    Random.map2
-        (\id size ->
-            ( id
-            , Star
-                { size = size
-                , solarSystem = solarSystemId
-                }
-            )
-        )
-        Id.generate
         (Random.uniform Yellow
             [ RedGiant
             , BlueGiant
@@ -315,34 +275,57 @@ generateStar solarSystemId =
         )
 
 
-generatePlanet : SolarSystemId -> Generator ( PlanetId, Planet )
-generatePlanet solarSystemId =
-    Random.uniform Rocky [ Gas ]
+generatePlanet : EntityID -> ( EntityID, Model ) -> Generator ( EntityID, Model )
+generatePlanet solarSystemId ( planetId, world ) =
+    Random.uniform Rocky
+        [ Gas
+        ]
         |> Random.andThen
-            (\type_ ->
-                Random.map4
-                    (\id orbit radius percentWater ->
-                        ( id
-                        , Planet
-                            { type_ = type_
-                            , orbit = orbit
-                            , solarSystem = solarSystemId
-                            , radius = radius
-                            , percentWater = percentWater
-                            }
-                        )
+            (\planetType ->
+                Random.map
+                    (\orbit ->
+                        ( planetId, world )
+                            |> Logic.Entity.with ( celestialBodySpec, planetType )
+                            |> Logic.Entity.with ( orbitSpec, orbit )
+                            |> Logic.Entity.with ( parentSpec, solarSystemId )
+                            |> Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
                     )
-                    Id.generate
-                    (case type_ of
+                    (case planetType of
                         Rocky ->
                             Random.int 0 7
 
                         Gas ->
                             Random.int 5 12
                     )
-                    (generatePlanetRadius type_)
-                    generatePlanetWaterPercent
             )
+
+
+
+-- Random.uniform Rocky [ Gas ]
+--     |> Random.andThen
+--         (\type_ ->
+--             Random.map4
+--                 (\id orbit radius percentWater ->
+--                     ( id
+--                     , Planet
+--                         { type_ = type_
+--                         , orbit = orbit
+--                         , solarSystem = solarSystemId
+--                         , radius = radius
+--                         , percentWater = percentWater
+--                         }
+--                     )
+--                 )
+--                 Id.generate
+--                 (case type_ of
+--                     Rocky ->
+--                         Random.int 0 7
+--                     Gas ->
+--                         Random.int 5 12
+--                 )
+--                 (generatePlanetRadius type_)
+--                 generatePlanetWaterPercent
+--         )
 
 
 {-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
@@ -358,7 +341,7 @@ The `Rocky` radius is based on exaggerated Mercurey and Earth
 The 'Gas' radius is based on exaggerated Neptude and Jupiter
 
 -}
-generatePlanetRadius : PlanetType -> Generator Float
+generatePlanetRadius : CelestialBodyForm -> Generator Float
 generatePlanetRadius type_ =
     case type_ of
         Rocky ->
@@ -368,14 +351,30 @@ generatePlanetRadius type_ =
             Random.float 22000.0 90000.0
 
 
-{-| Generate a list with a random size between minimum and maximum.
-Order doesn't matter as the function will sort the values.
+{-| Generate a random number of entities between minimum and maximum.
+Order of minimum and maximum doesn't matter as the function will sort the values.
 -}
-generateMinMax : Int -> Int -> Generator a -> Generator (List a)
-generateMinMax minimum maximum generator =
-    Random.andThen
-        (\count -> Random.list count generator)
-        (Random.int (min minimum maximum) (max minimum maximum))
+generateManyEntities : Int -> Int -> Model -> (( EntityID, Model ) -> Generator ( EntityID, Model )) -> Generator ( Set EntityID, Model )
+generateManyEntities minimum maximum world fn =
+    Random.int (min minimum maximum) (max minimum maximum)
+        |> Random.andThen
+            (\count ->
+                List.foldl
+                    (\_ ->
+                        Random.andThen
+                            (\( ids, nextWorld ) ->
+                                Random.map (Tuple.mapFirst (\id -> Set.insert id ids))
+                                    (generateEntity nextWorld fn)
+                            )
+                    )
+                    (Random.constant ( Set.empty, world ))
+                    (List.range 1 count)
+            )
+
+
+generateEntity : Model -> (( EntityID, Model ) -> Generator ( EntityID, Model )) -> Generator ( EntityID, Model )
+generateEntity world fn =
+    fn (Logic.Entity.Extra.create world)
 
 
 
@@ -400,31 +399,28 @@ view model =
                 }
             , case model.focus of
                 FGalaxy ->
-                    viewGalaxy model.galaxy
+                    viewGalaxy model
 
                 FSolarSystem id ->
-                    case IdDict.get id model.galaxy.solarSystems of
-                        Nothing ->
-                            text "Missing solar system"
+                    if Set.member id model.solarSystems then
+                        viewSlice (viewSolarSystem model id)
 
-                        Just solarSystem ->
-                            viewSlice (viewSolarSystem model.galaxy ( id, solarSystem ))
+                    else
+                        text "Missing solar system"
 
                 FStar starId ->
-                    case IdDict.get starId model.galaxy.stars of
-                        Nothing ->
-                            text "Missing star"
+                    if Set.member starId model.stars then
+                        viewSlice (viewBody model viewStar starId)
 
-                        Just star ->
-                            viewSlice (viewBody (\(Star s) -> s) ( starId, star ) viewStar)
+                    else
+                        text "Missing star"
 
                 FPlanet planetId ->
-                    case IdDict.get planetId model.galaxy.planets of
-                        Nothing ->
-                            text "Missing planet"
+                    if Set.member planetId model.planets then
+                        viewSlice (viewBody model viewPlanet planetId)
 
-                        Just planet ->
-                            viewSlice (viewBody (\(Planet p) -> p) ( planetId, planet ) viewPlanet)
+                    else
+                        text "Missing planet"
             ]
     }
 
@@ -442,110 +438,114 @@ viewSlice slice =
         ]
 
 
-viewBody : (a -> { r | solarSystem : SolarSystemId }) -> ( Id a, a ) -> (( Id a, a ) -> Element Msg) -> Element Msg
-viewBody fn (( _, body ) as arg) bodyFn =
+viewBody : Model -> (Model -> EntityID -> Element Msg) -> EntityID -> Element Msg
+viewBody model bodyFn id =
     column
         [ spacing 8 ]
         [ Input.button
             []
             { label = text "View System"
             , onPress =
-                fn body
-                    |> .solarSystem
-                    |> FSolarSystem
-                    |> SetFocus
-                    |> Just
+                Maybe.map (FSolarSystem >> SetFocus)
+                    (Logic.Component.get id model.parents)
             }
-        , bodyFn arg
+        , bodyFn model id
         ]
 
 
-viewGalaxy : Galaxy -> Element Msg
-viewGalaxy galaxy =
-    IdDict.toList galaxy.solarSystems
-        |> List.map (viewSolarSystem galaxy)
+viewGalaxy : Model -> Element Msg
+viewGalaxy model =
+    Set.toList model.solarSystems
+        |> List.map (viewSolarSystem model)
         |> column []
 
 
-viewSolarSystem : Galaxy -> ( SolarSystemId, SolarSystem ) -> Element Msg
-viewSolarSystem galaxy ( solarSystemId, SolarSystem solarSystem ) =
+viewSolarSystem : Model -> EntityID -> Element Msg
+viewSolarSystem model solarSystemId =
     let
-        getCelestialBodies : (Galaxy -> IdDict a) -> IdSet -> List ( Id a, a )
-        getCelestialBodies bodyType =
-            IdSet.toList
-                >> List.filterMap
-                    (\bodyId ->
-                        IdDict.get bodyId (bodyType galaxy)
-                            |> Maybe.map (Tuple.pair bodyId)
+        ( stars, planets ) =
+            Logic.Component.get solarSystemId model.children
+                |> Maybe.map
+                    (\children ->
+                        ( Set.intersect children model.stars
+                        , Set.intersect children model.planets
+                        )
                     )
-
-        stars : List ( StarId, Star )
-        stars =
-            getCelestialBodies .stars solarSystem.stars
-
-        planets : List ( PlanetId, Planet )
-        planets =
-            getCelestialBodies .planets solarSystem.planets
+                |> Maybe.withDefault ( Set.empty, Set.empty )
     in
     column
         [ padding 8 ]
         [ Input.button
             []
-            { label = text "Solar System:"
+            { label = text ("Solar System (" ++ String.fromInt solarSystemId ++ ")")
             , onPress = Just (SetFocus (FSolarSystem solarSystemId))
             }
         , column [ padding 8 ]
             [ text "Stars:"
             , stars
-                |> List.map viewStar
+                |> Set.toList
+                |> List.map (viewStar model)
                 |> column [ padding 8 ]
             ]
         , column [ padding 8 ]
             [ text "Planets:"
             , planets
-                |> List.sortBy (\( _, Planet { orbit } ) -> orbit)
-                |> List.map viewPlanet
+                |> Set.toList
+                |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId model.orbits))
+                |> List.sortBy (\( _, orbit ) -> orbit)
+                |> List.map (Tuple.first >> viewPlanet model)
                 |> column [ padding 8 ]
             ]
         ]
 
 
-viewStar : ( StarId, Star ) -> Element Msg
-viewStar ( id, Star star ) =
-    Input.button
-        []
-        { label =
-            text <|
-                case star.size of
-                    Yellow ->
-                        "Yellow"
+viewStar : Model -> EntityID -> Element Msg
+viewStar model starId =
+    case Logic.Component.get starId model.starForms of
+        Nothing ->
+            text "Your star is missing!"
 
-                    RedGiant ->
-                        "Red Giant"
+        Just size ->
+            Input.button
+                []
+                { label =
+                    text <|
+                        (\s -> s ++ " (" ++ String.fromInt starId ++ ")") <|
+                            case size of
+                                Yellow ->
+                                    "Yellow"
 
-                    BlueGiant ->
-                        "Blue Giant"
+                                RedGiant ->
+                                    "Red Giant"
 
-                    WhiteDwarf ->
-                        "White Dwarf"
+                                BlueGiant ->
+                                    "Blue Giant"
 
-                    BlackDwarf ->
-                        "Black Dwarf"
-        , onPress = Just (SetFocus (FStar id))
-        }
+                                WhiteDwarf ->
+                                    "White Dwarf"
+
+                                BlackDwarf ->
+                                    "Black Dwarf"
+                , onPress = Just (SetFocus (FStar starId))
+                }
 
 
-viewPlanet : ( PlanetId, Planet ) -> Element Msg
-viewPlanet ( id, Planet planet ) =
-    Input.button
-        []
-        { label =
-            text <|
-                case planet.type_ of
-                    Rocky ->
-                        "Rocky"
+viewPlanet : Model -> EntityID -> Element Msg
+viewPlanet model planetId =
+    case Logic.Component.get planetId model.celestialBodyForms of
+        Nothing ->
+            text "Your planet is missing!"
 
-                    Gas ->
-                        "Gas"
-        , onPress = Just (SetFocus (FPlanet id))
-        }
+        Just planetType ->
+            Input.button
+                []
+                { label =
+                    text <|
+                        case planetType of
+                            Rocky ->
+                                "Rocky"
+
+                            Gas ->
+                                "Gas"
+                , onPress = Just (SetFocus (FPlanet planetId))
+                }
