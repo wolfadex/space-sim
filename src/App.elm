@@ -343,7 +343,7 @@ generateMinMax min max generator =
 
 view : Model -> View Msg
 view model =
-    { title = "Hello, Elm!"
+    { title = "Hello Space!"
     , body =
         column
             []
