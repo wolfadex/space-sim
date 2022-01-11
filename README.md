@@ -1,6 +1,6 @@
 # Space Sim
 
-⚠️ WIP ⚠️
+⚠️ WIP ⚠️ ![Tests and Code Review](https://github.com/wolfadex/space-sim/actions/workflows/ci/badge.svg)
 
 A 4X space game.
 
