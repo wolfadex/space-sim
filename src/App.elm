@@ -1,17 +1,10 @@
 module App exposing
-    ( CelestialBodyForm
-    , CivilizationReproductionRate
-    , CivilizationSize
-    , Focus(..)
+    ( Focus(..)
     , Model
     , Msg
-    , Name
-    , Orbit
-    , StarSize
-    , Water
+    , emptyWorldModel
     , init
     , subscriptions
-    , emptyWorldModel
     , update
     , view
     )
@@ -19,6 +12,16 @@ module App exposing
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Input as Input
+import Game.Components
+    exposing
+        ( CelestialBodyForm(..)
+        , CivilizationReproductionRate
+        , Name
+        , Orbit
+        , ScaledNumber(..)
+        , StarSize(..)
+        , Water
+        )
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -36,7 +39,7 @@ type alias Model =
 
     -- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
-    , civilizationSizes : Logic.Component.Set CivilizationSize
+    , civilizationSizes : Logic.Component.Set ScaledNumber
     , named : Logic.Component.Set Name
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , celestialBodyForms : Logic.Component.Set CelestialBodyForm
@@ -51,6 +54,7 @@ type alias Model =
     , planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
+    , playerCiv : EntityID
     }
 
 
@@ -83,6 +87,7 @@ emptyWorldModel =
     , planets = Set.empty
     , stars = Set.empty
     , solarSystems = Set.empty
+    , playerCiv = -1
     }
 
 
@@ -93,103 +98,18 @@ init flags =
         initialWorld =
             { emptyWorldModel | seed = Random.initialSeed flags.seed0 }
 
-        ( _, finalWorld ) =
+        ( playerCiv, finalWorld ) =
             Logic.Entity.Extra.create initialWorld
-                |> Logic.Entity.with ( civilizationSizeSpec, 100 )
+                |> Logic.Entity.with ( Game.Components.civilizationSizeSpec, Millions 100 )
                 |> Logic.Entity.with
-                    ( namedSpec
+                    ( Game.Components.namedSpec
                     , { singular = "Morlock"
                       , plural = Just "Morlocks"
                       }
                     )
-                |> Logic.Entity.with ( civilizationReproductionRateSpec, 1.1 )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
     in
-    ( finalWorld, Effect.none )
-
-
-civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
-civilizationReproductionRateSpec =
-    Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
-
-
-type alias CivilizationReproductionRate =
-    Float
-
-
-civilizationSizeSpec : Spec CivilizationSize { world | civilizationSizes : Logic.Component.Set CivilizationSize }
-civilizationSizeSpec =
-    Logic.Component.Spec .civilizationSizes (\comps world -> { world | civilizationSizes = comps })
-
-
-type alias CivilizationSize =
-    Float
-
-
-namedSpec : Spec Name { world | named : Logic.Component.Set Name }
-namedSpec =
-    Logic.Component.Spec .named (\comps world -> { world | named = comps })
-
-
-type alias Name =
-    { singular : String
-    , plural : Maybe String
-    }
-
-
-celestialBodySpec : Spec CelestialBodyForm { world | celestialBodyForms : Logic.Component.Set CelestialBodyForm }
-celestialBodySpec =
-    Logic.Component.Spec .celestialBodyForms (\comps world -> { world | celestialBodyForms = comps })
-
-
-type CelestialBodyForm
-    = Rocky
-    | Gas
-
-
-orbitSpec : Spec Orbit { world | orbits : Logic.Component.Set Orbit }
-orbitSpec =
-    Logic.Component.Spec .orbits (\comps world -> { world | orbits = comps })
-
-
-type alias Orbit =
-    Int
-
-
-starFormSpec : Spec StarSize { world | starForms : Logic.Component.Set StarSize }
-starFormSpec =
-    Logic.Component.Spec .starForms (\comps world -> { world | starForms = comps })
-
-
-type StarSize
-    = Yellow
-    | RedGiant
-    | BlueGiant
-    | WhiteDwarf
-    | BlackDwarf
-
-
-parentSpec : Spec EntityID { world | parents : Logic.Component.Set EntityID }
-parentSpec =
-    Logic.Component.Spec .parents (\comps world -> { world | parents = comps })
-
-
-childrenSpec : Spec (Set EntityID) { world | children : Logic.Component.Set (Set EntityID) }
-childrenSpec =
-    Logic.Component.Spec .children (\comps world -> { world | children = comps })
-
-
-waterSpec : Spec Water { world | waterContent : Logic.Component.Set Water }
-waterSpec =
-    Logic.Component.Spec .waterContent (\comps world -> { world | waterContent = comps })
-
-
-planetSizeSpec : Spec Float { world | planetSize : Logic.Component.Set Float }
-planetSizeSpec =
-    Logic.Component.Spec .planetSize (\comps world -> { world | planetSize = comps })
-
-
-type alias Water =
-    Float
+    ( { finalWorld | playerCiv = playerCiv }, Effect.none )
 
 
 
@@ -241,28 +161,28 @@ update msg model =
             ( { model | focus = focus }, Effect.none )
 
         Tick ->
-            ( birthSystem civilizationReproductionRateSpec civilizationSizeSpec model
+            ( birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationSizeSpec model
             , Effect.none
             )
 
 
 removeSpecs : ( EntityID, Model ) -> ( EntityID, Model )
 removeSpecs =
-    Logic.Entity.remove civilizationReproductionRateSpec
-        >> Logic.Entity.remove civilizationSizeSpec
-        >> Logic.Entity.remove namedSpec
-        >> Logic.Entity.remove celestialBodySpec
-        >> Logic.Entity.remove orbitSpec
-        >> Logic.Entity.remove starFormSpec
-        >> Logic.Entity.remove parentSpec
-        >> Logic.Entity.remove childrenSpec
+    Logic.Entity.remove Game.Components.civilizationReproductionRateSpec
+        >> Logic.Entity.remove Game.Components.civilizationSizeSpec
+        >> Logic.Entity.remove Game.Components.namedSpec
+        >> Logic.Entity.remove Game.Components.celestialBodySpec
+        >> Logic.Entity.remove Game.Components.orbitSpec
+        >> Logic.Entity.remove Game.Components.starFormSpec
+        >> Logic.Entity.remove Game.Components.parentSpec
+        >> Logic.Entity.remove Game.Components.childrenSpec
 
 
-birthSystem : Spec CivilizationReproductionRate world -> Spec CivilizationSize world -> System world
+birthSystem : Spec CivilizationReproductionRate world -> Spec ScaledNumber world -> System world
 birthSystem =
     Logic.System.step2
         (\( reproductionRate, _ ) ( populationSize, setPopulationSize ) ->
-            setPopulationSize (reproductionRate * populationSize)
+            setPopulationSize (Game.Components.scaledMultiply reproductionRate populationSize)
         )
 
 
@@ -282,7 +202,7 @@ generateSolarSystem ( solarSystemId, world ) =
                         ( solarSystemId
                         , { finalWorld | solarSystems = Set.insert solarSystemId finalWorld.solarSystems }
                         )
-                            |> Logic.Entity.with ( childrenSpec, Set.union planetIds starIds )
+                            |> Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
                     )
                     (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
             )
@@ -293,8 +213,8 @@ generateStar solarSystemId ( starId, world ) =
     Random.map
         (\size ->
             ( starId, world )
-                |> Logic.Entity.with ( starFormSpec, size )
-                |> Logic.Entity.with ( parentSpec, solarSystemId )
+                |> Logic.Entity.with ( Game.Components.starFormSpec, size )
+                |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
                 |> Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars })
         )
         (Random.uniform Yellow
@@ -316,11 +236,11 @@ generatePlanet solarSystemId ( planetId, world ) =
                 Random.map3
                     (\orbit water size ->
                         ( planetId, world )
-                            |> Logic.Entity.with ( celestialBodySpec, planetType )
-                            |> Logic.Entity.with ( orbitSpec, orbit )
-                            |> Logic.Entity.with ( waterSpec, water )
-                            |> Logic.Entity.with ( planetSizeSpec, size )
-                            |> Logic.Entity.with ( parentSpec, solarSystemId )
+                            |> Logic.Entity.with ( Game.Components.celestialBodySpec, planetType )
+                            |> Logic.Entity.with ( Game.Components.orbitSpec, orbit )
+                            |> Logic.Entity.with ( Game.Components.waterSpec, water )
+                            |> Logic.Entity.with ( Game.Components.planetSizeSpec, size )
+                            |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
                             |> Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
                     )
                     (case planetType of
@@ -333,34 +253,6 @@ generatePlanet solarSystemId ( planetId, world ) =
                     generatePlanetWaterPercent
                     (generatePlanetRadius planetType)
             )
-
-
-
--- Random.uniform Rocky [ Gas ]
---     |> Random.andThen
---         (\type_ ->
---             Random.map4
---                 (\id orbit radius percentWater ->
---                     ( id
---                     , Planet
---                         { type_ = type_
---                         , orbit = orbit
---                         , solarSystem = solarSystemId
---                         , radius = radius
---                         , percentWater = percentWater
---                         }
---                     )
---                 )
---                 Id.generate
---                 (case type_ of
---                     Rocky ->
---                         Random.int 0 7
---                     Gas ->
---                         Random.int 5 12
---                 )
---                 (generatePlanetRadius type_)
---                 generatePlanetWaterPercent
---         )
 
 
 {-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
@@ -420,42 +312,46 @@ view : Model -> View Msg
 view model =
     { title = "Hello Space!"
     , body =
-        column
-            []
-            [ Input.button
-                []
-                { label = text "Generate"
-                , onPress = Just GenerateGlaxy
-                }
-            , Input.button
-                []
-                { label = text "Delete"
-                , onPress = Just DeleteGalaxy
-                }
-            , case model.focus of
-                FGalaxy ->
-                    viewGalaxy model
+        row
+            [ width fill ]
+            [ column
+                [ padding 16 ]
+                [ Input.button
+                    []
+                    { label = text "Generate"
+                    , onPress = Just GenerateGlaxy
+                    }
+                , Input.button
+                    []
+                    { label = text "Delete"
+                    , onPress = Just DeleteGalaxy
+                    }
+                , case model.focus of
+                    FGalaxy ->
+                        viewGalaxy model
 
-                FSolarSystem id ->
-                    if Set.member id model.solarSystems then
-                        viewSlice (viewSolarSystem model id)
+                    FSolarSystem id ->
+                        if Set.member id model.solarSystems then
+                            viewSlice (viewSolarSystem model id)
 
-                    else
-                        text "Missing solar system"
+                        else
+                            text "Missing solar system"
 
-                FStar starId ->
-                    if Set.member starId model.stars then
-                        viewSlice (viewBody model viewStar starId)
+                    FStar starId ->
+                        if Set.member starId model.stars then
+                            viewSlice (viewBody model viewStar starId)
 
-                    else
-                        text "Missing star"
+                        else
+                            text "Missing star"
 
-                FPlanet planetId ->
-                    if Set.member planetId model.planets then
-                        viewSlice (viewBody model viewPlanet planetId)
+                    FPlanet planetId ->
+                        if Set.member planetId model.planets then
+                            viewSlice (viewBody model viewPlanet planetId)
 
-                    else
-                        text "Missing planet"
+                        else
+                            text "Missing planet"
+                ]
+            , viewPlayerCivilization model model.playerCiv
             ]
     }
 
@@ -584,3 +480,26 @@ viewPlanet model planetId =
                                 "Gas"
                 , onPress = Just (SetFocus (FPlanet planetId))
                 }
+
+
+viewPlayerCivilization : Model -> EntityID -> Element Msg
+viewPlayerCivilization model civId =
+    column
+        [ padding 16 ]
+        [ case Logic.Component.get2 civId model.named model.civilizationSizes of
+            Nothing ->
+                text "Your civ never reproduces"
+
+            Just ( name, size ) ->
+                text ("The " ++ Maybe.withDefault name.singular name.plural ++ " have " ++ sizeToString size ++ " citizens.")
+        ]
+
+
+sizeToString : ScaledNumber -> String
+sizeToString size =
+    case size of
+        Millions f ->
+            String.fromFloat f ++ " million"
+
+        Billions f ->
+            String.fromFloat f ++ " billion"
