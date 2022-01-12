@@ -2,6 +2,7 @@ module App exposing
     ( Focus(..)
     , Model
     , Msg
+    , TickRate
     , emptyWorldModel
     , init
     , subscriptions
@@ -30,12 +31,18 @@ import Random exposing (Generator, Seed)
 import Set exposing (Set)
 import Shared exposing (Flags)
 import Time
+import Ui.Button
 import View exposing (View)
+
+
+
+---- INIT ----
 
 
 type alias Model =
     { seed : Seed
     , focus : Focus
+    , tickRate : TickRate
 
     -- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -65,14 +72,18 @@ type Focus
     | FPlanet EntityID
 
 
-
----- INIT ----
+type TickRate
+    = Paused
+    | Normal
+    | Fast
+    | ExtraFast
 
 
 emptyWorldModel : Model
 emptyWorldModel =
     { seed = Random.initialSeed 0
     , focus = FGalaxy
+    , tickRate = Normal
     , ecsInternals = Logic.Entity.Extra.initInternals
     , civilizationSizes = Logic.Component.empty
     , named = Logic.Component.empty
@@ -117,8 +128,36 @@ init flags =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Time.every 3000 (\_ -> Tick)
+subscriptions model =
+    case model.tickRate of
+        Paused ->
+            Sub.none
+
+        _ ->
+            Time.every (tickRateToMs model.tickRate) (\_ -> Tick)
+
+
+tickRateToMs : TickRate -> Float
+tickRateToMs tickRate =
+    let
+        -- 3 seconds
+        baseTickTime : Float
+        baseTickTime =
+            3000
+    in
+    case tickRate of
+        Paused ->
+            1 / 0
+
+        -- Infinity
+        Normal ->
+            baseTickTime
+
+        Fast ->
+            baseTickTime / 2
+
+        ExtraFast ->
+            baseTickTime / 4
 
 
 type Msg
@@ -126,11 +165,15 @@ type Msg
     | DeleteGalaxy
     | SetFocus Focus
     | Tick
+    | SetTickRate TickRate
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
+        SetTickRate tickRate ->
+            ( { model | tickRate = tickRate }, Effect.none )
+
         GenerateGlaxy ->
             let
                 ( modelWithNewEntities, seed ) =
@@ -312,46 +355,73 @@ view : Model -> View Msg
 view model =
     { title = "Hello Space!"
     , body =
-        row
+        column
             [ width fill ]
-            [ column
-                [ padding 16 ]
-                [ Input.button
-                    []
-                    { label = text "Generate"
-                    , onPress = Just GenerateGlaxy
+            [ row
+                [ padding 16, spacing 16 ]
+                [ text "Game Speed:"
+                , Ui.Button.toggle
+                    { label = text "||"
+                    , onPress = Just (SetTickRate Paused)
+                    , enabled = model.tickRate == Paused
                     }
-                , Input.button
-                    []
-                    { label = text "Delete"
-                    , onPress = Just DeleteGalaxy
+                , Ui.Button.toggle
+                    { label = text ">"
+                    , onPress = Just (SetTickRate Normal)
+                    , enabled = model.tickRate == Normal
                     }
-                , case model.focus of
-                    FGalaxy ->
-                        viewGalaxy model
-
-                    FSolarSystem id ->
-                        if Set.member id model.solarSystems then
-                            viewSlice (viewSolarSystem model id)
-
-                        else
-                            text "Missing solar system"
-
-                    FStar starId ->
-                        if Set.member starId model.stars then
-                            viewSlice (viewBody model viewStar starId)
-
-                        else
-                            text "Missing star"
-
-                    FPlanet planetId ->
-                        if Set.member planetId model.planets then
-                            viewSlice (viewBody model viewPlanet planetId)
-
-                        else
-                            text "Missing planet"
+                , Ui.Button.toggle
+                    { label = text ">>"
+                    , onPress = Just (SetTickRate Fast)
+                    , enabled = model.tickRate == Fast
+                    }
+                , Ui.Button.toggle
+                    { label = text ">>>"
+                    , onPress = Just (SetTickRate ExtraFast)
+                    , enabled = model.tickRate == ExtraFast
+                    }
                 ]
-            , viewPlayerCivilization model model.playerCiv
+            , row
+                [ width fill ]
+                [ column
+                    [ padding 16 ]
+                    [ Input.button
+                        []
+                        { label = text "Generate"
+                        , onPress = Just GenerateGlaxy
+                        }
+                    , Input.button
+                        []
+                        { label = text "Delete"
+                        , onPress = Just DeleteGalaxy
+                        }
+                    , case model.focus of
+                        FGalaxy ->
+                            viewGalaxy model
+
+                        FSolarSystem id ->
+                            if Set.member id model.solarSystems then
+                                viewSlice (viewSolarSystem model id)
+
+                            else
+                                text "Missing solar system"
+
+                        FStar starId ->
+                            if Set.member starId model.stars then
+                                viewSlice (viewBody model viewStar starId)
+
+                            else
+                                text "Missing star"
+
+                        FPlanet planetId ->
+                            if Set.member planetId model.planets then
+                                viewSlice (viewBody model viewPlanet planetId)
+
+                            else
+                                text "Missing planet"
+                    ]
+                , viewPlayerCivilization model model.playerCiv
+                ]
             ]
     }
 

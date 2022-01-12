@@ -64,7 +64,7 @@ scaledMultiply n scaled =
                 product =
                     n * f
             in
-            if String.length (String.fromInt (floor product)) < 2 then
+            if String.length (String.fromInt (floor product)) < 10 then
                 Millions (product * 1000)
 
             else
