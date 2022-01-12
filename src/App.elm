@@ -3,15 +3,15 @@ module App exposing
     , CivilizationReproductionRate
     , CivilizationSize
     , Focus(..)
-    , Galaxy
     , Model
     , Msg
     , Name
     , Orbit
     , StarSize
-    , exmptyGalaxy
+    , Water
     , init
     , subscriptions
+    , emptyWorldModel
     , update
     , view
     )
@@ -44,16 +44,11 @@ type alias Model =
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
     , orbits : Logic.Component.Set Orbit
+    , waterContent : Logic.Component.Set Water
+    , planetSize : Logic.Component.Set Float
 
     -- Book keeping for plants, stars, and their grouping (solar systems)
     , planets : Set EntityID
-    , stars : Set EntityID
-    , solarSystems : Set EntityID
-    }
-
-
-type alias Galaxy =
-    { planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
     }
@@ -70,26 +65,33 @@ type Focus
 ---- INIT ----
 
 
+emptyWorldModel : Model
+emptyWorldModel =
+    { seed = Random.initialSeed 0
+    , focus = FGalaxy
+    , ecsInternals = Logic.Entity.Extra.initInternals
+    , civilizationSizes = Logic.Component.empty
+    , named = Logic.Component.empty
+    , civilizationReproductionRates = Logic.Component.empty
+    , celestialBodyForms = Logic.Component.empty
+    , starForms = Logic.Component.empty
+    , parents = Logic.Component.empty
+    , children = Logic.Component.empty
+    , orbits = Logic.Component.empty
+    , waterContent = Logic.Component.empty
+    , planetSize = Logic.Component.empty
+    , planets = Set.empty
+    , stars = Set.empty
+    , solarSystems = Set.empty
+    }
+
+
 init : Flags -> ( Model, Effect Msg )
 init flags =
     let
         initialWorld : Model
         initialWorld =
-            { seed = Random.initialSeed flags.seed0
-            , focus = FGalaxy
-            , ecsInternals = Logic.Entity.Extra.initInternals
-            , civilizationSizes = Logic.Component.empty
-            , named = Logic.Component.empty
-            , civilizationReproductionRates = Logic.Component.empty
-            , celestialBodyForms = Logic.Component.empty
-            , starForms = Logic.Component.empty
-            , parents = Logic.Component.empty
-            , children = Logic.Component.empty
-            , orbits = Logic.Component.empty
-            , planets = Set.empty
-            , stars = Set.empty
-            , solarSystems = Set.empty
-            }
+            { emptyWorldModel | seed = Random.initialSeed flags.seed0 }
 
         ( _, finalWorld ) =
             Logic.Entity.Extra.create initialWorld
@@ -176,12 +178,18 @@ childrenSpec =
     Logic.Component.Spec .children (\comps world -> { world | children = comps })
 
 
-exmptyGalaxy : Galaxy
-exmptyGalaxy =
-    { solarSystems = Set.empty
-    , stars = Set.empty
-    , planets = Set.empty
-    }
+waterSpec : Spec Water { world | waterContent : Logic.Component.Set Water }
+waterSpec =
+    Logic.Component.Spec .waterContent (\comps world -> { world | waterContent = comps })
+
+
+planetSizeSpec : Spec Float { world | planetSize : Logic.Component.Set Float }
+planetSizeSpec =
+    Logic.Component.Spec .planetSize (\comps world -> { world | planetSize = comps })
+
+
+type alias Water =
+    Float
 
 
 
@@ -213,10 +221,21 @@ update msg model =
             )
 
         DeleteGalaxy ->
-            -- ( { model | galaxy = exmptyGalaxy, focus = FGalaxy }
-            -- , Effect.none
-            -- )
-            Debug.todo "TODO"
+            let
+                clearedModel : Model
+                clearedModel =
+                    { emptyWorldModel | seed = model.seed }
+
+                componentsCleardModel : Model
+                componentsCleardModel =
+                    Set.toList model.solarSystems
+                        ++ Set.toList model.stars
+                        ++ Set.toList model.planets
+                        |> List.foldl (\id world -> Tuple.second (removeSpecs ( id, world ))) clearedModel
+            in
+            ( componentsCleardModel
+            , Effect.none
+            )
 
         SetFocus focus ->
             ( { model | focus = focus }, Effect.none )
@@ -225,6 +244,18 @@ update msg model =
             ( birthSystem civilizationReproductionRateSpec civilizationSizeSpec model
             , Effect.none
             )
+
+
+removeSpecs : ( EntityID, Model ) -> ( EntityID, Model )
+removeSpecs =
+    Logic.Entity.remove civilizationReproductionRateSpec
+        >> Logic.Entity.remove civilizationSizeSpec
+        >> Logic.Entity.remove namedSpec
+        >> Logic.Entity.remove celestialBodySpec
+        >> Logic.Entity.remove orbitSpec
+        >> Logic.Entity.remove starFormSpec
+        >> Logic.Entity.remove parentSpec
+        >> Logic.Entity.remove childrenSpec
 
 
 birthSystem : Spec CivilizationReproductionRate world -> Spec CivilizationSize world -> System world
@@ -282,11 +313,13 @@ generatePlanet solarSystemId ( planetId, world ) =
         ]
         |> Random.andThen
             (\planetType ->
-                Random.map
-                    (\orbit ->
+                Random.map3
+                    (\orbit water size ->
                         ( planetId, world )
                             |> Logic.Entity.with ( celestialBodySpec, planetType )
                             |> Logic.Entity.with ( orbitSpec, orbit )
+                            |> Logic.Entity.with ( waterSpec, water )
+                            |> Logic.Entity.with ( planetSizeSpec, size )
                             |> Logic.Entity.with ( parentSpec, solarSystemId )
                             |> Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
                     )
@@ -297,6 +330,8 @@ generatePlanet solarSystemId ( planetId, world ) =
                         Gas ->
                             Random.int 5 12
                     )
+                    generatePlanetWaterPercent
+                    (generatePlanetRadius planetType)
             )
 
 
@@ -330,7 +365,7 @@ generatePlanet solarSystemId ( planetId, world ) =
 
 {-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
 -}
-generatePlanetWaterPercent : Generator Float
+generatePlanetWaterPercent : Generator Water
 generatePlanetWaterPercent =
     Random.float 0.0 100
 
