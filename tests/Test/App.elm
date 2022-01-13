@@ -7,7 +7,7 @@ import Random
 import Test exposing (Test)
 import Test.Element.Query as Query
 import Test.Html.Selector as Html
-import Testing
+import View
 
 
 suite : Test
@@ -34,7 +34,7 @@ suite =
                 ProgramTest.createDocument
                     { init = App.init
                     , update = App.update
-                    , view = Testing.viewToDocument (Element.layout []) App.view
+                    , view = View.viewToTestDocument (Element.layout []) App.view
                     }
                     |> ProgramTest.start { seed0 = 0 }
                     |> ProgramTest.ensureView
