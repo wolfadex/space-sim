@@ -1,4 +1,4 @@
-module Test.Element.Query exposing (fromElement, has)
+module Test.Element.Query exposing (find, fromElement, has)
 
 import Element exposing (Element)
 import Expect exposing (Expectation)
@@ -14,3 +14,8 @@ fromElement element =
 has : List Selector -> Single msg -> Expectation
 has =
     Test.Html.Query.has
+
+
+find : List Selector -> Single msg -> Single msg
+find =
+    Test.Html.Query.find

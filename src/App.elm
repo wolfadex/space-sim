@@ -1,9 +1,12 @@
 module App exposing
     ( Focus(..)
-    , Model
-    , Msg
+    , Model(..)
+    , Msg(..)
+    , NewGameModel
+    , NewGameMsg(..)
+    , PlayingMsg
     , TickRate
-    , emptyWorldModel
+    , World
     , init
     , subscriptions
     , update
@@ -12,6 +15,7 @@ module App exposing
 
 import Effect exposing (Effect)
 import Element exposing (..)
+import Element.Font as Font
 import Element.Input as Input
 import Game.Components
     exposing
@@ -30,6 +34,7 @@ import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
 import Set exposing (Set)
 import Shared exposing (Flags)
+import Testing
 import Time
 import Ui.Button
 import View exposing (View)
@@ -39,7 +44,20 @@ import View exposing (View)
 ---- INIT ----
 
 
-type alias Model =
+type Model
+    = NewGame NewGameModel
+    | Playing World
+
+
+type alias NewGameModel =
+    { seed : Seed
+    , civilizationNameSingular : String
+    , civilizationNamePlural : String
+    , hasUniquePluralName : Bool
+    }
+
+
+type alias World =
     { seed : Seed
     , focus : Focus
     , tickRate : TickRate
@@ -79,8 +97,8 @@ type TickRate
     | ExtraFast
 
 
-emptyWorldModel : Model
-emptyWorldModel =
+emptyWorld : World
+emptyWorld =
     { seed = Random.initialSeed 0
     , focus = FGalaxy
     , tickRate = Normal
@@ -104,23 +122,14 @@ emptyWorldModel =
 
 init : Flags -> ( Model, Effect Msg )
 init flags =
-    let
-        initialWorld : Model
-        initialWorld =
-            { emptyWorldModel | seed = Random.initialSeed flags.seed0 }
-
-        ( playerCiv, finalWorld ) =
-            Logic.Entity.Extra.create initialWorld
-                |> Logic.Entity.with ( Game.Components.civilizationSizeSpec, Millions 100 )
-                |> Logic.Entity.with
-                    ( Game.Components.namedSpec
-                    , { singular = "Morlock"
-                      , plural = Just "Morlocks"
-                      }
-                    )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-    in
-    ( { finalWorld | playerCiv = playerCiv }, Effect.none )
+    ( NewGame
+        { seed = Random.initialSeed flags.seed0
+        , civilizationNameSingular = ""
+        , civilizationNamePlural = ""
+        , hasUniquePluralName = False
+        }
+    , Effect.none
+    )
 
 
 
@@ -129,12 +138,17 @@ init flags =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model.tickRate of
-        Paused ->
+    case model of
+        NewGame _ ->
             Sub.none
 
-        _ ->
-            Time.every (tickRateToMs model.tickRate) (\_ -> Tick)
+        Playing world ->
+            case world.tickRate of
+                Paused ->
+                    Sub.none
+
+                _ ->
+                    Time.every (tickRateToMs world.tickRate) (\_ -> PlayingMessage Tick)
 
 
 tickRateToMs : TickRate -> Float
@@ -161,8 +175,19 @@ tickRateToMs tickRate =
 
 
 type Msg
-    = GenerateGlaxy
-    | DeleteGalaxy
+    = NewGameMessage NewGameMsg
+    | PlayingMessage PlayingMsg
+
+
+type NewGameMsg
+    = SetNameSingular String
+    | SetNamePlural String
+    | ToggleNamePlural Bool
+    | StartGame
+
+
+type PlayingMsg
+    = DeleteGalaxy
     | SetFocus Focus
     | Tick
     | SetTickRate TickRate
@@ -170,55 +195,88 @@ type Msg
 
 update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
-    case msg of
-        SetTickRate tickRate ->
-            ( { model | tickRate = tickRate }, Effect.none )
+    case ( msg, model ) of
+        ( NewGameMessage message, NewGame newGameModel ) ->
+            newGameUpdate message newGameModel
 
-        GenerateGlaxy ->
-            let
-                ( modelWithNewEntities, seed ) =
-                    Random.step (generateGalaxy model) model.seed
-            in
-            ( { modelWithNewEntities | seed = seed }
+        ( PlayingMessage message, Playing world ) ->
+            playingUpdate message world
+
+        _ ->
+            ( model, Effect.none )
+
+
+newGameUpdate : NewGameMsg -> NewGameModel -> ( Model, Effect Msg )
+newGameUpdate msg model =
+    case msg of
+        SetNameSingular singular ->
+            ( NewGame { model | civilizationNameSingular = singular }
             , Effect.none
             )
 
-        DeleteGalaxy ->
-            let
-                clearedModel : Model
-                clearedModel =
-                    { emptyWorldModel | seed = model.seed }
+        SetNamePlural plural ->
+            ( NewGame { model | civilizationNamePlural = plural }
+            , Effect.none
+            )
 
-                componentsCleardModel : Model
-                componentsCleardModel =
-                    Set.toList model.solarSystems
-                        ++ Set.toList model.stars
-                        ++ Set.toList model.planets
-                        |> List.foldl (\id world -> Tuple.second (removeSpecs ( id, world ))) clearedModel
+        ToggleNamePlural enabled ->
+            ( NewGame { model | hasUniquePluralName = enabled }
+            , Effect.none
+            )
+
+        StartGame ->
+            let
+                ( generatedWorld, seed ) =
+                    Random.step (generateGalaxy emptyWorld) model.seed
+
+                ( playerCiv, worldWithPlayerCiv ) =
+                    Logic.Entity.Extra.create generatedWorld
+                        |> Logic.Entity.with ( Game.Components.civilizationSizeSpec, Millions 100 )
+                        |> Logic.Entity.with
+                            ( Game.Components.namedSpec
+                            , { singular = model.civilizationNameSingular
+                              , plural =
+                                    if model.hasUniquePluralName then
+                                        Just model.civilizationNameSingular
+
+                                    else
+                                        Nothing
+                              }
+                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
             in
-            ( componentsCleardModel
+            ( Playing
+                { worldWithPlayerCiv
+                    | playerCiv = playerCiv
+                    , seed = seed
+                }
+            , Effect.none
+            )
+
+
+playingUpdate : PlayingMsg -> World -> ( Model, Effect Msg )
+playingUpdate msg world =
+    case msg of
+        SetTickRate tickRate ->
+            ( Playing { world | tickRate = tickRate }, Effect.none )
+
+        DeleteGalaxy ->
+            ( NewGame
+                { seed = world.seed
+                , civilizationNameSingular = ""
+                , civilizationNamePlural = ""
+                , hasUniquePluralName = False
+                }
             , Effect.none
             )
 
         SetFocus focus ->
-            ( { model | focus = focus }, Effect.none )
+            ( Playing { world | focus = focus }, Effect.none )
 
         Tick ->
-            ( birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationSizeSpec model
+            ( Playing (birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationSizeSpec world)
             , Effect.none
             )
-
-
-removeSpecs : ( EntityID, Model ) -> ( EntityID, Model )
-removeSpecs =
-    Logic.Entity.remove Game.Components.civilizationReproductionRateSpec
-        >> Logic.Entity.remove Game.Components.civilizationSizeSpec
-        >> Logic.Entity.remove Game.Components.namedSpec
-        >> Logic.Entity.remove Game.Components.celestialBodySpec
-        >> Logic.Entity.remove Game.Components.orbitSpec
-        >> Logic.Entity.remove Game.Components.starFormSpec
-        >> Logic.Entity.remove Game.Components.parentSpec
-        >> Logic.Entity.remove Game.Components.childrenSpec
 
 
 birthSystem : Spec CivilizationReproductionRate world -> Spec ScaledNumber world -> System world
@@ -229,13 +287,13 @@ birthSystem =
         )
 
 
-generateGalaxy : Model -> Generator Model
+generateGalaxy : World -> Generator World
 generateGalaxy model =
     generateManyEntities 10 20 model generateSolarSystem
         |> Random.map Tuple.second
 
 
-generateSolarSystem : ( EntityID, Model ) -> Generator ( EntityID, Model )
+generateSolarSystem : ( EntityID, World ) -> Generator ( EntityID, World )
 generateSolarSystem ( solarSystemId, world ) =
     generateManyEntities 1 3 world (generateStar solarSystemId)
         |> Random.andThen
@@ -251,7 +309,7 @@ generateSolarSystem ( solarSystemId, world ) =
             )
 
 
-generateStar : EntityID -> ( EntityID, Model ) -> Generator ( EntityID, Model )
+generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generateStar solarSystemId ( starId, world ) =
     Random.map
         (\size ->
@@ -269,7 +327,7 @@ generateStar solarSystemId ( starId, world ) =
         )
 
 
-generatePlanet : EntityID -> ( EntityID, Model ) -> Generator ( EntityID, Model )
+generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generatePlanet solarSystemId ( planetId, world ) =
     Random.uniform Rocky
         [ Gas
@@ -324,7 +382,7 @@ generatePlanetRadius type_ =
 {-| Generate a random number of entities between minimum and maximum.
 Order of minimum and maximum doesn't matter as the function will sort the values.
 -}
-generateManyEntities : Int -> Int -> Model -> (( EntityID, Model ) -> Generator ( EntityID, Model )) -> Generator ( Set EntityID, Model )
+generateManyEntities : Int -> Int -> World -> (( EntityID, World ) -> Generator ( EntityID, World )) -> Generator ( Set EntityID, World )
 generateManyEntities minimum maximum world fn =
     Random.int (min minimum maximum) (max minimum maximum)
         |> Random.andThen
@@ -342,7 +400,7 @@ generateManyEntities minimum maximum world fn =
             )
 
 
-generateEntity : Model -> (( EntityID, Model ) -> Generator ( EntityID, Model )) -> Generator ( EntityID, Model )
+generateEntity : World -> (( EntityID, World ) -> Generator ( EntityID, World )) -> Generator ( EntityID, World )
 generateEntity world fn =
     fn (Logic.Entity.Extra.create world)
 
@@ -355,78 +413,178 @@ view : Model -> View Msg
 view model =
     { title = "Hello Space!"
     , body =
-        column
-            [ width fill ]
-            [ row
-                [ padding 16, spacing 16 ]
-                [ text "Game Speed:"
-                , Ui.Button.toggle
-                    { label = text "||"
-                    , onPress = Just (SetTickRate Paused)
-                    , enabled = model.tickRate == Paused
-                    }
-                , Ui.Button.toggle
-                    { label = text ">"
-                    , onPress = Just (SetTickRate Normal)
-                    , enabled = model.tickRate == Normal
-                    }
-                , Ui.Button.toggle
-                    { label = text ">>"
-                    , onPress = Just (SetTickRate Fast)
-                    , enabled = model.tickRate == Fast
-                    }
-                , Ui.Button.toggle
-                    { label = text ">>>"
-                    , onPress = Just (SetTickRate ExtraFast)
-                    , enabled = model.tickRate == ExtraFast
-                    }
-                ]
-            , row
-                [ width fill ]
-                [ column
-                    [ padding 16 ]
-                    [ Input.button
-                        []
-                        { label = text "Generate"
-                        , onPress = Just GenerateGlaxy
-                        }
-                    , Input.button
-                        []
-                        { label = text "Delete"
-                        , onPress = Just DeleteGalaxy
-                        }
-                    , case model.focus of
-                        FGalaxy ->
-                            viewGalaxy model
+        case model of
+            NewGame newGameModel ->
+                map NewGameMessage (viewNewGame newGameModel)
 
-                        FSolarSystem id ->
-                            if Set.member id model.solarSystems then
-                                viewSlice (viewSolarSystem model id)
-
-                            else
-                                text "Missing solar system"
-
-                        FStar starId ->
-                            if Set.member starId model.stars then
-                                viewSlice (viewBody model viewStar starId)
-
-                            else
-                                text "Missing star"
-
-                        FPlanet planetId ->
-                            if Set.member planetId model.planets then
-                                viewSlice (viewBody model viewPlanet planetId)
-
-                            else
-                                text "Missing planet"
-                    ]
-                , viewPlayerCivilization model model.playerCiv
-                ]
-            ]
+            Playing world ->
+                map PlayingMessage (viewPlayering world)
     }
 
 
-viewSlice : Element Msg -> Element Msg
+
+-- New Game View
+
+
+viewNewGame : NewGameModel -> Element NewGameMsg
+viewNewGame model =
+    column
+        [ centerX
+        , centerY
+        , spacing 64
+        ]
+        [ text "Space Sim!"
+            |> el [ centerX, Font.size 64 ]
+        , wrappedRow
+            [ centerX
+            , centerY
+            , spacing 16
+            , padding 16
+            , width shrink
+            ]
+            [ column
+                [ spacing 16
+                , width fill
+                ]
+                [ Input.text
+                    []
+                    { onChange = SetNameSingular
+                    , placeholder = Nothing
+                    , text = model.civilizationNameSingular
+                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
+                    }
+                , Input.text
+                    []
+                    { onChange = SetNamePlural
+                    , placeholder = Nothing
+                    , text = model.civilizationNamePlural
+                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text <|
+                            if model.hasUniquePluralName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
+
+                            else
+                                "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
+                    , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
+                    }
+                , Ui.Button.primary
+                    { label = text "Start Game"
+                    , onPress = Just StartGame
+                    }
+                    |> el [ centerX ]
+                ]
+            , column
+                [ spacing 8
+                , alignTop
+                , fill
+                    |> minimum 400
+                    |> maximum 600
+                    |> width
+                ]
+                [ text "Example:"
+                , paragraph
+                    []
+                    [ text
+                        "As the battle rages on between the "
+                    , el
+                        [ Font.color (rgb 1 0 1)
+                        , Testing.testElementAttibute "plural-name"
+                        ]
+                        (text <|
+                            if model.hasUniquePluralName then
+                                model.civilizationNamePlural
+
+                            else
+                                model.civilizationNameSingular
+                        )
+                    , text " and the Federation, the "
+                    , el
+                        [ Font.color (rgb 1 0 1)
+                        , Testing.testElementAttibute "singular-name"
+                        ]
+                        (text model.civilizationNameSingular)
+                    , text " people begin to question the morality of continuing the war."
+                    ]
+                ]
+            ]
+        ]
+
+
+
+-- Playing View
+
+
+viewPlayering : World -> Element PlayingMsg
+viewPlayering world =
+    column
+        [ width fill ]
+        [ row
+            [ padding 16, spacing 16 ]
+            [ text "Game Speed:"
+            , Ui.Button.toggle
+                { label = text "||"
+                , onPress = Just (SetTickRate Paused)
+                , enabled = world.tickRate == Paused
+                }
+            , Ui.Button.toggle
+                { label = text ">"
+                , onPress = Just (SetTickRate Normal)
+                , enabled = world.tickRate == Normal
+                }
+            , Ui.Button.toggle
+                { label = text ">>"
+                , onPress = Just (SetTickRate Fast)
+                , enabled = world.tickRate == Fast
+                }
+            , Ui.Button.toggle
+                { label = text ">>>"
+                , onPress = Just (SetTickRate ExtraFast)
+                , enabled = world.tickRate == ExtraFast
+                }
+            ]
+        , row
+            [ width fill ]
+            [ column
+                [ padding 16, alignTop ]
+                [ Input.button
+                    []
+                    { label = text "Delete"
+                    , onPress = Just DeleteGalaxy
+                    }
+                , case world.focus of
+                    FGalaxy ->
+                        viewGalaxy world
+
+                    FSolarSystem id ->
+                        if Set.member id world.solarSystems then
+                            viewSlice (viewSolarSystem world id)
+
+                        else
+                            text "Missing solar system"
+
+                    FStar starId ->
+                        if Set.member starId world.stars then
+                            viewSlice (viewBody world viewStar starId)
+
+                        else
+                            text "Missing star"
+
+                    FPlanet planetId ->
+                        if Set.member planetId world.planets then
+                            viewSlice (viewBody world viewPlanet planetId)
+
+                        else
+                            text "Missing planet"
+                ]
+            , viewPlayerCivilization world world.playerCiv
+            ]
+        ]
+
+
+viewSlice : Element PlayingMsg -> Element PlayingMsg
 viewSlice slice =
     column
         []
@@ -439,7 +597,7 @@ viewSlice slice =
         ]
 
 
-viewBody : Model -> (Model -> EntityID -> Element Msg) -> EntityID -> Element Msg
+viewBody : World -> (World -> EntityID -> Element PlayingMsg) -> EntityID -> Element PlayingMsg
 viewBody model bodyFn id =
     column
         [ spacing 8 ]
@@ -454,14 +612,14 @@ viewBody model bodyFn id =
         ]
 
 
-viewGalaxy : Model -> Element Msg
+viewGalaxy : World -> Element PlayingMsg
 viewGalaxy model =
     Set.toList model.solarSystems
         |> List.map (viewSolarSystem model)
         |> column []
 
 
-viewSolarSystem : Model -> EntityID -> Element Msg
+viewSolarSystem : World -> EntityID -> Element PlayingMsg
 viewSolarSystem model solarSystemId =
     let
         ( stars, planets ) =
@@ -500,7 +658,7 @@ viewSolarSystem model solarSystemId =
         ]
 
 
-viewStar : Model -> EntityID -> Element Msg
+viewStar : World -> EntityID -> Element PlayingMsg
 viewStar model starId =
     case Logic.Component.get starId model.starForms of
         Nothing ->
@@ -531,7 +689,7 @@ viewStar model starId =
                 }
 
 
-viewPlanet : Model -> EntityID -> Element Msg
+viewPlanet : World -> EntityID -> Element PlayingMsg
 viewPlanet model planetId =
     case Logic.Component.get planetId model.celestialBodyForms of
         Nothing ->
@@ -552,10 +710,10 @@ viewPlanet model planetId =
                 }
 
 
-viewPlayerCivilization : Model -> EntityID -> Element Msg
+viewPlayerCivilization : World -> EntityID -> Element PlayingMsg
 viewPlayerCivilization model civId =
     column
-        [ padding 16 ]
+        [ padding 16, alignTop ]
         [ case Logic.Component.get2 civId model.named model.civilizationSizes of
             Nothing ->
                 text "Your civ never reproduces"
