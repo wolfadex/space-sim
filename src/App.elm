@@ -15,6 +15,7 @@ module App exposing
 
 import Effect exposing (Effect)
 import Element exposing (..)
+import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
 import Game.Components
@@ -34,9 +35,9 @@ import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
 import Set exposing (Set)
 import Shared exposing (Flags)
-import Testing
 import Time
 import Ui.Button
+import Ui.Text
 import View exposing (View)
 
 
@@ -446,19 +447,21 @@ viewNewGame model =
                 [ spacing 16
                 , width fill
                 ]
-                [ Input.text
+                [ Ui.Text.defaultLabelLeft
                     []
                     { onChange = SetNameSingular
-                    , placeholder = Nothing
+                    , id = "singular-name"
                     , text = model.civilizationNameSingular
-                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
+                    , labelAttributes = [ width fill ]
+                    , labelContent = text "Civilization Name Singular:"
                     }
-                , Input.text
+                , Ui.Text.defaultLabelLeft
                     []
                     { onChange = SetNamePlural
-                    , placeholder = Nothing
+                    , id = "plural-name"
                     , text = model.civilizationNamePlural
-                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
+                    , labelAttributes = [ width fill ]
+                    , labelContent = text "Civilization Name Plural:"
                     }
                 , Ui.Button.default
                     { label =
@@ -491,7 +494,7 @@ viewNewGame model =
                         "As the battle rages on between the "
                     , el
                         [ Font.color (rgb 1 0 1)
-                        , Testing.testElementAttibute "plural-name"
+                        , Element.Extra.id "plural-name-example"
                         ]
                         (text <|
                             if model.hasUniquePluralName then
@@ -503,7 +506,7 @@ viewNewGame model =
                     , text " and the Federation, the "
                     , el
                         [ Font.color (rgb 1 0 1)
-                        , Testing.testElementAttibute "singular-name"
+                        , Element.Extra.id "singular-name-example"
                         ]
                         (text model.civilizationNameSingular)
                     , text " people begin to question the morality of continuing the war."

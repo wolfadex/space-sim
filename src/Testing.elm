@@ -1,15 +1,18 @@
-module Testing exposing (testElementAttibute, testHtmlAttribute)
+module Testing exposing (viewToDocument)
 
+import Browser exposing (Document)
 import Element exposing (..)
-import Html
-import Html.Attributes
+import Html exposing (Html)
+import View exposing (View)
 
 
-testHtmlAttribute : String -> Html.Attribute msg
-testHtmlAttribute =
-    Html.Attributes.attribute "data-test"
-
-
-testElementAttibute : String -> Attribute msg
-testElementAttibute =
-    testHtmlAttribute >> htmlAttribute
+viewToDocument : (Element msg -> Html msg) -> (model -> View msg) -> model -> Document msg
+viewToDocument fn view model =
+    let
+        renderedView : View msg
+        renderedView =
+            view model
+    in
+    { title = renderedView.title
+    , body = [ fn renderedView.body ]
+    }
