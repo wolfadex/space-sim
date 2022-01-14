@@ -3,7 +3,6 @@ module Game.Components exposing
     , CivilizationReproductionRate
     , Name
     , Orbit
-    , ScaledNumber(..)
     , StarSize(..)
     , Water
     , childrenSpec
@@ -14,8 +13,6 @@ module Game.Components exposing
     , parentSpec
     , planetSizeSpec
     , planetTypeSpec
-    , scaledMultiply
-    , scaledSum
     , starFormSpec
     , waterSpec
     )
@@ -24,6 +21,7 @@ import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Set exposing (Set)
+import ScaledNumber exposing (ScaledNumber)
 
 
 civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
@@ -33,55 +31,6 @@ civilizationReproductionRateSpec =
 
 type alias CivilizationReproductionRate =
     Float
-
-
-type ScaledNumber
-    = Millions Float
-    | Billions Float
-
-
-scaledMultiply : Float -> ScaledNumber -> ScaledNumber
-scaledMultiply n scaled =
-    case scaled of
-        Millions f ->
-            let
-                product : Float
-                product =
-                    n * f
-            in
-            if String.length (String.fromInt (floor product)) > 10 then
-                Billions (product / 1000)
-
-            else
-                Millions product
-
-        Billions f ->
-            let
-                product : Float
-                product =
-                    n * f
-            in
-            if String.length (String.fromInt (floor product)) < 10 then
-                Millions (product * 1000)
-
-            else
-                Billions product
-
-
-scaledSum : ScaledNumber -> ScaledNumber -> ScaledNumber
-scaledSum a b =
-    case ( a, b ) of
-        ( Millions mA, Millions mB ) ->
-            scaledMultiply 1 (Millions (mA + mB))
-
-        ( Billions bA, Billions bB ) ->
-            scaledMultiply 1 (Billions (bA + bB))
-
-        ( Millions mA, Billions bB ) ->
-            scaledMultiply 1 (Billions (mA / 1000 + bB))
-
-        ( Billions bA, Millions mB ) ->
-            scaledMultiply 1 (Billions (mB / 1000 + bA))
 
 
 namedSpec : Spec Name { world | named : Logic.Component.Set Name }

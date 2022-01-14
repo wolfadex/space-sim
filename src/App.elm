@@ -26,7 +26,6 @@ import Game.Components
         , CivilizationReproductionRate
         , Name
         , Orbit
-        , ScaledNumber(..)
         , StarSize(..)
         , Water
         )
@@ -36,6 +35,7 @@ import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
 import Random.List
+import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
 import Shared exposing (Flags)
 import Time
@@ -99,6 +99,7 @@ type TickRate
     | Normal
     | Fast
     | ExtraFast
+    | HalfSpeed
 
 
 emptyWorld : World
@@ -160,16 +161,19 @@ subscriptions model =
 tickRateToMs : TickRate -> Float
 tickRateToMs tickRate =
     let
-        -- 3 seconds
         baseTickTime : Float
         baseTickTime =
+            -- 3 seconds
             3000
     in
     case tickRate of
         Paused ->
+            -- Infinity
             1 / 0
 
-        -- Infinity
+        HalfSpeed ->
+            baseTickTime * 2
+
         Normal ->
             baseTickTime
 
@@ -262,7 +266,7 @@ newGameUpdate msg model =
                         |> Logic.Entity.with
                             ( Game.Components.civilizationPopulationSpec
                             , List.head shuffledPlanets
-                                |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Millions 100))
+                                |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 100))
                                 |> Maybe.withDefault Dict.empty
                             )
                         |> Logic.Entity.with
@@ -352,7 +356,7 @@ birthSystem =
             setPopulationSize
                 (Dict.map
                     (\_ populationSize ->
-                        Game.Components.scaledMultiply reproductionRate populationSize
+                        ScaledNumber.scaleBy reproductionRate populationSize
                     )
                     populationSizes
                 )
@@ -604,6 +608,11 @@ viewPlaying world =
                 , enabled = world.tickRate == Paused
                 }
             , Ui.Button.toggle
+                { label = text "|>"
+                , onPress = Just (SetTickRate HalfSpeed)
+                , enabled = world.tickRate == HalfSpeed
+                }
+            , Ui.Button.toggle
                 { label = text ">"
                 , onPress = Just (SetTickRate Normal)
                 , enabled = world.tickRate == Normal
@@ -808,17 +817,17 @@ viewPlayerCivilization world civId =
                     totalPopulationSize =
                         details.occupiedPlanets
                             |> Dict.toList
-                            |> List.foldl (\( _, planetPupulationCount ) -> Game.Components.scaledSum planetPupulationCount) (Millions 0)
+                            |> List.foldl (\( _, planetPupulationCount ) -> ScaledNumber.sum planetPupulationCount) (ScaledNumber.millions 0)
                 in
-                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ sizeToString totalPopulationSize ++ " citizens.")
+                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
                 , text "They occuy planets:"
                 , details.occupiedPlanets
                     |> Dict.toList
                     |> List.map
                         (\( planetId, populationCount ) ->
-                            column [ padding 8 ]
-                                [ text ("Planet: " ++ String.fromInt planetId)
-                                , text ("Population: " ++ sizeToString populationCount)
+                            paragraph [ padding 8 ]
+                                [ text ("P_" ++ String.fromInt planetId)
+                                , text (", population: " ++ ScaledNumber.toString populationCount)
                                 ]
                         )
                     |> column []
@@ -837,13 +846,3 @@ getCivilizationDetails world civId =
             }
         )
         (Logic.Component.get civId world.named)
-
-
-sizeToString : ScaledNumber -> String
-sizeToString size =
-    case size of
-        Millions f ->
-            String.fromFloat f ++ " million"
-
-        Billions f ->
-            String.fromFloat f ++ " billion"
