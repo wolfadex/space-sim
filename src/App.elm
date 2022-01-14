@@ -15,6 +15,7 @@ module App exposing
 
 import Effect exposing (Effect)
 import Element exposing (..)
+import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
@@ -33,6 +34,7 @@ import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
+import Random.List
 import Set exposing (Set)
 import Shared exposing (Flags)
 import Time
@@ -68,13 +70,14 @@ type alias World =
     , civilizationSizes : Logic.Component.Set ScaledNumber
     , named : Logic.Component.Set Name
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
-    , celestialBodyForms : Logic.Component.Set CelestialBodyForm
+    , planetTypes : Logic.Component.Set CelestialBodyForm
     , starForms : Logic.Component.Set StarSize
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
     , orbits : Logic.Component.Set Orbit
     , waterContent : Logic.Component.Set Water
     , planetSize : Logic.Component.Set Float
+    , occupiedPlanets : Logic.Component.Set (Set EntityID)
 
     -- Book keeping for plants, stars, and their grouping (solar systems)
     , planets : Set EntityID
@@ -107,13 +110,16 @@ emptyWorld =
     , civilizationSizes = Logic.Component.empty
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
-    , celestialBodyForms = Logic.Component.empty
+    , planetTypes = Logic.Component.empty
     , starForms = Logic.Component.empty
     , parents = Logic.Component.empty
     , children = Logic.Component.empty
     , orbits = Logic.Component.empty
     , waterContent = Logic.Component.empty
     , planetSize = Logic.Component.empty
+    , occupiedPlanets = Logic.Component.empty
+
+    --
     , planets = Set.empty
     , stars = Set.empty
     , solarSystems = Set.empty
@@ -230,9 +236,37 @@ newGameUpdate msg model =
                 ( generatedWorld, seed ) =
                     Random.step (generateGalaxy emptyWorld) model.seed
 
+                viableStartingPlanets : List ( EntityID, Orbit )
+                viableStartingPlanets =
+                    generatedWorld.planets
+                        |> Set.toList
+                        |> List.filterMap
+                            (\planetId ->
+                                Maybe.andThen
+                                    (\( type_, orbit ) ->
+                                        case type_ of
+                                            Rocky ->
+                                                Just ( planetId, orbit )
+
+                                            Gas ->
+                                                Nothing
+                                    )
+                                    (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
+                            )
+                        |> List.sortWith planetOrbitPreference
+
+                ( shuffledPlanets, finalSeed ) =
+                    Random.step (Random.List.shuffle viableStartingPlanets) seed
+
                 ( playerCiv, worldWithPlayerCiv ) =
                     Logic.Entity.Extra.create generatedWorld
                         |> Logic.Entity.with ( Game.Components.civilizationSizeSpec, Millions 100 )
+                        |> Logic.Entity.with
+                            ( Game.Components.occupiedPlanetsSpec
+                            , List.head shuffledPlanets
+                                |> Maybe.map (Tuple.first >> Set.singleton)
+                                |> Maybe.withDefault (Set.singleton -1)
+                            )
                         |> Logic.Entity.with
                             ( Game.Components.namedSpec
                             , { singular = model.civilizationNameSingular
@@ -249,10 +283,43 @@ newGameUpdate msg model =
             ( Playing
                 { worldWithPlayerCiv
                     | playerCiv = playerCiv
-                    , seed = seed
+                    , seed = finalSeed
                 }
             , Effect.none
             )
+
+
+planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
+planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
+    if orbitA == orbitB then
+        EQ
+
+    else if orbitA == 3 then
+        GT
+
+    else if orbitB == 3 then
+        LT
+
+    else if orbitA == 4 then
+        GT
+
+    else if orbitB == 4 then
+        LT
+
+    else if orbitA == 2 then
+        GT
+
+    else if orbitB == 2 then
+        LT
+
+    else if orbitA == 5 then
+        GT
+
+    else if orbitB == 5 then
+        LT
+
+    else
+        EQ
 
 
 playingUpdate : PlayingMsg -> World -> ( Model, Effect Msg )
@@ -338,7 +405,7 @@ generatePlanet solarSystemId ( planetId, world ) =
                 Random.map3
                     (\orbit water size ->
                         ( planetId, world )
-                            |> Logic.Entity.with ( Game.Components.celestialBodySpec, planetType )
+                            |> Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
                             |> Logic.Entity.with ( Game.Components.orbitSpec, orbit )
                             |> Logic.Entity.with ( Game.Components.waterSpec, water )
                             |> Logic.Entity.with ( Game.Components.planetSizeSpec, size )
@@ -419,7 +486,7 @@ view model =
                 map NewGameMessage (viewNewGame newGameModel)
 
             Playing world ->
-                map PlayingMessage (viewPlayering world)
+                map PlayingMessage (viewPlaying world)
     }
 
 
@@ -520,10 +587,10 @@ viewNewGame model =
 -- Playing View
 
 
-viewPlayering : World -> Element PlayingMsg
-viewPlayering world =
+viewPlaying : World -> Element PlayingMsg
+viewPlaying world =
     column
-        [ width fill ]
+        [ width fill, height fill ]
         [ row
             [ padding 16, spacing 16 ]
             [ text "Game Speed:"
@@ -547,17 +614,23 @@ viewPlayering world =
                 , onPress = Just (SetTickRate ExtraFast)
                 , enabled = world.tickRate == ExtraFast
                 }
+            , Ui.Button.default
+                { label = text "Delete"
+                , onPress = Just DeleteGalaxy
+                }
             ]
         , row
-            [ width fill ]
-            [ column
-                [ padding 16, alignTop ]
-                [ Input.button
-                    []
-                    { label = text "Delete"
-                    , onPress = Just DeleteGalaxy
-                    }
-                , case world.focus of
+            [ width fill
+            , height fill
+            , padding 16
+            ]
+            [ el
+                [ alignTop
+                , height fill
+                , Border.solid
+                , Border.width 1
+                ]
+                (case world.focus of
                     FGalaxy ->
                         viewGalaxy world
 
@@ -581,7 +654,7 @@ viewPlayering world =
 
                         else
                             text "Missing planet"
-                ]
+                )
             , viewPlayerCivilization world world.playerCiv
             ]
         ]
@@ -590,7 +663,8 @@ viewPlayering world =
 viewSlice : Element PlayingMsg -> Element PlayingMsg
 viewSlice slice =
     column
-        []
+        [ height fill
+        ]
         [ Input.button
             []
             { label = text "View Galaxy"
@@ -603,7 +677,7 @@ viewSlice slice =
 viewBody : World -> (World -> EntityID -> Element PlayingMsg) -> EntityID -> Element PlayingMsg
 viewBody model bodyFn id =
     column
-        [ spacing 8 ]
+        [ spacing 8, height fill ]
         [ Input.button
             []
             { label = text "View System"
@@ -619,7 +693,10 @@ viewGalaxy : World -> Element PlayingMsg
 viewGalaxy model =
     Set.toList model.solarSystems
         |> List.map (viewSolarSystem model)
-        |> column []
+        |> column
+            [ height fill
+            , width fill
+            ]
 
 
 viewSolarSystem : World -> EntityID -> Element PlayingMsg
@@ -694,7 +771,7 @@ viewStar model starId =
 
 viewPlanet : World -> EntityID -> Element PlayingMsg
 viewPlanet model planetId =
-    case Logic.Component.get planetId model.celestialBodyForms of
+    case Logic.Component.get planetId model.planetTypes of
         Nothing ->
             text "Your planet is missing!"
 
@@ -714,16 +791,37 @@ viewPlanet model planetId =
 
 
 viewPlayerCivilization : World -> EntityID -> Element PlayingMsg
-viewPlayerCivilization model civId =
+viewPlayerCivilization world civId =
     column
-        [ padding 16, alignTop ]
-        [ case Logic.Component.get2 civId model.named model.civilizationSizes of
+        [ padding 16, alignTop, width fill, spacing 16 ]
+        (case getCivilizationDetails world civId of
             Nothing ->
-                text "Your civ never reproduces"
+                [ text "Civ is missing" ]
 
-            Just ( name, size ) ->
-                text ("The " ++ Maybe.withDefault name.singular name.plural ++ " have " ++ sizeToString size ++ " citizens.")
-        ]
+            Just details ->
+                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ sizeToString details.size ++ " citizens.")
+                , text "They occuy planets:"
+                , details.occupiedPlanets
+                    |> Set.toList
+                    |> List.map (String.fromInt >> text)
+                    |> column []
+                ]
+        )
+
+
+getCivilizationDetails : World -> EntityID -> Maybe { name : Name, size : ScaledNumber, occupiedPlanets : Set EntityID }
+getCivilizationDetails world civId =
+    Maybe.map2
+        (\name size ->
+            { name = name
+            , size = size
+            , occupiedPlanets =
+                Logic.Component.get civId world.occupiedPlanets
+                    |> Maybe.withDefault Set.empty
+            }
+        )
+        (Logic.Component.get civId world.named)
+        (Logic.Component.get civId world.civilizationSizes)
 
 
 sizeToString : ScaledNumber -> String

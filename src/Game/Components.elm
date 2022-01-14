@@ -6,14 +6,15 @@ module Game.Components exposing
     , ScaledNumber(..)
     , StarSize(..)
     , Water
-    , celestialBodySpec
     , childrenSpec
     , civilizationReproductionRateSpec
     , civilizationSizeSpec
     , namedSpec
+    , occupiedPlanetsSpec
     , orbitSpec
     , parentSpec
     , planetSizeSpec
+    , planetTypeSpec
     , scaledMultiply
     , starFormSpec
     , waterSpec
@@ -82,9 +83,9 @@ type alias Name =
     }
 
 
-celestialBodySpec : Spec CelestialBodyForm { world | celestialBodyForms : Logic.Component.Set CelestialBodyForm }
-celestialBodySpec =
-    Logic.Component.Spec .celestialBodyForms (\comps world -> { world | celestialBodyForms = comps })
+planetTypeSpec : Spec CelestialBodyForm { world | planetTypes : Logic.Component.Set CelestialBodyForm }
+planetTypeSpec =
+    Logic.Component.Spec .planetTypes (\comps world -> { world | planetTypes = comps })
 
 
 type CelestialBodyForm
@@ -136,3 +137,8 @@ planetSizeSpec =
 
 type alias Water =
     Float
+
+
+occupiedPlanetsSpec : Spec (Set EntityID) { world | occupiedPlanets : Logic.Component.Set (Set EntityID) }
+occupiedPlanetsSpec =
+    Logic.Component.Spec .occupiedPlanets (\comps world -> { world | occupiedPlanets = comps })
