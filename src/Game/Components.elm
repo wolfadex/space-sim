@@ -7,19 +7,20 @@ module Game.Components exposing
     , StarSize(..)
     , Water
     , childrenSpec
+    , civilizationPopulationSpec
     , civilizationReproductionRateSpec
-    , civilizationSizeSpec
     , namedSpec
-    , occupiedPlanetsSpec
     , orbitSpec
     , parentSpec
     , planetSizeSpec
     , planetTypeSpec
     , scaledMultiply
+    , scaledSum
     , starFormSpec
     , waterSpec
     )
 
+import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Set exposing (Set)
@@ -32,11 +33,6 @@ civilizationReproductionRateSpec =
 
 type alias CivilizationReproductionRate =
     Float
-
-
-civilizationSizeSpec : Spec ScaledNumber { world | civilizationSizes : Logic.Component.Set ScaledNumber }
-civilizationSizeSpec =
-    Logic.Component.Spec .civilizationSizes (\comps world -> { world | civilizationSizes = comps })
 
 
 type ScaledNumber
@@ -70,6 +66,22 @@ scaledMultiply n scaled =
 
             else
                 Billions product
+
+
+scaledSum : ScaledNumber -> ScaledNumber -> ScaledNumber
+scaledSum a b =
+    case ( a, b ) of
+        ( Millions mA, Millions mB ) ->
+            scaledMultiply 1 (Millions (mA + mB))
+
+        ( Billions bA, Billions bB ) ->
+            scaledMultiply 1 (Billions (bA + bB))
+
+        ( Millions mA, Billions bB ) ->
+            scaledMultiply 1 (Billions (mA / 1000 + bB))
+
+        ( Billions bA, Millions mB ) ->
+            scaledMultiply 1 (Billions (mB / 1000 + bA))
 
 
 namedSpec : Spec Name { world | named : Logic.Component.Set Name }
@@ -139,6 +151,6 @@ type alias Water =
     Float
 
 
-occupiedPlanetsSpec : Spec (Set EntityID) { world | occupiedPlanets : Logic.Component.Set (Set EntityID) }
-occupiedPlanetsSpec =
-    Logic.Component.Spec .occupiedPlanets (\comps world -> { world | occupiedPlanets = comps })
+civilizationPopulationSpec : Spec (Dict EntityID ScaledNumber) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber) }
+civilizationPopulationSpec =
+    Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })

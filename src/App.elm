@@ -13,6 +13,7 @@ module App exposing
     , view
     )
 
+import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Border as Border
@@ -67,7 +68,7 @@ type alias World =
 
     -- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
-    , civilizationSizes : Logic.Component.Set ScaledNumber
+    , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
     , named : Logic.Component.Set Name
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -77,7 +78,6 @@ type alias World =
     , orbits : Logic.Component.Set Orbit
     , waterContent : Logic.Component.Set Water
     , planetSize : Logic.Component.Set Float
-    , occupiedPlanets : Logic.Component.Set (Set EntityID)
 
     -- Book keeping for plants, stars, and their grouping (solar systems)
     , planets : Set EntityID
@@ -107,7 +107,6 @@ emptyWorld =
     , focus = FGalaxy
     , tickRate = Normal
     , ecsInternals = Logic.Entity.Extra.initInternals
-    , civilizationSizes = Logic.Component.empty
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
     , planetTypes = Logic.Component.empty
@@ -117,7 +116,7 @@ emptyWorld =
     , orbits = Logic.Component.empty
     , waterContent = Logic.Component.empty
     , planetSize = Logic.Component.empty
-    , occupiedPlanets = Logic.Component.empty
+    , civilizationPopulations = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -260,12 +259,11 @@ newGameUpdate msg model =
 
                 ( playerCiv, worldWithPlayerCiv ) =
                     Logic.Entity.Extra.create generatedWorld
-                        |> Logic.Entity.with ( Game.Components.civilizationSizeSpec, Millions 100 )
                         |> Logic.Entity.with
-                            ( Game.Components.occupiedPlanetsSpec
+                            ( Game.Components.civilizationPopulationSpec
                             , List.head shuffledPlanets
-                                |> Maybe.map (Tuple.first >> Set.singleton)
-                                |> Maybe.withDefault (Set.singleton -1)
+                                |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Millions 100))
+                                |> Maybe.withDefault Dict.empty
                             )
                         |> Logic.Entity.with
                             ( Game.Components.namedSpec
@@ -342,16 +340,22 @@ playingUpdate msg world =
             ( Playing { world | focus = focus }, Effect.none )
 
         Tick ->
-            ( Playing (birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationSizeSpec world)
+            ( Playing (birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationPopulationSpec world)
             , Effect.none
             )
 
 
-birthSystem : Spec CivilizationReproductionRate world -> Spec ScaledNumber world -> System world
+birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID ScaledNumber) world -> System world
 birthSystem =
     Logic.System.step2
-        (\( reproductionRate, _ ) ( populationSize, setPopulationSize ) ->
-            setPopulationSize (Game.Components.scaledMultiply reproductionRate populationSize)
+        (\( reproductionRate, _ ) ( populationSizes, setPopulationSize ) ->
+            setPopulationSize
+                (Dict.map
+                    (\_ populationSize ->
+                        Game.Components.scaledMultiply reproductionRate populationSize
+                    )
+                    populationSizes
+                )
         )
 
 
@@ -799,29 +803,40 @@ viewPlayerCivilization world civId =
                 [ text "Civ is missing" ]
 
             Just details ->
-                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ sizeToString details.size ++ " citizens.")
+                let
+                    totalPopulationSize : ScaledNumber
+                    totalPopulationSize =
+                        details.occupiedPlanets
+                            |> Dict.toList
+                            |> List.foldl (\( _, planetPupulationCount ) -> Game.Components.scaledSum planetPupulationCount) (Millions 0)
+                in
+                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ sizeToString totalPopulationSize ++ " citizens.")
                 , text "They occuy planets:"
                 , details.occupiedPlanets
-                    |> Set.toList
-                    |> List.map (String.fromInt >> text)
+                    |> Dict.toList
+                    |> List.map
+                        (\( planetId, populationCount ) ->
+                            column [ padding 8 ]
+                                [ text ("Planet: " ++ String.fromInt planetId)
+                                , text ("Population: " ++ sizeToString populationCount)
+                                ]
+                        )
                     |> column []
                 ]
         )
 
 
-getCivilizationDetails : World -> EntityID -> Maybe { name : Name, size : ScaledNumber, occupiedPlanets : Set EntityID }
+getCivilizationDetails : World -> EntityID -> Maybe { name : Name, occupiedPlanets : Dict EntityID ScaledNumber }
 getCivilizationDetails world civId =
-    Maybe.map2
-        (\name size ->
+    Maybe.map
+        (\name ->
             { name = name
-            , size = size
             , occupiedPlanets =
-                Logic.Component.get civId world.occupiedPlanets
-                    |> Maybe.withDefault Set.empty
+                Logic.Component.get civId world.civilizationPopulations
+                    |> Maybe.withDefault Dict.empty
             }
         )
         (Logic.Component.get civId world.named)
-        (Logic.Component.get civId world.civilizationSizes)
 
 
 sizeToString : ScaledNumber -> String
