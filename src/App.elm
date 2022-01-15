@@ -405,9 +405,7 @@ generateStar solarSystemId ( starId, world ) =
 
 generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generatePlanet solarSystemId ( planetId, world ) =
-    Random.uniform Rocky
-        [ Gas
-        ]
+    Random.uniform Rocky [ Gas ]
         |> Random.andThen
             (\planetType ->
                 Random.map3
