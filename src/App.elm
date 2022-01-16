@@ -129,6 +129,8 @@ emptyWorld =
     , spaceFocus = FGalaxy
     , civilizationFocus = FAll
     , tickRate = Normal
+
+    --
     , ecsInternals = Logic.Entity.Extra.initInternals
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
@@ -1322,15 +1324,14 @@ happinessToString happiness =
         "):"
 
 
-getCivilizationDetails :
-    World
-    -> EntityID
-    ->
-        Maybe
-            { name : Name
-            , occupiedPlanets : Dict EntityID ScaledNumber
-            , happiness : Float
-            }
+type alias CivilizationDetails =
+    { name : Name
+    , occupiedPlanets : Dict EntityID ScaledNumber
+    , happiness : Float
+    }
+
+
+getCivilizationDetails : World -> EntityID -> Maybe CivilizationDetails
 getCivilizationDetails world civId =
     Maybe.map2
         (\name happiness ->
