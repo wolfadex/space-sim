@@ -35,6 +35,7 @@ import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
+import Random.Extra
 import Random.List
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
@@ -448,37 +449,54 @@ generatePlanet solarSystemId ( planetId, world ) =
                     )
                     generatePlanetWaterPercent
                     (generatePlanetRadius planetType)
-                    (generateCivilization planetType planetId world)
+                    (attemptToGenerateCivilization planetType planetId world)
             )
 
 
-generateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
-generateCivilization planetType planetId world =
+attemptToGenerateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
+attemptToGenerateCivilization planetType planetId world =
     if planetType == Rocky then
-        Random.map2
-            (\initialPopulationSize ( maybeName, worldWithFewerNames ) ->
-                case maybeName of
-                    Nothing ->
-                        worldWithFewerNames
+        Random.Extra.oneIn 10
+            |> Random.andThen
+                (\shouldCreateCiv ->
+                    if shouldCreateCiv then
+                        generateCivilizationName world
+                            |> Random.andThen
+                                (\( maybeName, worldWithFewerNames ) ->
+                                    case maybeName of
+                                        Nothing ->
+                                            Random.constant worldWithFewerNames
 
-                    Just name ->
-                        let
-                            ( civId, worldWithNewCiv ) =
-                                Logic.Entity.Extra.create worldWithFewerNames
-                                    |> Logic.Entity.with
-                                        ( Game.Components.civilizationPopulationSpec
-                                        , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
-                                        )
-                                    |> Logic.Entity.with ( Game.Components.namedSpec, name )
-                                    |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-                        in
-                        { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
-            )
-            (Random.float 50 150)
-            (generateCivilizationName world)
+                                        Just name ->
+                                            generateCivilization worldWithFewerNames planetId name
+                                )
+
+                    else
+                        Random.constant world
+                )
 
     else
         Random.constant world
+
+
+generateCivilization : World -> EntityID -> Name -> Generator World
+generateCivilization worldWithFewerNames planetId name =
+    Random.map2
+        (\initialPopulationSize reproductionRate ->
+            let
+                ( civId, worldWithNewCiv ) =
+                    Logic.Entity.Extra.create worldWithFewerNames
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationPopulationSpec
+                            , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
+                            )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, name )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+            in
+            { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
+        )
+        (Random.float 50 150)
+        (Random.float 0.8 1.5)
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )
