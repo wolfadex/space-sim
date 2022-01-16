@@ -1011,10 +1011,10 @@ viewPlanet model planetId =
                     text <|
                         case planetType of
                             Rocky ->
-                                "Rocky"
+                                "Rocky: P_" ++ String.fromInt planetId
 
                             Gas ->
-                                "Gas"
+                                "Gas: P_" ++ String.fromInt planetId
                 , onPress = Just (SetFocus (FPlanet planetId))
                 }
 
@@ -1062,9 +1062,15 @@ viewCivilization world civId =
                     |> Dict.toList
                     |> List.map
                         (\( planetId, populationCount ) ->
-                            paragraph [ padding 8 ]
-                                [ text ("P_" ++ String.fromInt planetId)
-                                , text (", population: " ++ ScaledNumber.toString populationCount)
+                            row
+                                [ spacing 8 ]
+                                [ Ui.Button.default
+                                    { label = text ("P_" ++ String.fromInt planetId)
+                                    , onPress = Just (SetFocus (FPlanet planetId))
+                                    }
+                                , paragraph [ padding 8 ]
+                                    [ text ("population: " ++ ScaledNumber.toString populationCount)
+                                    ]
                                 ]
                         )
                     |> column []
