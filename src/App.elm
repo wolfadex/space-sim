@@ -314,6 +314,12 @@ newGameUpdate msg model =
                             )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
                         |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
+                        |> Logic.Entity.with
+                            ( Game.Components.knowledgeSpec
+                            , Set.Any.fromList
+                                Game.Components.knowledgeToString
+                                [ LandTravel, WaterSurfaceTravel ]
+                            )
             in
             ( Playing
                 { worldWithPlayerCiv
@@ -452,6 +458,9 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed =
 
                     else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
                         giveKnowledge InterplanetarySpaceTravel
+
+                    else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
+                        giveKnowledge UnderwaterTravel
 
                     else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
                         giveKnowledge FTLSpaceTravel
