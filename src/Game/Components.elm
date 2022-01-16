@@ -11,13 +11,14 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , knowledgeSpec
+    , knowledgeToString
     , namedSpec
     , orbitSpec
     , parentSpec
     , planetSizeSpec
     , planetTypeSpec
     , starFormSpec
-    , waterSpec, knowledgeToString
+    , waterSpec
     )
 
 import Dict exposing (Dict)
@@ -45,6 +46,7 @@ namedSpec =
 type alias Name =
     { singular : String
     , possessive : Maybe String
+    , many : Maybe String
     }
 
 

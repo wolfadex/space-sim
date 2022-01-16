@@ -9,19 +9,14 @@ import Html.Attributes
 default :
     List (Attribute msg)
     ->
-        { id : String
-        , onChange : String -> msg
+        { onChange : String -> msg
         , text : String
         , label : Label msg
         }
     -> Element msg
 default attributes config =
     Input.text
-        (attributes
-            ++ [ Element.Extra.id config.id
-               , htmlAttribute (Html.Attributes.attribute "aria-label" "")
-               ]
-        )
+        attributes
         { onChange = config.onChange
         , placeholder = Nothing
         , text = config.text

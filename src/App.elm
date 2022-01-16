@@ -65,6 +65,9 @@ type alias NewGameModel =
     , civilizationNameSingular : String
     , civilizationNamePlural : String
     , hasUniquePluralName : Bool
+    , civilizationNamePossessive : String
+    , hasUniquePossessiveName : Bool
+    , homePlanetName : String
     }
 
 
@@ -159,33 +162,47 @@ allCivilizationNames : List Name
 allCivilizationNames =
     [ { singular = "Morlock"
       , possessive = Just "Morlock's"
+      , many = Just "Morlocks"
       }
     , { singular = "Klingon"
       , possessive = Just "Klingon's"
+      , many = Just "Klingons"
       }
     , { singular = "Federation"
-      , possessive = Nothing
+      , possessive = Just "Federation's"
+      , many = Nothing
       }
     , { singular = "Borg"
-      , possessive = Nothing
+      , possessive = Just "Borg's"
+      , many = Nothing
       }
     , { singular = "Empire"
       , possessive = Just "Empire's"
+      , many = Nothing
       }
     , { singular = "Gorn"
       , possessive = Nothing
+      , many = Nothing
       }
     ]
+
+
+baseNewGameModel : NewGameModel
+baseNewGameModel =
+    { seed = Random.initialSeed 0
+    , civilizationNameSingular = ""
+    , civilizationNamePlural = ""
+    , hasUniquePluralName = True
+    , civilizationNamePossessive = ""
+    , hasUniquePossessiveName = True
+    , homePlanetName = ""
+    }
 
 
 init : Flags -> ( Model, Effect Msg )
 init flags =
     ( NewGame
-        { seed = Random.initialSeed flags.seed0
-        , civilizationNameSingular = ""
-        , civilizationNamePlural = ""
-        , hasUniquePluralName = True
-        }
+        { baseNewGameModel | seed = Random.initialSeed flags.seed0 }
     , Effect.none
     )
 
@@ -244,7 +261,10 @@ type NewGameMsg
     = SetNameSingular String
     | SetNamePlural String
     | ToggleNamePlural Bool
+    | SetNamePossessive String
+    | ToggleNamePossessive Bool
     | StartGame
+    | SetHomePlanetName String
 
 
 type PlayingMsg
@@ -283,6 +303,21 @@ newGameUpdate msg model =
 
         ToggleNamePlural enabled ->
             ( NewGame { model | hasUniquePluralName = enabled }
+            , Effect.none
+            )
+
+        SetNamePossessive possessive ->
+            ( NewGame { model | civilizationNamePossessive = possessive }
+            , Effect.none
+            )
+
+        ToggleNamePossessive enabled ->
+            ( NewGame { model | hasUniquePossessiveName = enabled }
+            , Effect.none
+            )
+
+        SetHomePlanetName name ->
+            ( NewGame { model | homePlanetName = name }
             , Effect.none
             )
 
@@ -325,6 +360,12 @@ newGameUpdate msg model =
                             ( Game.Components.namedSpec
                             , { singular = model.civilizationNameSingular
                               , possessive =
+                                    if model.hasUniquePossessiveName then
+                                        Just model.civilizationNamePossessive
+
+                                    else
+                                        Nothing
+                              , many =
                                     if model.hasUniquePluralName then
                                         Just model.civilizationNameSingular
 
@@ -391,12 +432,7 @@ playingUpdate msg world =
             ( Playing { world | tickRate = tickRate }, Effect.none )
 
         DeleteGalaxy ->
-            ( NewGame
-                { seed = world.seed
-                , civilizationNameSingular = ""
-                , civilizationNamePlural = ""
-                , hasUniquePluralName = False
-                }
+            ( NewGame { baseNewGameModel | seed = world.seed }
             , Effect.none
             )
 
@@ -765,14 +801,12 @@ viewNewGame model =
                 [ Ui.Text.default
                     []
                     { onChange = SetNameSingular
-                    , id = "singular-name"
                     , text = model.civilizationNameSingular
                     , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
                     }
                 , Ui.Text.default
                     []
                     { onChange = SetNamePlural
-                    , id = "plural-name"
                     , text = model.civilizationNamePlural
                     , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
                     }
@@ -785,6 +819,28 @@ viewNewGame model =
                             else
                                 "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
                     , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetNamePossessive
+                    , text = model.civilizationNamePossessive
+                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Possessive:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text <|
+                            if model.hasUniquePossessiveName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
+
+                            else
+                                "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
+                    , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetHomePlanetName
+                    , text = model.homePlanetName
+                    , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
                     }
                 , Ui.Button.primary
                     { label = text "Start Game"
@@ -822,7 +878,25 @@ viewNewGame model =
                         , Element.Extra.id "singular-name-example"
                         ]
                         (text model.civilizationNameSingular)
-                    , text " people begin to question the morality of continuing the war."
+                    , text " people begin to question the morality of continuing the war. But the "
+                    , el
+                        [ Font.color (rgb 1 0 1)
+                        , Element.Extra.id "possessive-name-example"
+                        ]
+                        (text <|
+                            if model.hasUniquePossessiveName then
+                                model.civilizationNamePossessive
+
+                            else
+                                model.civilizationNameSingular
+                        )
+                    , text " home planet, "
+                    , el
+                        [ Font.color (rgb 1 0 1)
+                        , Element.Extra.id "home-planet-name-example"
+                        ]
+                        (text model.homePlanetName)
+                    , text ", hangs in the balance."
                     ]
                 ]
             ]
@@ -1285,7 +1359,7 @@ viewCivilizationDetailed world civId =
                     }
                 , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString details.happiness)
-                , text "They occuy planets:"
+                , text "They occupy planets:"
                 , details.occupiedPlanets
                     |> Dict.toList
                     |> List.map
