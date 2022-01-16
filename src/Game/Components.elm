@@ -6,6 +6,7 @@ module Game.Components exposing
     , StarSize(..)
     , Water
     , childrenSpec
+    , civilizationHappinessSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , namedSpec
@@ -20,8 +21,8 @@ module Game.Components exposing
 import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
-import Set exposing (Set)
 import ScaledNumber exposing (ScaledNumber)
+import Set exposing (Set)
 
 
 civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
@@ -103,3 +104,8 @@ type alias Water =
 civilizationPopulationSpec : Spec (Dict EntityID ScaledNumber) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber) }
 civilizationPopulationSpec =
     Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })
+
+
+civilizationHappinessSpec : Spec Float { world | civilizationHappiness : Logic.Component.Set Float }
+civilizationHappinessSpec =
+    Logic.Component.Spec .civilizationHappiness (\comps world -> { world | civilizationHappiness = comps })

@@ -69,20 +69,25 @@ type alias World =
     , focus : Focus
     , tickRate : TickRate
 
-    -- ECS stuff
+    ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
+
+    -- CIV
     , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
-    , named : Logic.Component.Set Name
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
+    , civilizationHappiness : Logic.Component.Set Float
+    , named : Logic.Component.Set Name
+
+    -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
     , starForms : Logic.Component.Set StarSize
-    , parents : Logic.Component.Set EntityID
-    , children : Logic.Component.Set (Set EntityID)
     , orbits : Logic.Component.Set Orbit
     , waterContent : Logic.Component.Set Water
     , planetSize : Logic.Component.Set Float
+    , parents : Logic.Component.Set EntityID
+    , children : Logic.Component.Set (Set EntityID)
 
-    -- Book keeping for plants, stars, and their grouping (solar systems)
+    ---- Book keeping entities by ID
     , planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
@@ -123,6 +128,7 @@ emptyWorld =
     , waterContent = Logic.Component.empty
     , planetSize = Logic.Component.empty
     , civilizationPopulations = Logic.Component.empty
+    , civilizationHappiness = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -302,6 +308,7 @@ newGameUpdate msg model =
                               }
                             )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
             in
             ( Playing
                 { worldWithPlayerCiv
@@ -366,7 +373,15 @@ playingUpdate msg world =
             ( Playing { world | focus = focus }, Effect.none )
 
         Tick ->
-            ( Playing (birthSystem Game.Components.civilizationReproductionRateSpec Game.Components.civilizationPopulationSpec world)
+            ( Playing
+                (world
+                    |> reproductionAndHappinessSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationHappinessSpec
+                    |> birthSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationPopulationSpec
+                )
             , Effect.none
             )
 
@@ -382,6 +397,24 @@ birthSystem =
                     )
                     populationSizes
                 )
+        )
+
+
+reproductionAndHappinessSystem : Spec CivilizationReproductionRate world -> Spec Float world -> System world
+reproductionAndHappinessSystem =
+    Logic.System.step2
+        (\( reproductionRate, setReproductionRate ) ( happiness, setHappiness ) ->
+            if reproductionRate > 1.1 && happiness > 1.1 then
+                setHappiness (happiness - 0.2)
+
+            else if reproductionRate >= 1.1 && happiness <= 1.1 then
+                setReproductionRate (reproductionRate - 0.2)
+
+            else if reproductionRate < 0.9 && happiness < 1.5 then
+                setHappiness (happiness + 0.1)
+
+            else
+                setReproductionRate (reproductionRate + 0.1)
         )
 
 
@@ -481,8 +514,8 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.map2
-        (\initialPopulationSize reproductionRate ->
+    Random.map3
+        (\initialPopulationSize reproductionRate initialHappiness ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -492,11 +525,13 @@ generateCivilization worldWithFewerNames planetId name =
                             )
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, initialHappiness )
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
         )
         (Random.float 50 150)
         (Random.float 0.8 1.5)
+        (Random.float 0.5 1.5)
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )
@@ -915,6 +950,7 @@ viewCivilization world civId =
                             |> List.foldl (\( _, planetPupulationCount ) -> ScaledNumber.sum planetPupulationCount) (ScaledNumber.millions 0)
                 in
                 [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
+                , text ("Happiness " ++ happinessToString details.happiness)
                 , text "They occuy planets:"
                 , details.occupiedPlanets
                     |> Dict.toList
@@ -930,14 +966,42 @@ viewCivilization world civId =
         )
 
 
-getCivilizationDetails : World -> EntityID -> Maybe { name : Name, occupiedPlanets : Dict EntityID ScaledNumber }
+happinessToString : Float -> String
+happinessToString happiness =
+    if happiness > 1.2 then
+        ":D"
+
+    else if happiness > 1.0 then
+        ":)"
+
+    else if happiness == 1.0 then
+        ":|"
+
+    else if happiness < 0.8 then
+        "D:"
+
+    else
+        "):"
+
+
+getCivilizationDetails :
+    World
+    -> EntityID
+    ->
+        Maybe
+            { name : Name
+            , occupiedPlanets : Dict EntityID ScaledNumber
+            , happiness : Float
+            }
 getCivilizationDetails world civId =
-    Maybe.map
-        (\name ->
+    Maybe.map2
+        (\name happiness ->
             { name = name
             , occupiedPlanets =
                 Logic.Component.get civId world.civilizationPopulations
                     |> Maybe.withDefault Dict.empty
+            , happiness = happiness
             }
         )
         (Logic.Component.get civId world.named)
+        (Logic.Component.get civId world.civilizationHappiness)
