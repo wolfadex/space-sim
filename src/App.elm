@@ -16,6 +16,7 @@ module App exposing
 import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (..)
+import Element.Background as Background
 import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
@@ -41,6 +42,7 @@ import Shared exposing (Flags)
 import Time
 import Ui.Button
 import Ui.Text
+import Ui.Theme
 import View exposing (View)
 
 
@@ -85,6 +87,7 @@ type alias World =
     , solarSystems : Set EntityID
     , playerCiv : EntityID
     , civilizations : Set EntityID
+    , availableCivilizationNames : List Name
     }
 
 
@@ -126,7 +129,22 @@ emptyWorld =
     , solarSystems = Set.empty
     , playerCiv = -1
     , civilizations = Set.empty
+    , availableCivilizationNames = allCivilizationNames
     }
+
+
+allCivilizationNames : List Name
+allCivilizationNames =
+    [ { singular = "Morlock"
+      , plural = Just "Morlocks"
+      }
+    , { singular = "Klingon"
+      , plural = Nothing
+      }
+    , { singular = "Federation"
+      , plural = Nothing
+      }
+    ]
 
 
 init : Flags -> ( Model, Effect Msg )
@@ -438,42 +456,38 @@ generateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
 generateCivilization planetType planetId world =
     if planetType == Rocky then
         Random.map2
-            (\initialPopulationSize name ->
-                let
-                    ( civId, newWorld ) =
-                        Logic.Entity.Extra.create world
-                            |> Logic.Entity.with
-                                ( Game.Components.civilizationPopulationSpec
-                                , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
-                                )
-                            |> Logic.Entity.with ( Game.Components.namedSpec, name )
-                            |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-                in
-                { newWorld | civilizations = Set.insert civId newWorld.civilizations }
+            (\initialPopulationSize ( maybeName, worldWithFewerNames ) ->
+                case maybeName of
+                    Nothing ->
+                        worldWithFewerNames
+
+                    Just name ->
+                        let
+                            ( civId, worldWithNewCiv ) =
+                                Logic.Entity.Extra.create worldWithFewerNames
+                                    |> Logic.Entity.with
+                                        ( Game.Components.civilizationPopulationSpec
+                                        , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
+                                        )
+                                    |> Logic.Entity.with ( Game.Components.namedSpec, name )
+                                    |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
+                        in
+                        { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
             )
             (Random.float 50 150)
-            generateCivilizationName
+            (generateCivilizationName world)
 
     else
         Random.constant world
 
 
-generateCivilizationName : Generator Name
-generateCivilizationName =
-    let
-        ( firstChoice, restChoices ) =
-            civNames
-    in
-    Random.uniform firstChoice restChoices
-
-
-civNames : ( Name, List Name )
-civNames =
-    ( { singular = "Federation"
-      , plural = Nothing
-      }
-    , []
-    )
+generateCivilizationName : World -> Generator ( Maybe Name, World )
+generateCivilizationName world =
+    Random.List.choose world.availableCivilizationNames
+        |> Random.map
+            (\( chosenName, remainingNames ) ->
+                ( chosenName, { world | availableCivilizationNames = remainingNames } )
+            )
 
 
 {-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
@@ -851,18 +865,24 @@ viewCivilizations world =
     world.civilizations
         |> Set.toList
         |> List.map (viewCivilization world)
-        |> column [ spacing 8 ]
+        |> column [ spacing 8, alignTop ]
 
 
 viewCivilization : World -> EntityID -> Element PlayingMsg
 viewCivilization world civId =
     column
         [ padding 16
-        , alignTop
         , width fill
         , spacing 16
         , Border.solid
         , Border.width 2
+        , Border.color Ui.Theme.darkGray
+        , Background.color <|
+            if civId == world.playerCiv then
+                Ui.Theme.green
+
+            else
+                Ui.Theme.nearlyWhite
         ]
         (case getCivilizationDetails world civId of
             Nothing ->
