@@ -182,8 +182,8 @@ init : Flags -> ( Model, Effect Msg )
 init flags =
     ( NewGame
         { seed = Random.initialSeed flags.seed0
-        , civilizationNameSingular = "Carl"
-        , civilizationNamePlural = "Carls"
+        , civilizationNameSingular = ""
+        , civilizationNamePlural = ""
         , hasUniquePluralName = True
         }
     , Effect.none

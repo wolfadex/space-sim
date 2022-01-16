@@ -57,12 +57,12 @@ suite =
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "plural-name-example" ]
                             >> Query.has
-                                [ Html.text "Carl" ]
+                                [ Html.text "Karls" ]
                         )
-                    |> ProgramTest.clickButton "Use 'Karls' as the plural name"
+                    |> ProgramTest.clickButton "Use 'Carl' as the plural name"
                     |> ProgramTest.expectView
                         (Query.find [ Html.id "plural-name-example" ]
                             >> Query.has
-                                [ Html.text "Karls" ]
+                                [ Html.text "Carl" ]
                         )
         ]
