@@ -565,21 +565,19 @@ viewNewGame model =
                 [ spacing 16
                 , width fill
                 ]
-                [ Ui.Text.defaultLabelLeft
+                [ Ui.Text.default
                     []
                     { onChange = SetNameSingular
                     , id = "singular-name"
                     , text = model.civilizationNameSingular
-                    , labelAttributes = [ width fill ]
-                    , labelContent = text "Civilization Name Singular:"
+                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
                     }
-                , Ui.Text.defaultLabelLeft
+                , Ui.Text.default
                     []
                     { onChange = SetNamePlural
                     , id = "plural-name"
                     , text = model.civilizationNamePlural
-                    , labelAttributes = [ width fill ]
-                    , labelContent = text "Civilization Name Plural:"
+                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
                     }
                 , Ui.Button.default
                     { label =

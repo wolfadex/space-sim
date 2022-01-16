@@ -1,31 +1,29 @@
-module Ui.Text exposing (defaultLabelLeft)
+module Ui.Text exposing (default)
 
 import Element exposing (..)
 import Element.Extra
-import Element.Input as Input
+import Element.Input as Input exposing (Label)
 import Html.Attributes
 
 
-defaultLabelLeft :
+default :
     List (Attribute msg)
     ->
         { id : String
         , onChange : String -> msg
         , text : String
-        , labelAttributes : List (Attribute msg)
-        , labelContent : Element msg
+        , label : Label msg
         }
     -> Element msg
-defaultLabelLeft attributes config =
+default attributes config =
     Input.text
-        (attributes ++ [ Element.Extra.id config.id ])
+        (attributes
+            ++ [ Element.Extra.id config.id
+               , htmlAttribute (Html.Attributes.attribute "aria-label" "")
+               ]
+        )
         { onChange = config.onChange
         , placeholder = Nothing
         , text = config.text
-        , label =
-            Input.labelLeft
-                (config.labelAttributes
-                    ++ [ htmlAttribute (Html.Attributes.for config.id) ]
-                )
-                config.labelContent
+        , label = config.label
         }
