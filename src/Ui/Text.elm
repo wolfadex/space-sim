@@ -1,9 +1,7 @@
 module Ui.Text exposing (default)
 
 import Element exposing (..)
-import Element.Extra
 import Element.Input as Input exposing (Label)
-import Html.Attributes
 
 
 default :

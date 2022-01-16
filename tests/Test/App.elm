@@ -2,6 +2,7 @@ module Test.App exposing (..)
 
 import App exposing (Model(..))
 import Element
+import Fuzz
 import ProgramTest
 import Random
 import Test exposing (Test)
@@ -32,8 +33,8 @@ suite =
                         [ Html.text "Space Sim!"
                         , Html.text "Start Game"
                         ]
-        , Test.test "test singular name" <|
-            \() ->
+        , Test.fuzz Fuzz.string "test singular name" <|
+            \singularName ->
                 ProgramTest.createDocument
                     { init = App.init
                     , update = App.update
@@ -45,14 +46,14 @@ suite =
                             >> Query.has
                                 [ Html.text "" ]
                         )
-                    |> ProgramTest.fillIn "" "Civilization Name Singular:" "Carl"
+                    |> ProgramTest.fillIn "" "Civilization Name Singular:" singularName
                     |> ProgramTest.expectView
                         (Query.find [ Html.id "singular-name-example" ]
                             >> Query.has
-                                [ Html.text "Carl" ]
+                                [ Html.text singularName ]
                         )
-        , Test.test "test plural name" <|
-            \() ->
+        , Test.fuzz2 Fuzz.string Fuzz.string "test plural name" <|
+            \singularName pluralName ->
                 ProgramTest.createDocument
                     { init = App.init
                     , update = App.update
@@ -64,21 +65,21 @@ suite =
                             >> Query.has
                                 [ Html.text "" ]
                         )
-                    |> ProgramTest.fillIn "" "Civilization Name Singular:" "Carl"
-                    |> ProgramTest.fillIn "" "Civilization Name Plural:" "Karls"
+                    |> ProgramTest.fillIn "" "Civilization Name Singular:" singularName
+                    |> ProgramTest.fillIn "" "Civilization Name Plural:" pluralName
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "plural-name-example" ]
                             >> Query.has
-                                [ Html.text "Karls" ]
+                                [ Html.text pluralName ]
                         )
-                    |> ProgramTest.clickButton "Use 'Carl' as the plural name"
+                    |> ProgramTest.clickButton ("Use '" ++ singularName ++ "' as the plural name")
                     |> ProgramTest.expectView
                         (Query.find [ Html.id "plural-name-example" ]
                             >> Query.has
-                                [ Html.text "Carl" ]
+                                [ Html.text singularName ]
                         )
-        , Test.test "test possessive name" <|
-            \() ->
+        , Test.fuzz2 Fuzz.string Fuzz.string "test possessive name" <|
+            \singularName possessiveName ->
                 ProgramTest.createDocument
                     { init = App.init
                     , update = App.update
@@ -90,21 +91,21 @@ suite =
                             >> Query.has
                                 [ Html.text "" ]
                         )
-                    |> ProgramTest.fillIn "" "Civilization Name Singular:" "Carl"
-                    |> ProgramTest.fillIn "" "Civilization Name Possessive:" "Carl's"
+                    |> ProgramTest.fillIn "" "Civilization Name Singular:" singularName
+                    |> ProgramTest.fillIn "" "Civilization Name Possessive:" possessiveName
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "possessive-name-example" ]
                             >> Query.has
-                                [ Html.text "Carl's" ]
+                                [ Html.text possessiveName ]
                         )
-                    |> ProgramTest.clickButton "Use 'Carl' as the possessive name"
+                    |> ProgramTest.clickButton ("Use '" ++ singularName ++ "' as the possessive name")
                     |> ProgramTest.expectView
                         (Query.find [ Html.id "possessive-name-example" ]
                             >> Query.has
-                                [ Html.text "Carl" ]
+                                [ Html.text singularName ]
                         )
-        , Test.test "test home planet name" <|
-            \() ->
+        , Test.fuzz Fuzz.string "test home planet name" <|
+            \planetName ->
                 ProgramTest.createDocument
                     { init = App.init
                     , update = App.update
@@ -116,10 +117,10 @@ suite =
                             >> Query.has
                                 [ Html.text "" ]
                         )
-                    |> ProgramTest.fillIn "" "Home Planet Name:" "Carlos"
+                    |> ProgramTest.fillIn "" "Home Planet Name:" planetName
                     |> ProgramTest.expectView
                         (Query.find [ Html.id "home-planet-name-example" ]
                             >> Query.has
-                                [ Html.text "Carlos" ]
+                                [ Html.text planetName ]
                         )
         ]
