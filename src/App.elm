@@ -25,6 +25,7 @@ import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationReproductionRate
+        , Knowledge(..)
         , Name
         , Orbit
         , StarSize(..)
@@ -39,6 +40,7 @@ import Random.Extra
 import Random.List
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
+import Set.Any exposing (AnySet)
 import Shared exposing (Flags)
 import Time
 import Ui.Button
@@ -76,6 +78,7 @@ type alias World =
     , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , civilizationHappiness : Logic.Component.Set Float
+    , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , named : Logic.Component.Set Name
 
     -- Other
@@ -129,6 +132,7 @@ emptyWorld =
     , planetSize = Logic.Component.empty
     , civilizationPopulations = Logic.Component.empty
     , civilizationHappiness = Logic.Component.empty
+    , civilizationKnowledge = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -460,15 +464,17 @@ generateStar solarSystemId ( starId, world ) =
 
 generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generatePlanet solarSystemId ( planetId, world ) =
-    Random.uniform Rocky [ Gas ]
+    Random.map2 Tuple.pair
+        (Random.uniform Rocky [ Gas ])
+        generatePlanetWaterPercent
         |> Random.andThen
-            (\planetType ->
-                Random.map4
-                    (\orbit water size updatedWorld ->
+            (\( planetType, waterPercent ) ->
+                Random.map3
+                    (\orbit size updatedWorld ->
                         ( planetId, updatedWorld )
                             |> Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
                             |> Logic.Entity.with ( Game.Components.orbitSpec, orbit )
-                            |> Logic.Entity.with ( Game.Components.waterSpec, water )
+                            |> Logic.Entity.with ( Game.Components.waterSpec, waterPercent )
                             |> Logic.Entity.with ( Game.Components.planetSizeSpec, size )
                             |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
                             |> Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
@@ -480,14 +486,13 @@ generatePlanet solarSystemId ( planetId, world ) =
                         Gas ->
                             Random.int 5 12
                     )
-                    generatePlanetWaterPercent
                     (generatePlanetRadius planetType)
-                    (attemptToGenerateCivilization planetType planetId world)
+                    (attemptToGenerateCivilization planetType waterPercent planetId world)
             )
 
 
-attemptToGenerateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
-attemptToGenerateCivilization planetType planetId world =
+attemptToGenerateCivilization : CelestialBodyForm -> Float -> EntityID -> World -> Generator World
+attemptToGenerateCivilization planetType waterPercent planetId world =
     if planetType == Rocky then
         Random.Extra.oneIn 10
             |> Random.andThen
@@ -501,7 +506,7 @@ attemptToGenerateCivilization planetType planetId world =
                                             Random.constant worldWithFewerNames
 
                                         Just name ->
-                                            generateCivilization worldWithFewerNames planetId name
+                                            generateCivilization waterPercent worldWithFewerNames planetId name
                                 )
 
                     else
@@ -512,10 +517,10 @@ attemptToGenerateCivilization planetType planetId world =
         Random.constant world
 
 
-generateCivilization : World -> EntityID -> Name -> Generator World
-generateCivilization worldWithFewerNames planetId name =
-    Random.map3
-        (\initialPopulationSize reproductionRate initialHappiness ->
+generateCivilization : Float -> World -> EntityID -> Name -> Generator World
+generateCivilization waterPercent worldWithFewerNames planetId name =
+    Random.map4
+        (\initialPopulationSize reproductionRate initialHappiness baseKnowledge ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -526,12 +531,27 @@ generateCivilization worldWithFewerNames planetId name =
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
                         |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, initialHappiness )
+                        |> Logic.Entity.with
+                            ( Game.Components.knowledgeSpec
+                            , Set.Any.fromList
+                                Game.Components.knowledgeToString
+                                baseKnowledge
+                            )
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
         )
         (Random.float 50 150)
         (Random.float 0.8 1.5)
         (Random.float 0.5 1.5)
+        (Random.weighted ( 1.0 - waterPercent, [ LandTravel ] )
+            [ ( waterPercent, [ WaterSurfaceTravel ] )
+            , if waterPercent > 0.9 then
+                ( 1.0, [ UnderwaterTravel ] )
+
+              else
+                ( 0, [] )
+            ]
+        )
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )

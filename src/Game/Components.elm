@@ -1,6 +1,7 @@
 module Game.Components exposing
     ( CelestialBodyForm(..)
     , CivilizationReproductionRate
+    , Knowledge(..)
     , Name
     , Orbit
     , StarSize(..)
@@ -9,13 +10,14 @@ module Game.Components exposing
     , civilizationHappinessSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
+    , knowledgeSpec
     , namedSpec
     , orbitSpec
     , parentSpec
     , planetSizeSpec
     , planetTypeSpec
     , starFormSpec
-    , waterSpec
+    , waterSpec, knowledgeToString
     )
 
 import Dict exposing (Dict)
@@ -23,6 +25,7 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
+import Set.Any exposing (AnySet)
 
 
 civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
@@ -109,3 +112,43 @@ civilizationPopulationSpec =
 civilizationHappinessSpec : Spec Float { world | civilizationHappiness : Logic.Component.Set Float }
 civilizationHappinessSpec =
     Logic.Component.Spec .civilizationHappiness (\comps world -> { world | civilizationHappiness = comps })
+
+
+knowledgeSpec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
+knowledgeSpec =
+    Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })
+
+
+type Knowledge
+    = LandTravel
+    | WaterSurfaceTravel
+    | UnderwaterTravel
+    | Flight
+    | PlanetarySpaceTravel
+    | InterplanetarySpaceTravel
+    | FTLSpaceTravel
+
+
+knowledgeToString : Knowledge -> String
+knowledgeToString knowledge =
+    case knowledge of
+        LandTravel ->
+            "LandTravel"
+
+        WaterSurfaceTravel ->
+            "WaterSurfaceTravel"
+
+        UnderwaterTravel ->
+            "UnderwaterTravel"
+
+        Flight ->
+            "Flight"
+
+        PlanetarySpaceTravel ->
+            "PlanetarySpaceTravel"
+
+        InterplanetarySpaceTravel ->
+            "InterplanetarySpaceTravel"
+
+        FTLSpaceTravel ->
+            "FTLSpaceTravel"
