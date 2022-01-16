@@ -13,6 +13,7 @@ module App exposing
     , view
     )
 
+import Array exposing (Array)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (..)
@@ -385,9 +386,85 @@ playingUpdate msg world =
                     |> birthSystem
                         Game.Components.civilizationReproductionRateSpec
                         Game.Components.civilizationPopulationSpec
+                    |> discoverySystem Game.Components.knowledgeSpec
                 )
             , Effect.none
             )
+
+
+discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
+discoverySystem knowledge world =
+    let
+        ( _, updatedKnowledge, seed ) =
+            Array.foldl possiblyGainKnowledge
+                ( 0, Logic.Component.empty, world.seed )
+                (knowledge.get world)
+    in
+    knowledge.set updatedKnowledge { world | seed = seed }
+
+
+possiblyGainKnowledge : Maybe (AnySet String Knowledge) -> ( Int, Array (Maybe (AnySet String Knowledge)), Seed ) -> ( Int, Array (Maybe (AnySet String Knowledge)), Seed )
+possiblyGainKnowledge maybeCivKnowledge ( index, allCivsKnowledge, seed ) =
+    case maybeCivKnowledge of
+        Nothing ->
+            ( index + 1, Array.set index Nothing allCivsKnowledge, seed )
+
+        Just civKnowledge ->
+            let
+                ( updatedCivKnowledge, newSeed ) =
+                    gainRandomKnowledge
+                        civKnowledge
+                        index
+                        allCivsKnowledge
+                        maybeCivKnowledge
+                        seed
+            in
+            ( index + 1, updatedCivKnowledge, newSeed )
+
+
+gainRandomKnowledge : AnySet String Knowledge -> Int -> Array (Maybe (AnySet String Knowledge)) -> Maybe (AnySet String Knowledge) -> Seed -> ( Array (Maybe (AnySet String Knowledge)), Seed )
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed =
+    Random.step
+        (Random.map
+            (\gainsKnowledge ->
+                if gainsKnowledge then
+                    let
+                        knows : Knowledge -> Bool
+                        knows k =
+                            Set.Any.member k civKnowledge
+
+                        doesntKnow : Knowledge -> Bool
+                        doesntKnow k =
+                            not (Set.Any.member k civKnowledge)
+
+                        giveKnowledge : Knowledge -> Array (Maybe (AnySet String Knowledge))
+                        giveKnowledge learns =
+                            Array.set index (Just (Set.Any.insert learns civKnowledge)) allCivsKnowledge
+                    in
+                    if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
+                        giveKnowledge WaterSurfaceTravel
+
+                    else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
+                        giveKnowledge Flight
+
+                    else if knows Flight && doesntKnow PlanetarySpaceTravel then
+                        giveKnowledge PlanetarySpaceTravel
+
+                    else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
+                        giveKnowledge InterplanetarySpaceTravel
+
+                    else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
+                        giveKnowledge FTLSpaceTravel
+
+                    else
+                        Array.set index maybeCivKnowledge allCivsKnowledge
+
+                else
+                    Array.set index maybeCivKnowledge allCivsKnowledge
+            )
+            (Random.Extra.oneIn 100)
+        )
+        seed
 
 
 birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID ScaledNumber) world -> System world
