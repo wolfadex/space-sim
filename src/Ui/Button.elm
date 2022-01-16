@@ -1,5 +1,6 @@
 module Ui.Button exposing
     ( default
+    , inspect
     , primary
     , toggle
     )
@@ -62,3 +63,19 @@ default =
         , Font.color Ui.Theme.nearlyWhite
         , Border.color Ui.Theme.darkGray
         ]
+
+
+inspect : Maybe msg -> Element msg
+inspect onPress =
+    Input.button
+        [ paddingXY 16 8
+        , Border.solid
+        , Border.width 3
+        , Border.rounded 3
+        , Background.color Ui.Theme.darkGray
+        , Font.color Ui.Theme.nearlyWhite
+        , Border.color Ui.Theme.darkGray
+        ]
+        { label = text "👁"
+        , onPress = onPress
+        }

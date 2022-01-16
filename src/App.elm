@@ -883,7 +883,7 @@ viewPlaying world =
 
                     FStar starId ->
                         if Set.member starId world.stars then
-                            viewSlice (viewBody world viewStar starId)
+                            viewSlice (viewBody world viewStarDetailed starId)
 
                         else
                             text "Missing star"
@@ -922,9 +922,8 @@ viewSlice slice =
 viewBody : World -> (World -> EntityID -> Element PlayingMsg) -> EntityID -> Element PlayingMsg
 viewBody model bodyFn id =
     column
-        [ spacing 8, height fill ]
-        [ Input.button
-            []
+        [ spacing 8, height fill, padding 8 ]
+        [ Ui.Button.default
             { label = text "View System"
             , onPress =
                 Maybe.map (FSolarSystem >> SetSpaceFocus)
@@ -968,10 +967,8 @@ viewSolarSystemSimple world solarSystemId =
         [ row
             [ spacing 8, width fill ]
             [ el [ width fill ] (text ("Solar System: SS_" ++ String.fromInt solarSystemId))
-            , Ui.Button.default
-                { label = text "👁"
-                , onPress = Just (SetSpaceFocus (FSolarSystem solarSystemId))
-                }
+            , Ui.Button.inspect
+                (Just (SetSpaceFocus (FSolarSystem solarSystemId)))
             ]
         , text ("Stars: " ++ String.fromInt starCount)
         , text ("Planets: " ++ String.fromInt planetCount)
@@ -998,8 +995,8 @@ viewSolarSystemDetailed world solarSystemId =
             [ text "Stars:"
             , stars
                 |> Set.toList
-                |> List.map (viewStar world)
-                |> column [ padding 8 ]
+                |> List.map (viewStarSimple world)
+                |> column [ padding 8, spacing 4 ]
             ]
         , column [ padding 8 ]
             [ text "Planets:"
@@ -1008,61 +1005,62 @@ viewSolarSystemDetailed world solarSystemId =
                 |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
                 |> List.sortBy (\( _, orbit ) -> orbit)
                 |> List.map (Tuple.first >> viewPlanetSimple world)
-                |> column [ padding 8 ]
+                |> column [ padding 8, spacing 4 ]
             ]
         ]
 
 
-viewStar : World -> EntityID -> Element PlayingMsg
-viewStar model starId =
+viewStarSimple : World -> EntityID -> Element PlayingMsg
+viewStarSimple world starId =
+    row
+        [ spacing 8, width fill ]
+        [ el [ width fill ] (text ("S_" ++ String.fromInt starId))
+        , Ui.Button.inspect
+            (Just (SetSpaceFocus (FStar starId)))
+        ]
+
+
+viewStarDetailed : World -> EntityID -> Element PlayingMsg
+viewStarDetailed model starId =
     case Logic.Component.get starId model.starForms of
         Nothing ->
             text "Your star is missing!"
 
         Just size ->
-            Input.button
+            let
+                sizeStr : String
+                sizeStr =
+                    case size of
+                        Yellow ->
+                            "Yellow"
+
+                        RedGiant ->
+                            "Red Giant"
+
+                        BlueGiant ->
+                            "Blue Giant"
+
+                        WhiteDwarf ->
+                            "White Dwarf"
+
+                        BlackDwarf ->
+                            "Black Dwarf"
+            in
+            column
                 []
-                { label =
-                    text <|
-                        (\s -> s ++ ": S_" ++ String.fromInt starId) <|
-                            case size of
-                                Yellow ->
-                                    "Yellow"
-
-                                RedGiant ->
-                                    "Red Giant"
-
-                                BlueGiant ->
-                                    "Blue Giant"
-
-                                WhiteDwarf ->
-                                    "White Dwarf"
-
-                                BlackDwarf ->
-                                    "Black Dwarf"
-                , onPress = Just (SetSpaceFocus (FStar starId))
-                }
+                [ text ("Name: S_" ++ String.fromInt starId)
+                , text ("Size: " ++ sizeStr)
+                ]
 
 
 viewPlanetSimple : World -> EntityID -> Element PlayingMsg
 viewPlanetSimple world planetId =
-    case Logic.Component.get planetId world.planetTypes of
-        Nothing ->
-            text "Your planet is missing!"
-
-        Just planetType ->
-            Input.button
-                []
-                { label =
-                    text <|
-                        case planetType of
-                            Rocky ->
-                                "Rocky: P_" ++ String.fromInt planetId
-
-                            Gas ->
-                                "Gas: P_" ++ String.fromInt planetId
-                , onPress = Just (SetSpaceFocus (FPlanet planetId))
-                }
+    row
+        [ spacing 8, width fill ]
+        [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
+        , Ui.Button.inspect
+            (Just (SetSpaceFocus (FPlanet planetId)))
+        ]
 
 
 viewPlanetDetailed : World -> EntityID -> Element PlayingMsg
@@ -1092,13 +1090,17 @@ viewPlanetDetailed world planetId =
             in
             column
                 [ spacing 8 ]
-                [ text <|
-                    case planetType of
-                        Rocky ->
-                            "Rocky: P_" ++ String.fromInt planetId
+                [ text ("Name: P_" ++ String.fromInt planetId)
+                , text
+                    ("Terrain: "
+                        ++ (case planetType of
+                                Rocky ->
+                                    "Rocky"
 
-                        Gas ->
-                            "Gas: P_" ++ String.fromInt planetId
+                                Gas ->
+                                    "Gas"
+                           )
+                    )
                 , text "Civs on Planet:"
                 , case civsOnPlanet of
                     [] ->
@@ -1149,10 +1151,8 @@ viewCivilizationSimple world civId =
                     else
                         Ui.Theme.nearlyWhite
                 ]
-                [ Ui.Button.default
-                    { label = text "👁"
-                    , onPress = Just (SetCivilizationFocus (FOne civId))
-                    }
+                [ Ui.Button.inspect
+                    (Just (SetCivilizationFocus (FOne civId)))
                 , text name.singular
                 ]
 
