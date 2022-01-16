@@ -1,10 +1,10 @@
 module App exposing
-    ( SpaceFocus(..)
-    , Model(..)
+    ( Model(..)
     , Msg(..)
     , NewGameModel
     , NewGameMsg(..)
     , PlayingMsg
+    , SpaceFocus(..)
     , TickRate
     , World
     , init
@@ -32,8 +32,8 @@ import Game.Components
         , StarSize(..)
         , Water
         )
-import Logic.Component exposing (Spec)
-import Logic.Entity exposing (EntityID)
+import Logic.Component exposing (Set, Spec)
+import Logic.Entity exposing (EntityID, with)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
@@ -70,6 +70,7 @@ type alias NewGameModel =
 type alias World =
     { seed : Seed
     , spaceFocus : SpaceFocus
+    , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
 
     ---- ECS stuff
@@ -108,6 +109,11 @@ type SpaceFocus
     | FPlanet EntityID
 
 
+type CivilizationFocus
+    = FAll
+    | FOne EntityID
+
+
 type TickRate
     = Paused
     | Normal
@@ -120,6 +126,7 @@ emptyWorld : World
 emptyWorld =
     { seed = Random.initialSeed 0
     , spaceFocus = FGalaxy
+    , civilizationFocus = FAll
     , tickRate = Normal
     , ecsInternals = Logic.Entity.Extra.initInternals
     , named = Logic.Component.empty
@@ -230,7 +237,8 @@ type NewGameMsg
 
 type PlayingMsg
     = DeleteGalaxy
-    | SetFocus SpaceFocus
+    | SetSpaceFocus SpaceFocus
+    | SetCivilizationFocus CivilizationFocus
     | Tick
     | SetTickRate TickRate
 
@@ -380,8 +388,11 @@ playingUpdate msg world =
             , Effect.none
             )
 
-        SetFocus focus ->
+        SetSpaceFocus focus ->
             ( Playing { world | spaceFocus = focus }, Effect.none )
+
+        SetCivilizationFocus focus ->
+            ( Playing { world | civilizationFocus = focus }, Effect.none )
 
         Tick ->
             ( Playing
@@ -865,7 +876,7 @@ viewPlaying world =
 
                     FSolarSystem id ->
                         if Set.member id world.solarSystems then
-                            viewSlice (viewSolarSystem world id)
+                            viewSlice (viewSolarSystemDetailed world id)
 
                         else
                             text "Missing solar system"
@@ -884,7 +895,12 @@ viewPlaying world =
                         else
                             text "Missing planet"
                 )
-            , viewCivilizations world
+            , case world.civilizationFocus of
+                FAll ->
+                    viewCivilizations world
+
+                FOne civId ->
+                    viewCivilizationDetailed world civId
             ]
         ]
 
@@ -893,11 +909,11 @@ viewSlice : Element PlayingMsg -> Element PlayingMsg
 viewSlice slice =
     column
         [ height fill
+        , padding 8
         ]
-        [ Input.button
-            []
+        [ Ui.Button.default
             { label = text "View Galaxy"
-            , onPress = Just (SetFocus FGalaxy)
+            , onPress = Just (SetSpaceFocus FGalaxy)
             }
         , slice
         ]
@@ -911,7 +927,7 @@ viewBody model bodyFn id =
             []
             { label = text "View System"
             , onPress =
-                Maybe.map (FSolarSystem >> SetFocus)
+                Maybe.map (FSolarSystem >> SetSpaceFocus)
                     (Logic.Component.get id model.parents)
             }
         , bodyFn model id
@@ -921,47 +937,77 @@ viewBody model bodyFn id =
 viewGalaxy : World -> Element PlayingMsg
 viewGalaxy model =
     Set.toList model.solarSystems
-        |> List.map (viewSolarSystem model)
+        |> List.map (viewSolarSystemSimple model)
         |> column
             [ height fill
             , width fill
+            , spacing 8
+            , Background.color Ui.Theme.darkGray
             ]
 
 
-viewSolarSystem : World -> EntityID -> Element PlayingMsg
-viewSolarSystem model solarSystemId =
+viewSolarSystemSimple : World -> EntityID -> Element PlayingMsg
+viewSolarSystemSimple world solarSystemId =
     let
-        ( stars, planets ) =
-            Logic.Component.get solarSystemId model.children
+        ( starCount, planetCount ) =
+            Logic.Component.get solarSystemId world.children
                 |> Maybe.map
                     (\children ->
-                        ( Set.intersect children model.stars
-                        , Set.intersect children model.planets
+                        ( Set.intersect children world.stars
+                        , Set.intersect children world.planets
+                        )
+                    )
+                |> Maybe.withDefault ( Set.empty, Set.empty )
+                |> Tuple.mapBoth Set.size Set.size
+    in
+    column
+        [ padding 8
+        , Background.color Ui.Theme.nearlyWhite
+        , width fill
+        ]
+        [ row
+            [ spacing 8, width fill ]
+            [ el [ width fill ] (text ("Solar System: SS_" ++ String.fromInt solarSystemId))
+            , Ui.Button.default
+                { label = text "👁"
+                , onPress = Just (SetSpaceFocus (FSolarSystem solarSystemId))
+                }
+            ]
+        , text ("Stars: " ++ String.fromInt starCount)
+        , text ("Planets: " ++ String.fromInt planetCount)
+        ]
+
+
+viewSolarSystemDetailed : World -> EntityID -> Element PlayingMsg
+viewSolarSystemDetailed world solarSystemId =
+    let
+        ( stars, planets ) =
+            Logic.Component.get solarSystemId world.children
+                |> Maybe.map
+                    (\children ->
+                        ( Set.intersect children world.stars
+                        , Set.intersect children world.planets
                         )
                     )
                 |> Maybe.withDefault ( Set.empty, Set.empty )
     in
     column
         [ padding 8 ]
-        [ Input.button
-            []
-            { label = text ("Solar System (" ++ String.fromInt solarSystemId ++ ")")
-            , onPress = Just (SetFocus (FSolarSystem solarSystemId))
-            }
+        [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
         , column [ padding 8 ]
             [ text "Stars:"
             , stars
                 |> Set.toList
-                |> List.map (viewStar model)
+                |> List.map (viewStar world)
                 |> column [ padding 8 ]
             ]
         , column [ padding 8 ]
             [ text "Planets:"
             , planets
                 |> Set.toList
-                |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId model.orbits))
+                |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
                 |> List.sortBy (\( _, orbit ) -> orbit)
-                |> List.map (Tuple.first >> viewPlanetSimple model)
+                |> List.map (Tuple.first >> viewPlanetSimple world)
                 |> column [ padding 8 ]
             ]
         ]
@@ -978,7 +1024,7 @@ viewStar model starId =
                 []
                 { label =
                     text <|
-                        (\s -> s ++ " (" ++ String.fromInt starId ++ ")") <|
+                        (\s -> s ++ ": S_" ++ String.fromInt starId) <|
                             case size of
                                 Yellow ->
                                     "Yellow"
@@ -994,7 +1040,7 @@ viewStar model starId =
 
                                 BlackDwarf ->
                                     "Black Dwarf"
-                , onPress = Just (SetFocus (FStar starId))
+                , onPress = Just (SetSpaceFocus (FStar starId))
                 }
 
 
@@ -1015,7 +1061,7 @@ viewPlanetSimple world planetId =
 
                             Gas ->
                                 "Gas: P_" ++ String.fromInt planetId
-                , onPress = Just (SetFocus (FPlanet planetId))
+                , onPress = Just (SetSpaceFocus (FPlanet planetId))
                 }
 
 
@@ -1063,7 +1109,7 @@ viewPlanetDetailed world planetId =
                             (\( civId, name ) ->
                                 Ui.Button.default
                                     { label = text name.singular
-                                    , onPress = Nothing
+                                    , onPress = Just (SetCivilizationFocus (FOne civId))
                                     }
                             )
                             civs
@@ -1075,16 +1121,49 @@ viewCivilizations : World -> Element PlayingMsg
 viewCivilizations world =
     world.civilizations
         |> Set.toList
-        |> List.map (viewCivilization world)
-        |> column [ spacing 8, alignTop ]
+        |> List.map (viewCivilizationSimple world)
+        |> column [ spacing 8, alignTop, width fill ]
 
 
-viewCivilization : World -> EntityID -> Element PlayingMsg
-viewCivilization world civId =
+viewCivilizationSimple : World -> EntityID -> Element PlayingMsg
+viewCivilizationSimple world civId =
+    case Logic.Component.get civId world.named of
+        Nothing ->
+            text "Civilization is missing"
+
+        Just name ->
+            row
+                [ spacing 8
+
+                -- , paddingEach
+                --     { top = 0
+                --     , bottom = 0
+                --     , left = 0
+                --     , right = 16
+                --     }
+                , width fill
+                , Background.color <|
+                    if civId == world.playerCiv then
+                        Ui.Theme.green
+
+                    else
+                        Ui.Theme.nearlyWhite
+                ]
+                [ Ui.Button.default
+                    { label = text "👁"
+                    , onPress = Just (SetCivilizationFocus (FOne civId))
+                    }
+                , text name.singular
+                ]
+
+
+viewCivilizationDetailed : World -> EntityID -> Element PlayingMsg
+viewCivilizationDetailed world civId =
     column
         [ padding 16
         , width fill
         , spacing 16
+        , alignTop
         , Border.solid
         , Border.width 2
         , Border.color Ui.Theme.darkGray
@@ -1107,7 +1186,11 @@ viewCivilization world civId =
                             |> Dict.toList
                             |> List.foldl (\( _, planetPupulationCount ) -> ScaledNumber.sum planetPupulationCount) (ScaledNumber.millions 0)
                 in
-                [ text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
+                [ Ui.Button.default
+                    { label = text "Back"
+                    , onPress = Just (SetCivilizationFocus FAll)
+                    }
+                , text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString details.happiness)
                 , text "They occuy planets:"
                 , details.occupiedPlanets
@@ -1118,7 +1201,7 @@ viewCivilization world civId =
                                 [ spacing 8 ]
                                 [ Ui.Button.default
                                     { label = text ("P_" ++ String.fromInt planetId)
-                                    , onPress = Just (SetFocus (FPlanet planetId))
+                                    , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
                                 , paragraph [ padding 8 ]
                                     [ text ("population: " ++ ScaledNumber.toString populationCount)
