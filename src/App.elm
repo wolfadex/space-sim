@@ -156,13 +156,22 @@ emptyWorld =
 allCivilizationNames : List Name
 allCivilizationNames =
     [ { singular = "Morlock"
-      , plural = Just "Morlocks"
+      , possessive = Just "Morlock's"
       }
     , { singular = "Klingon"
-      , plural = Nothing
+      , possessive = Just "Klingon's"
       }
     , { singular = "Federation"
-      , plural = Nothing
+      , possessive = Nothing
+      }
+    , { singular = "Borg"
+      , possessive = Nothing
+      }
+    , { singular = "Empire"
+      , possessive = Just "Empire's"
+      }
+    , { singular = "Gorn"
+      , possessive = Nothing
       }
     ]
 
@@ -313,7 +322,7 @@ newGameUpdate msg model =
                         |> Logic.Entity.with
                             ( Game.Components.namedSpec
                             , { singular = model.civilizationNameSingular
-                              , plural =
+                              , possessive =
                                     if model.hasUniquePluralName then
                                         Just model.civilizationNameSingular
 
@@ -984,20 +993,29 @@ viewSolarSystemSimple world solarSystemId =
                                     solarSystemsCivIsIn : List EntityID
                                     solarSystemsCivIsIn =
                                         List.filterMap
-                                            (\planetId -> Logic.Component.get planetId world.parents)
+                                            (\planetId ->
+                                                Logic.Component.get planetId world.parents
+                                            )
                                             (Dict.keys dictPlanetPopulatiopns)
                                 in
                                 if List.any ((==) solarSystemId) solarSystemsCivIsIn then
+                                    let
+                                        civName : String
+                                        civName =
+                                            Logic.Component.get civId world.named
+                                                |> Maybe.map .singular
+                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
+                                    in
                                     Just
                                         (if civId == world.playerCiv then
                                             Ui.Button.primary
-                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                { label = text civName
                                                 , onPress = Just (SetCivilizationFocus (FOne civId))
                                                 }
 
                                          else
                                             Ui.Button.default
-                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                { label = text civName
                                                 , onPress = Just (SetCivilizationFocus (FOne civId))
                                                 }
                                         )
@@ -1107,16 +1125,23 @@ viewPlanetSimple world planetId =
                         |> Maybe.andThen
                             (\dictPlanetPopulatiopns ->
                                 if Dict.member planetId dictPlanetPopulatiopns then
+                                    let
+                                        civName : String
+                                        civName =
+                                            Logic.Component.get civId world.named
+                                                |> Maybe.map .singular
+                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
+                                    in
                                     Just
                                         (if civId == world.playerCiv then
                                             Ui.Button.primary
-                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                { label = text civName
                                                 , onPress = Just (SetCivilizationFocus (FOne civId))
                                                 }
 
                                          else
                                             Ui.Button.default
-                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                { label = text civName
                                                 , onPress = Just (SetCivilizationFocus (FOne civId))
                                                 }
                                         )
@@ -1256,7 +1281,7 @@ viewCivilizationDetailed world civId =
                     { label = text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
-                , text ("The " ++ Maybe.withDefault details.name.singular details.name.plural ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
+                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString details.happiness)
                 , text "They occuy planets:"
                 , details.occupiedPlanets

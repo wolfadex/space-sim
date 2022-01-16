@@ -44,7 +44,7 @@ namedSpec =
 
 type alias Name =
     { singular : String
-    , plural : Maybe String
+    , possessive : Maybe String
     }
 
 
