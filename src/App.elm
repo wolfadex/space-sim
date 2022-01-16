@@ -84,6 +84,7 @@ type alias World =
     , stars : Set EntityID
     , solarSystems : Set EntityID
     , playerCiv : EntityID
+    , civilizations : Set EntityID
     }
 
 
@@ -124,6 +125,7 @@ emptyWorld =
     , stars = Set.empty
     , solarSystems = Set.empty
     , playerCiv = -1
+    , civilizations = Set.empty
     }
 
 
@@ -408,9 +410,9 @@ generatePlanet solarSystemId ( planetId, world ) =
     Random.uniform Rocky [ Gas ]
         |> Random.andThen
             (\planetType ->
-                Random.map3
-                    (\orbit water size ->
-                        ( planetId, world )
+                Random.map4
+                    (\orbit water size updatedWorld ->
+                        ( planetId, updatedWorld )
                             |> Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
                             |> Logic.Entity.with ( Game.Components.orbitSpec, orbit )
                             |> Logic.Entity.with ( Game.Components.waterSpec, water )
@@ -427,7 +429,50 @@ generatePlanet solarSystemId ( planetId, world ) =
                     )
                     generatePlanetWaterPercent
                     (generatePlanetRadius planetType)
+                    (generateCivilization planetType planetId world)
             )
+
+
+generateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
+generateCivilization planetType planetId world =
+    if planetType == Rocky then
+        Random.map2
+            (\initialPopulationSize name ->
+                let
+                    ( civId, newWorld ) =
+                        Logic.Entity.Extra.create world
+                            |> Logic.Entity.with
+                                ( Game.Components.civilizationPopulationSpec
+                                , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
+                                )
+                            |> Logic.Entity.with ( Game.Components.namedSpec, name )
+                            |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
+                in
+                { newWorld | civilizations = Set.insert civId newWorld.civilizations }
+            )
+            (Random.float 50 150)
+            generateCivilizationName
+
+    else
+        Random.constant world
+
+
+generateCivilizationName : Generator Name
+generateCivilizationName =
+    let
+        ( firstChoice, restChoices ) =
+            civNames
+    in
+    Random.uniform firstChoice restChoices
+
+
+civNames : ( Name, List Name )
+civNames =
+    ( { singular = "Federation"
+      , plural = Nothing
+      }
+    , []
+    )
 
 
 {-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
@@ -634,6 +679,7 @@ viewPlaying world =
             [ width fill
             , height fill
             , padding 16
+            , spacing 8
             ]
             [ el
                 [ alignTop
@@ -666,7 +712,7 @@ viewPlaying world =
                         else
                             text "Missing planet"
                 )
-            , viewPlayerCivilization world world.playerCiv
+            , viewCivilizations world
             ]
         ]
 
@@ -801,10 +847,24 @@ viewPlanet model planetId =
                 }
 
 
-viewPlayerCivilization : World -> EntityID -> Element PlayingMsg
-viewPlayerCivilization world civId =
+viewCivilizations : World -> Element PlayingMsg
+viewCivilizations world =
+    world.civilizations
+        |> Set.toList
+        |> List.map (viewCivilization world)
+        |> column [ spacing 8 ]
+
+
+viewCivilization : World -> EntityID -> Element PlayingMsg
+viewCivilization world civId =
     column
-        [ padding 16, alignTop, width fill, spacing 16 ]
+        [ padding 16
+        , alignTop
+        , width fill
+        , spacing 16
+        , Border.solid
+        , Border.width 2
+        ]
         (case getCivilizationDetails world civId of
             Nothing ->
                 [ text "Civ is missing" ]
