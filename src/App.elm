@@ -1,5 +1,6 @@
 module App exposing
-    ( Model(..)
+    ( CivilizationFocus
+    , Model(..)
     , Msg(..)
     , NewGameModel
     , NewGameMsg(..)
@@ -32,8 +33,8 @@ import Game.Components
         , StarSize(..)
         , Water
         )
-import Logic.Component exposing (Set, Spec)
-import Logic.Entity exposing (EntityID, with)
+import Logic.Component exposing (Spec)
+import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Random exposing (Generator, Seed)
@@ -1011,7 +1012,7 @@ viewSolarSystemDetailed world solarSystemId =
 
 
 viewStarSimple : World -> EntityID -> Element PlayingMsg
-viewStarSimple world starId =
+viewStarSimple _ starId =
     row
         [ spacing 8, width fill ]
         [ el [ width fill ] (text ("S_" ++ String.fromInt starId))
@@ -1054,7 +1055,7 @@ viewStarDetailed model starId =
 
 
 viewPlanetSimple : World -> EntityID -> Element PlayingMsg
-viewPlanetSimple world planetId =
+viewPlanetSimple _ planetId =
     row
         [ spacing 8, width fill ]
         [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
