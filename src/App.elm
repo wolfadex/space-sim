@@ -1,5 +1,5 @@
 module App exposing
-    ( Focus(..)
+    ( SpaceFocus(..)
     , Model(..)
     , Msg(..)
     , NewGameModel
@@ -69,7 +69,7 @@ type alias NewGameModel =
 
 type alias World =
     { seed : Seed
-    , focus : Focus
+    , spaceFocus : SpaceFocus
     , tickRate : TickRate
 
     ---- ECS stuff
@@ -101,7 +101,7 @@ type alias World =
     }
 
 
-type Focus
+type SpaceFocus
     = FGalaxy
     | FSolarSystem EntityID
     | FStar EntityID
@@ -119,7 +119,7 @@ type TickRate
 emptyWorld : World
 emptyWorld =
     { seed = Random.initialSeed 0
-    , focus = FGalaxy
+    , spaceFocus = FGalaxy
     , tickRate = Normal
     , ecsInternals = Logic.Entity.Extra.initInternals
     , named = Logic.Component.empty
@@ -230,7 +230,7 @@ type NewGameMsg
 
 type PlayingMsg
     = DeleteGalaxy
-    | SetFocus Focus
+    | SetFocus SpaceFocus
     | Tick
     | SetTickRate TickRate
 
@@ -381,7 +381,7 @@ playingUpdate msg world =
             )
 
         SetFocus focus ->
-            ( Playing { world | focus = focus }, Effect.none )
+            ( Playing { world | spaceFocus = focus }, Effect.none )
 
         Tick ->
             ( Playing
@@ -859,7 +859,7 @@ viewPlaying world =
                 , Border.solid
                 , Border.width 1
                 ]
-                (case world.focus of
+                (case world.spaceFocus of
                     FGalaxy ->
                         viewGalaxy world
 
@@ -879,7 +879,7 @@ viewPlaying world =
 
                     FPlanet planetId ->
                         if Set.member planetId world.planets then
-                            viewSlice (viewBody world viewPlanet planetId)
+                            viewSlice (viewBody world viewPlanetDetailed planetId)
 
                         else
                             text "Missing planet"
@@ -961,7 +961,7 @@ viewSolarSystem model solarSystemId =
                 |> Set.toList
                 |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId model.orbits))
                 |> List.sortBy (\( _, orbit ) -> orbit)
-                |> List.map (Tuple.first >> viewPlanet model)
+                |> List.map (Tuple.first >> viewPlanetSimple model)
                 |> column [ padding 8 ]
             ]
         ]
@@ -998,9 +998,9 @@ viewStar model starId =
                 }
 
 
-viewPlanet : World -> EntityID -> Element PlayingMsg
-viewPlanet model planetId =
-    case Logic.Component.get planetId model.planetTypes of
+viewPlanetSimple : World -> EntityID -> Element PlayingMsg
+viewPlanetSimple world planetId =
+    case Logic.Component.get planetId world.planetTypes of
         Nothing ->
             text "Your planet is missing!"
 
@@ -1017,6 +1017,58 @@ viewPlanet model planetId =
                                 "Gas: P_" ++ String.fromInt planetId
                 , onPress = Just (SetFocus (FPlanet planetId))
                 }
+
+
+viewPlanetDetailed : World -> EntityID -> Element PlayingMsg
+viewPlanetDetailed world planetId =
+    case Logic.Component.get planetId world.planetTypes of
+        Nothing ->
+            text "Your planet is missing!"
+
+        Just planetType ->
+            let
+                civsOnPlanet : List ( EntityID, Name )
+                civsOnPlanet =
+                    Set.toList world.civilizations
+                        |> List.filterMap
+                            (\civId ->
+                                Logic.Component.get civId world.civilizationPopulations
+                                    |> Maybe.andThen
+                                        (\dictPlanetPopulatiopns ->
+                                            if Dict.member planetId dictPlanetPopulatiopns then
+                                                Maybe.map (Tuple.pair civId)
+                                                    (Logic.Component.get civId world.named)
+
+                                            else
+                                                Nothing
+                                        )
+                            )
+            in
+            column
+                [ spacing 8 ]
+                [ text <|
+                    case planetType of
+                        Rocky ->
+                            "Rocky: P_" ++ String.fromInt planetId
+
+                        Gas ->
+                            "Gas: P_" ++ String.fromInt planetId
+                , text "Civs on Planet:"
+                , case civsOnPlanet of
+                    [] ->
+                        text "None"
+
+                    civs ->
+                        List.map
+                            (\( civId, name ) ->
+                                Ui.Button.default
+                                    { label = text name.singular
+                                    , onPress = Nothing
+                                    }
+                            )
+                            civs
+                            |> column [ spacing 4 ]
+                ]
 
 
 viewCivilizations : World -> Element PlayingMsg
