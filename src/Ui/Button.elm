@@ -9,6 +9,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Ui.Theme
 
 
 toggle : { onPress : Maybe msg, label : Element msg, enabled : Bool } -> Element msg
@@ -20,17 +21,17 @@ toggle config =
         , Border.rounded 3
         , Background.color <|
             if config.enabled then
-                green
+                Ui.Theme.green
 
             else
-                darkGray
+                Ui.Theme.darkGray
         , Font.color <|
             if config.enabled then
-                darkGray
+                Ui.Theme.darkGray
 
             else
-                nearlyWhite
-        , Border.color darkGray
+                Ui.Theme.nearlyWhite
+        , Border.color Ui.Theme.darkGray
         ]
         { onPress = config.onPress
         , label = config.label
@@ -44,9 +45,9 @@ primary =
         , Border.solid
         , Border.width 3
         , Border.rounded 3
-        , Background.color green
-        , Font.color darkGray
-        , Border.color darkGray
+        , Background.color Ui.Theme.green
+        , Font.color Ui.Theme.darkGray
+        , Border.color Ui.Theme.darkGray
         ]
 
 
@@ -57,22 +58,7 @@ default =
         , Border.solid
         , Border.width 3
         , Border.rounded 3
-        , Background.color darkGray
-        , Font.color nearlyWhite
-        , Border.color darkGray
+        , Background.color Ui.Theme.darkGray
+        , Font.color Ui.Theme.nearlyWhite
+        , Border.color Ui.Theme.darkGray
         ]
-
-
-nearlyWhite : Color
-nearlyWhite =
-    rgb 0.9 0.9 0.9
-
-
-darkGray : Color
-darkGray =
-    rgb 0.2 0.2 0.2
-
-
-green : Color
-green =
-    rgb 0.4 0.9 0.7
