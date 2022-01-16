@@ -133,9 +133,9 @@ init : Flags -> ( Model, Effect Msg )
 init flags =
     ( NewGame
         { seed = Random.initialSeed flags.seed0
-        , civilizationNameSingular = ""
-        , civilizationNamePlural = ""
-        , hasUniquePluralName = False
+        , civilizationNameSingular = "Carl"
+        , civilizationNamePlural = "Carls"
+        , hasUniquePluralName = True
         }
     , Effect.none
     )
@@ -288,6 +288,7 @@ newGameUpdate msg model =
                 { worldWithPlayerCiv
                     | playerCiv = playerCiv
                     , seed = finalSeed
+                    , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
                 }
             , Effect.none
             )
