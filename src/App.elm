@@ -1083,19 +1083,49 @@ viewStarDetailed model starId =
                             "Black Dwarf"
             in
             column
-                []
+                [ spacing 8 ]
                 [ text ("Name: S_" ++ String.fromInt starId)
                 , text ("Size: " ++ sizeStr)
                 ]
 
 
 viewPlanetSimple : World -> EntityID -> Element PlayingMsg
-viewPlanetSimple _ planetId =
-    row
+viewPlanetSimple world planetId =
+    column
         [ spacing 8, width fill ]
-        [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
-        , Ui.Button.inspect
-            (Just (SetSpaceFocus (FPlanet planetId)))
+        [ row
+            [ spacing 8, width fill ]
+            [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
+            , Ui.Button.inspect
+                (Just (SetSpaceFocus (FPlanet planetId)))
+            ]
+        , world.civilizations
+            |> Set.toList
+            |> List.filterMap
+                (\civId ->
+                    Logic.Component.get civId world.civilizationPopulations
+                        |> Maybe.andThen
+                            (\dictPlanetPopulatiopns ->
+                                if Dict.member planetId dictPlanetPopulatiopns then
+                                    Just
+                                        (if civId == world.playerCiv then
+                                            Ui.Button.primary
+                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                , onPress = Just (SetCivilizationFocus (FOne civId))
+                                                }
+
+                                         else
+                                            Ui.Button.default
+                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                , onPress = Just (SetCivilizationFocus (FOne civId))
+                                                }
+                                        )
+
+                                else
+                                    Nothing
+                            )
+                )
+            |> wrappedRow [ spacing 8 ]
         ]
 
 
