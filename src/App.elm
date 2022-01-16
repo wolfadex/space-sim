@@ -973,6 +973,41 @@ viewSolarSystemSimple world solarSystemId =
             ]
         , text ("Stars: " ++ String.fromInt starCount)
         , text ("Planets: " ++ String.fromInt planetCount)
+        , world.civilizations
+            |> Set.toList
+            |> List.filterMap
+                (\civId ->
+                    Logic.Component.get civId world.civilizationPopulations
+                        |> Maybe.andThen
+                            (\dictPlanetPopulatiopns ->
+                                let
+                                    solarSystemsCivIsIn : List EntityID
+                                    solarSystemsCivIsIn =
+                                        List.filterMap
+                                            (\planetId -> Logic.Component.get planetId world.parents)
+                                            (Dict.keys dictPlanetPopulatiopns)
+                                in
+                                if List.any ((==) solarSystemId) solarSystemsCivIsIn then
+                                    Just
+                                        (if civId == world.playerCiv then
+                                            Ui.Button.primary
+                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                , onPress = Just (SetCivilizationFocus (FOne civId))
+                                                }
+
+                                         else
+                                            Ui.Button.default
+                                                { label = text ("CIV_" ++ String.fromInt civId)
+                                                , onPress = Just (SetCivilizationFocus (FOne civId))
+                                                }
+                                        )
+
+                                else
+                                    Nothing
+                            )
+                )
+            |> (::) (text "Occupied by: ")
+            |> wrappedRow [ spacing 8 ]
         ]
 
 
