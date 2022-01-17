@@ -5,7 +5,7 @@ import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
 import Random exposing (Seed)
-import Shared exposing (Effect, Flags)
+import Shared exposing (Effect)
 import SubCmd exposing (SubCmd)
 import Ui.Button
 import Ui.Text
