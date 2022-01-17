@@ -1,7 +1,9 @@
 module Playing exposing
     ( CivilizationFocus
+    , Log
     , Msg(..)
     , SpaceFocus(..)
+    , StarDate
     , TickRate
     , World
     , init
@@ -79,7 +81,20 @@ type alias World =
     , playerCiv : EntityID
     , civilizations : Set EntityID
     , availableCivilizationNames : List Name
+    , starDate : StarDate
+    , eventLog : List Log
     }
+
+
+type alias Log =
+    { description : String
+    , time : StarDate
+    , civilizationId : EntityID
+    }
+
+
+type alias StarDate =
+    Int
 
 
 type SpaceFocus
@@ -131,6 +146,8 @@ emptyWorld =
     , playerCiv = -1
     , civilizations = Set.empty
     , availableCivilizationNames = allCivilizationNames
+    , starDate = 0
+    , eventLog = []
     }
 
 
@@ -285,10 +302,10 @@ tickRateToMs tickRate =
             baseTickTime
 
         Fast ->
-            baseTickTime / 2
+            baseTickTime / 4
 
         ExtraFast ->
-            baseTickTime / 4
+            baseTickTime / 8
 
 
 type Msg
@@ -317,7 +334,7 @@ update msg world =
             ( { world | civilizationFocus = focus }, SubCmd.none )
 
         Tick ->
-            ( world
+            ( { world | starDate = world.starDate + 1 }
                 |> reproductionAndHappinessSystem
                     Game.Components.civilizationReproductionRateSpec
                     Game.Components.civilizationHappinessSpec
@@ -332,35 +349,78 @@ update msg world =
 discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
 discoverySystem knowledge world =
     let
-        ( _, updatedKnowledge, seed ) =
+        updates :
+            { index : Int
+            , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
+            , seed : Seed
+            , starDate : StarDate
+            , logs : List Log
+            }
+        updates =
             Array.foldl possiblyGainKnowledge
-                ( 0, Logic.Component.empty, world.seed )
+                { index = 0
+                , updatedKnowledge = Logic.Component.empty
+                , seed = world.seed
+                , starDate = world.starDate
+                , logs = []
+                }
                 (knowledge.get world)
     in
-    knowledge.set updatedKnowledge { world | seed = seed }
+    knowledge.set updates.updatedKnowledge
+        { world
+            | seed = updates.seed
+            , eventLog = updates.logs ++ world.eventLog
+        }
 
 
-possiblyGainKnowledge : Maybe (AnySet String Knowledge) -> ( Int, Array (Maybe (AnySet String Knowledge)), Seed ) -> ( Int, Array (Maybe (AnySet String Knowledge)), Seed )
-possiblyGainKnowledge maybeCivKnowledge ( index, allCivsKnowledge, seed ) =
+possiblyGainKnowledge :
+    Maybe (AnySet String Knowledge)
+    ->
+        { index : Int
+        , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
+        , seed : Seed
+        , starDate : StarDate
+        , logs : List Log
+        }
+    ->
+        { index : Int
+        , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
+        , seed : Seed
+        , starDate : StarDate
+        , logs : List Log
+        }
+possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDate } as updates) =
     case maybeCivKnowledge of
         Nothing ->
-            ( index + 1, Array.set index Nothing allCivsKnowledge, seed )
+            { updates | index = index + 1, updatedKnowledge = Array.set index Nothing updatedKnowledge }
 
         Just civKnowledge ->
             let
-                ( updatedCivKnowledge, newSeed ) =
+                ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
                     gainRandomKnowledge
                         civKnowledge
                         index
-                        allCivsKnowledge
+                        updatedKnowledge
                         maybeCivKnowledge
                         seed
+                        starDate
             in
-            ( index + 1, updatedCivKnowledge, newSeed )
+            { updates
+                | index = index + 1
+                , updatedKnowledge = updatedCivKnowledge
+                , seed = newSeed
+                , logs =
+                    case maybeLog of
+                        Nothing ->
+                            updates.logs
+
+                        Just log ->
+                            log :: updates.logs
+            }
 
 
-gainRandomKnowledge : AnySet String Knowledge -> Int -> Array (Maybe (AnySet String Knowledge)) -> Maybe (AnySet String Knowledge) -> Seed -> ( Array (Maybe (AnySet String Knowledge)), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed =
+gainRandomKnowledge : AnySet String Knowledge -> Int -> Array (Maybe (AnySet String Knowledge)) -> Maybe (AnySet String Knowledge) -> Seed -> StarDate -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed starDate =
     Random.step
         (Random.map
             (\gainsKnowledge ->
@@ -374,33 +434,39 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed =
                         doesntKnow k =
                             not (Set.Any.member k civKnowledge)
 
-                        giveKnowledge : Knowledge -> Array (Maybe (AnySet String Knowledge))
-                        giveKnowledge learns =
-                            Array.set index (Just (Set.Any.insert learns civKnowledge)) allCivsKnowledge
+                        giveKnowledge : Knowledge -> String -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
+                        giveKnowledge learns description =
+                            ( Array.set index (Just (Set.Any.insert learns civKnowledge)) allCivsKnowledge
+                            , Just
+                                { time = starDate
+                                , description = description
+                                , civilizationId = index
+                                }
+                            )
                     in
                     if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel
+                        giveKnowledge WaterSurfaceTravel "Learns to build boats"
 
                     else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
-                        giveKnowledge Flight
+                        giveKnowledge Flight "Learns the art of flying"
 
                     else if knows Flight && doesntKnow PlanetarySpaceTravel then
-                        giveKnowledge PlanetarySpaceTravel
+                        giveKnowledge PlanetarySpaceTravel "Takes a leap of faith into space"
 
                     else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
-                        giveKnowledge InterplanetarySpaceTravel
+                        giveKnowledge InterplanetarySpaceTravel "Begins their solar voyage"
 
                     else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
-                        giveKnowledge UnderwaterTravel
+                        giveKnowledge UnderwaterTravel "Thinks it's a good idea to build underwater vessels"
 
                     else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                        giveKnowledge FTLSpaceTravel
+                        giveKnowledge FTLSpaceTravel "Makes to faster than light leap"
 
                     else
-                        Array.set index maybeCivKnowledge allCivsKnowledge
+                        ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
 
                 else
-                    Array.set index maybeCivKnowledge allCivsKnowledge
+                    ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
             )
             (Random.Extra.oneIn 100)
         )
@@ -676,6 +742,7 @@ viewPlaying world =
                 { label = text "Delete"
                 , onPress = Just DeleteGalaxy
                 }
+            , text ("Star Date: " ++ String.fromInt world.starDate)
             ]
         , row
             [ width fill
@@ -1109,8 +1176,24 @@ viewCivilizationDetailed world civId =
                                 ]
                         )
                     |> column []
+                , text "Logs"
+                , details.logs
+                    |> List.map viewLog
+                    |> column [ spacing 4 ]
                 ]
         )
+
+
+viewLog : Log -> Element Msg
+viewLog log =
+    column
+        [ Border.solid
+        , Border.width 1
+        , padding 4
+        ]
+        [ text ("Star Date: " ++ String.fromInt log.time)
+        , paragraph [] [ text log.description ]
+        ]
 
 
 happinessToString : Float -> String
@@ -1135,6 +1218,7 @@ type alias CivilizationDetails =
     { name : Name
     , occupiedPlanets : Dict EntityID ScaledNumber
     , happiness : Float
+    , logs : List Log
     }
 
 
@@ -1147,6 +1231,7 @@ getCivilizationDetails world civId =
                 Logic.Component.get civId world.civilizationPopulations
                     |> Maybe.withDefault Dict.empty
             , happiness = happiness
+            , logs = List.filter (.civilizationId >> (==) civId) world.eventLog
             }
         )
         (Logic.Component.get civId world.named)
