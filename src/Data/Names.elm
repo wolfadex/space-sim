@@ -1,19 +1,22 @@
 module Data.Names exposing
-    ( ComplexName
-    , SimleName
+    ( CivilizationName
+    , PersonName
     , allCivilizationNames
-    , allPersonNames
+    , enhancedEventDescription
+    , randomPerson
     )
 
+import Random exposing (Generator)
 
-type alias ComplexName =
+
+type alias CivilizationName =
     { singular : String
     , possessive : Maybe String
     , many : Maybe String
     }
 
 
-allCivilizationNames : List ComplexName
+allCivilizationNames : List CivilizationName
 allCivilizationNames =
     [ { singular = "Morlock"
       , possessive = Just "Morlock's"
@@ -50,11 +53,50 @@ allCivilizationNames =
     ]
 
 
-type alias SimleName =
+enhancedEventDescription : CivilizationName -> (PersonName -> String)
+enhancedEventDescription civName =
+    case civName.singular of
+        "Morlock" ->
+            \personName ->
+                "High Archbrain " ++ personName ++ " of the Morlocks"
+
+        "Gorn" ->
+            \_ ->
+                "Gorn of the Gorn"
+
+        "Borg" ->
+            \_ ->
+                "The collective"
+
+        "Empire" ->
+            \personName -> personName ++ " of the Empire"
+
+        "Federation" ->
+            \personName -> "Science officer " ++ personName ++ " of the Federation"
+
+        "Klingon" ->
+            \personName -> personName ++ " of the Klingon Empire"
+
+        "Talonite" ->
+            \personName -> "Lead " ++ personName ++ " of the United Talonite"
+
+        "Sha' Tao" ->
+            \personName -> "Most Respected " ++ personName ++ " of the Ancient Sha' Tao"
+
+        _ ->
+            identity
+
+
+type alias PersonName =
     String
 
 
-allPersonNames : List SimleName
+randomPerson : Generator PersonName
+randomPerson =
+    Random.weighted ( 0.000001, "Wolfgang" ) (List.map (Tuple.pair 100.0) allPersonNames)
+
+
+allPersonNames : List PersonName
 allPersonNames =
     [ "John"
     , "Klorg"

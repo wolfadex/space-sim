@@ -13,7 +13,7 @@ module Playing exposing
     )
 
 import Array exposing (Array)
-import Data.Names exposing (ComplexName)
+import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -63,7 +63,7 @@ type alias World =
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , civilizationHappiness : Logic.Component.Set Float
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
-    , named : Logic.Component.Set ComplexName
+    , named : Logic.Component.Set CivilizationName
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -80,7 +80,7 @@ type alias World =
     , solarSystems : Set EntityID
     , playerCiv : EntityID
     , civilizations : Set EntityID
-    , availableCivilizationNames : List ComplexName
+    , availableCivilizationNames : List CivilizationName
     , starDate : StarDate
     , eventLog : List Log
     }
@@ -151,7 +151,7 @@ emptyWorld =
     }
 
 
-init : { name : ComplexName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
+init : { name : CivilizationName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
 init flags =
     let
         -- Filter out a civilization name if the player's chosen name matches
@@ -339,6 +339,7 @@ discoverySystem knowledge world =
             { index : Int
             , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
             , seed : Seed
+            , civNames : Array (Maybe CivilizationName)
             , starDate : StarDate
             , logs : List Log
             }
@@ -347,6 +348,7 @@ discoverySystem knowledge world =
                 { index = 0
                 , updatedKnowledge = initialUpdatedKnowledge
                 , seed = world.seed
+                , civNames = world.named
                 , starDate = world.starDate
                 , logs = []
                 }
@@ -365,6 +367,7 @@ possiblyGainKnowledge :
         { index : Int
         , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
         , seed : Seed
+        , civNames : Array (Maybe CivilizationName)
         , starDate : StarDate
         , logs : List Log
         }
@@ -372,16 +375,26 @@ possiblyGainKnowledge :
         { index : Int
         , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
         , seed : Seed
+        , civNames : Array (Maybe CivilizationName)
         , starDate : StarDate
         , logs : List Log
         }
-possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDate } as updates) =
+possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDate, civNames } as updates) =
     case maybeCivKnowledge of
         Nothing ->
             { updates | index = index + 1, updatedKnowledge = Array.set index Nothing updatedKnowledge }
 
         Just civKnowledge ->
             let
+                civName : CivilizationName
+                civName =
+                    case Array.get index civNames of
+                        Just (Just name) ->
+                            name
+
+                        _ ->
+                            { singular = "", many = Nothing, possessive = Nothing }
+
                 ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
                     gainRandomKnowledge
                         civKnowledge
@@ -390,6 +403,7 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDa
                         maybeCivKnowledge
                         seed
                         starDate
+                        civName
             in
             { updates
                 | index = index + 1
@@ -405,11 +419,19 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDa
             }
 
 
-gainRandomKnowledge : AnySet String Knowledge -> Int -> Array (Maybe (AnySet String Knowledge)) -> Maybe (AnySet String Knowledge) -> Seed -> StarDate -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed starDate =
+gainRandomKnowledge :
+    AnySet String Knowledge
+    -> Int
+    -> Array (Maybe (AnySet String Knowledge))
+    -> Maybe (AnySet String Knowledge)
+    -> Seed
+    -> StarDate
+    -> CivilizationName
+    -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed starDate civName =
     Random.step
-        (Random.map
-            (\gainsKnowledge ->
+        (Random.map2
+            (\gainsKnowledge personName ->
                 if gainsKnowledge then
                     let
                         knows : Knowledge -> Bool
@@ -420,33 +442,33 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                         doesntKnow k =
                             not (Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge)
 
-                        giveKnowledge : Knowledge -> String -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
+                        giveKnowledge : Knowledge -> (String -> String) -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
                         giveKnowledge learns description =
                             ( Array.set index (Just (Set.Any.insert Game.Components.knowledgeComparableConfig learns civKnowledge)) allCivsKnowledge
                             , Just
                                 { time = starDate
-                                , description = description
+                                , description = description (Data.Names.enhancedEventDescription civName personName)
                                 , civilizationId = index
                                 }
                             )
                     in
                     if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel "Learns to build boats"
+                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
 
                     else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
-                        giveKnowledge Flight "Learns the art of flying"
+                        giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
 
                     else if knows Flight && doesntKnow PlanetarySpaceTravel then
-                        giveKnowledge PlanetarySpaceTravel "Takes a leap of faith into space"
+                        giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
 
                     else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
-                        giveKnowledge InterplanetarySpaceTravel "Begins their solar voyage"
+                        giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
 
                     else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
-                        giveKnowledge UnderwaterTravel "Thinks it's a good idea to build underwater vessels"
+                        giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
 
                     else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                        giveKnowledge FTLSpaceTravel "Makes to faster than light leap"
+                        giveKnowledge FTLSpaceTravel (\name -> name ++ " makes to faster than light leap.")
 
                     else
                         ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
@@ -455,6 +477,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                     ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
             )
             (Random.Extra.oneIn 100)
+            Data.Names.randomPerson
         )
         seed
 
@@ -586,7 +609,7 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
         Random.constant world
 
 
-generateCivilization : Float -> World -> EntityID -> ComplexName -> Generator World
+generateCivilization : Float -> World -> EntityID -> CivilizationName -> Generator World
 generateCivilization waterPercent worldWithFewerNames planetId name =
     Random.map4
         (\initialPopulationSize reproductionRate initialHappiness baseKnowledge ->
@@ -623,7 +646,7 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
         )
 
 
-generateCivilizationName : World -> Generator ( Maybe ComplexName, World )
+generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
 generateCivilizationName world =
     Random.List.choose world.availableCivilizationNames
         |> Random.map
@@ -1024,7 +1047,7 @@ viewPlanetDetailed world planetId =
 
         Just planetType ->
             let
-                civsOnPlanet : List ( EntityID, ComplexName )
+                civsOnPlanet : List ( EntityID, CivilizationName )
                 civsOnPlanet =
                     Set.toList world.civilizations
                         |> List.filterMap
@@ -1201,7 +1224,7 @@ happinessToString happiness =
 
 
 type alias CivilizationDetails =
-    { name : ComplexName
+    { name : CivilizationName
     , occupiedPlanets : Dict EntityID ScaledNumber
     , happiness : Float
     , logs : List Log

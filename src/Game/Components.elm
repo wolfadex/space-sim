@@ -20,7 +20,7 @@ module Game.Components exposing
     , waterSpec
     )
 
-import Data.Names exposing (ComplexName)
+import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -38,7 +38,7 @@ type alias CivilizationReproductionRate =
     Float
 
 
-namedSpec : Spec ComplexName { world | named : Logic.Component.Set ComplexName }
+namedSpec : Spec CivilizationName { world | named : Logic.Component.Set CivilizationName }
 namedSpec =
     Logic.Component.Spec .named (\comps world -> { world | named = comps })
 

@@ -1,6 +1,6 @@
 module NewGame exposing (Model, Msg, baseNewGameModel, init, update, view)
 
-import Data.Names exposing (ComplexName)
+import Data.Names exposing (CivilizationName)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -117,7 +117,7 @@ update msg model =
                     ( { model | errors = errs }, SubCmd.none )
 
 
-createGameValidator : Validator Model String ( ComplexName, String )
+createGameValidator : Validator Model String ( CivilizationName, String )
 createGameValidator =
     Validator.map2 Tuple.pair
         civNameValidator
@@ -130,9 +130,15 @@ homeNameValidator =
         |> Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok)
 
 
-civNameValidator : Validator Model String ComplexName
+civNameValidator : Validator Model String CivilizationName
 civNameValidator =
-    Validator.succeed ComplexName
+    Validator.succeed
+        (\singular many possessive ->
+            { singular = singular
+            , many = many
+            , possessive = possessive
+            }
+        )
         |> Validator.required .civilizationNameSingular String.isEmpty "Singular name is required" (Validator.custom Ok)
         |> Validator.required identity (\_ -> False) "" (Validator.custom pluralNameValidator)
         |> Validator.required identity (\_ -> False) "" (Validator.custom possessiveNameValidator)

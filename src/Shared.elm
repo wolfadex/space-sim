@@ -1,6 +1,6 @@
 module Shared exposing (Effect(..), Flags)
 
-import Data.Names exposing (ComplexName)
+import Data.Names exposing (CivilizationName)
 import Random exposing (Seed)
 
 
@@ -9,5 +9,5 @@ type alias Flags =
 
 
 type Effect
-    = CreateGame { name : ComplexName, homePlanetName : String, seed : Seed }
+    = CreateGame { name : CivilizationName, homePlanetName : String, seed : Seed }
     | DeleteGame Seed
