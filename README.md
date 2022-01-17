@@ -4,7 +4,9 @@
 
 ⚠️ WIP ⚠️
 
-A 4X space game.
+A 4X space game inspired by Dwarf Fortress.
+
+<img src="./Screenshot 2022-01-17.png" />
 
 ## Features
 
@@ -15,7 +17,10 @@ A 4X space game.
 - Civilizations, with:
   - Population size
   - Reproduction rate
-  - Names (singular, plural)
+  - Names
+  - Happiness
+  - Knowledge (can be gained, not yet lost)
+  - Logs of important events
 
 ## Get Started
 
