@@ -9,5 +9,5 @@ type alias Flags =
 
 
 type Effect
-    = CreateGame { name : Name, seed : Seed }
+    = CreateGame { name : Name, homePlanetName : String, seed : Seed }
     | DeleteGame Seed

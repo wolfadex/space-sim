@@ -1,5 +1,6 @@
 module Ui.Theme exposing
     ( darkGray
+    , error
     , green
     , nearlyWhite
     )
@@ -20,3 +21,8 @@ darkGray =
 nearlyWhite : Color
 nearlyWhite =
     rgb 0.9 0.9 0.9
+
+
+error : Color
+error =
+    rgb 1 0.1 0.1

@@ -13,18 +13,10 @@ import View
 
 suite : Test
 suite =
-    Test.describe "Renders the game"
-        [ Test.test "renders and runs the new game view" <|
+    Test.describe "Renders the screen"
+        [ Test.test "renders the title and start button" <|
             \() ->
-                NewGame.view
-                    { seed = Random.initialSeed 0
-                    , civilizationNameSingular = ""
-                    , civilizationNamePlural = ""
-                    , hasUniquePluralName = True
-                    , civilizationNamePossessive = ""
-                    , hasUniquePossessiveName = True
-                    , homePlanetName = ""
-                    }
+                NewGame.view NewGame.baseNewGameModel
                     |> .body
                     |> Query.fromElement
                     |> Query.has

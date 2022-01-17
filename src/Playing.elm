@@ -163,7 +163,7 @@ allCivilizationNames =
     ]
 
 
-init : { name : Name, seed : Seed } -> ( World, SubCmd Msg Effect )
+init : { name : Name, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
 init flags =
     let
         ( generatedWorld, seed ) =
@@ -218,6 +218,39 @@ init flags =
     )
 
 
+planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
+planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
+    if orbitA == orbitB then
+        EQ
+
+    else if orbitA == 3 then
+        GT
+
+    else if orbitB == 3 then
+        LT
+
+    else if orbitA == 4 then
+        GT
+
+    else if orbitB == 4 then
+        LT
+
+    else if orbitA == 2 then
+        GT
+
+    else if orbitB == 2 then
+        LT
+
+    else if orbitA == 5 then
+        GT
+
+    else if orbitB == 5 then
+        LT
+
+    else
+        EQ
+
+
 
 ---- UPDATE ----
 
@@ -264,39 +297,6 @@ type Msg
     | SetCivilizationFocus CivilizationFocus
     | Tick
     | SetTickRate TickRate
-
-
-planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
-planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
-    if orbitA == orbitB then
-        EQ
-
-    else if orbitA == 3 then
-        GT
-
-    else if orbitB == 3 then
-        LT
-
-    else if orbitA == 4 then
-        GT
-
-    else if orbitB == 4 then
-        LT
-
-    else if orbitA == 2 then
-        GT
-
-    else if orbitB == 2 then
-        LT
-
-    else if orbitA == 5 then
-        GT
-
-    else if orbitB == 5 then
-        LT
-
-    else
-        EQ
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
