@@ -222,9 +222,13 @@ init flags =
                 |> Logic.Entity.with
                     ( Game.Components.knowledgeSpec
                     , Set.Any.fromList
-                        Game.Components.knowledgeToString
+                        Game.Components.knowledgeComparableConfig
                         [ LandTravel, WaterSurfaceTravel ]
+                        |> Debug.log "initial knowledge"
                     )
+
+        _ =
+            Debug.log "universal knowledge" worldWithPlayerCiv.civilizationKnowledge
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
@@ -349,6 +353,12 @@ update msg world =
 discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
 discoverySystem knowledge world =
     let
+        initialUpdatedKnowledge : Array (Maybe (AnySet String Knowledge))
+        initialUpdatedKnowledge =
+            Array.initialize
+                (Array.length (knowledge.get world))
+                (\_ -> Nothing)
+
         updates :
             { index : Int
             , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
@@ -359,7 +369,7 @@ discoverySystem knowledge world =
         updates =
             Array.foldl possiblyGainKnowledge
                 { index = 0
-                , updatedKnowledge = Logic.Component.empty
+                , updatedKnowledge = initialUpdatedKnowledge
                 , seed = world.seed
                 , starDate = world.starDate
                 , logs = []
@@ -428,15 +438,15 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                     let
                         knows : Knowledge -> Bool
                         knows k =
-                            Set.Any.member k civKnowledge
+                            Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge
 
                         doesntKnow : Knowledge -> Bool
                         doesntKnow k =
-                            not (Set.Any.member k civKnowledge)
+                            not (Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge)
 
                         giveKnowledge : Knowledge -> String -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
                         giveKnowledge learns description =
-                            ( Array.set index (Just (Set.Any.insert learns civKnowledge)) allCivsKnowledge
+                            ( Array.set index (Just (Set.Any.insert Game.Components.knowledgeComparableConfig learns civKnowledge)) allCivsKnowledge
                             , Just
                                 { time = starDate
                                 , description = description
@@ -617,7 +627,7 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
                         |> Logic.Entity.with
                             ( Game.Components.knowledgeSpec
                             , Set.Any.fromList
-                                Game.Components.knowledgeToString
+                                Game.Components.knowledgeComparableConfig
                                 baseKnowledge
                             )
             in

@@ -11,7 +11,7 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , knowledgeSpec
-    , knowledgeToString
+    , knowledgeComparableConfig
     , namedSpec
     , orbitSpec
     , parentSpec
@@ -131,8 +131,9 @@ type Knowledge
     | FTLSpaceTravel
 
 
-knowledgeToString : Knowledge -> String
-knowledgeToString knowledge =
+knowledgeComparableConfig : { toComparable : Knowledge -> String }
+knowledgeComparableConfig  =
+    { toComparable = \knowledge ->
     case knowledge of
         LandTravel ->
             "LandTravel"
@@ -154,3 +155,4 @@ knowledgeToString knowledge =
 
         FTLSpaceTravel ->
             "FTLSpaceTravel"
+    }
