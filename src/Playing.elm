@@ -224,11 +224,7 @@ init flags =
                     , Set.Any.fromList
                         Game.Components.knowledgeComparableConfig
                         [ LandTravel, WaterSurfaceTravel ]
-                        |> Debug.log "initial knowledge"
                     )
-
-        _ =
-            Debug.log "universal knowledge" worldWithPlayerCiv.civilizationKnowledge
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
