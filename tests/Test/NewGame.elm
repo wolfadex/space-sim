@@ -1,8 +1,8 @@
-module Test.App exposing (..)
+module Test.NewGame exposing (..)
 
-import App exposing (Model(..))
 import Element
 import Fuzz
+import NewGame
 import ProgramTest
 import Random
 import Test exposing (Test)
@@ -16,17 +16,15 @@ suite =
     Test.describe "Renders the game"
         [ Test.test "renders and runs the new game view" <|
             \() ->
-                App.view
-                    (NewGame
-                        { seed = Random.initialSeed 0
-                        , civilizationNameSingular = ""
-                        , civilizationNamePlural = ""
-                        , hasUniquePluralName = True
-                        , civilizationNamePossessive = ""
-                        , hasUniquePossessiveName = True
-                        , homePlanetName = ""
-                        }
-                    )
+                NewGame.view
+                    { seed = Random.initialSeed 0
+                    , civilizationNameSingular = ""
+                    , civilizationNamePlural = ""
+                    , hasUniquePluralName = True
+                    , civilizationNamePossessive = ""
+                    , hasUniquePossessiveName = True
+                    , homePlanetName = ""
+                    }
                     |> .body
                     |> Query.fromElement
                     |> Query.has
@@ -36,11 +34,11 @@ suite =
         , Test.fuzz Fuzz.string "test singular name" <|
             \singularName ->
                 ProgramTest.createDocument
-                    { init = App.init
-                    , update = App.update
-                    , view = View.viewToTestDocument (Element.layout []) App.view
+                    { init = NewGame.init
+                    , update = NewGame.update
+                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
                     }
-                    |> ProgramTest.start { seed0 = 0 }
+                    |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "singular-name-example" ]
                             >> Query.has
@@ -55,11 +53,11 @@ suite =
         , Test.fuzz2 Fuzz.string Fuzz.string "test plural name" <|
             \singularName pluralName ->
                 ProgramTest.createDocument
-                    { init = App.init
-                    , update = App.update
-                    , view = View.viewToTestDocument (Element.layout []) App.view
+                    { init = NewGame.init
+                    , update = NewGame.update
+                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
                     }
-                    |> ProgramTest.start { seed0 = 0 }
+                    |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "plural-name-example" ]
                             >> Query.has
@@ -81,11 +79,11 @@ suite =
         , Test.fuzz2 Fuzz.string Fuzz.string "test possessive name" <|
             \singularName possessiveName ->
                 ProgramTest.createDocument
-                    { init = App.init
-                    , update = App.update
-                    , view = View.viewToTestDocument (Element.layout []) App.view
+                    { init = NewGame.init
+                    , update = NewGame.update
+                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
                     }
-                    |> ProgramTest.start { seed0 = 0 }
+                    |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "possessive-name-example" ]
                             >> Query.has
@@ -107,11 +105,11 @@ suite =
         , Test.fuzz Fuzz.string "test home planet name" <|
             \planetName ->
                 ProgramTest.createDocument
-                    { init = App.init
-                    , update = App.update
-                    , view = View.viewToTestDocument (Element.layout []) App.view
+                    { init = NewGame.init
+                    , update = NewGame.update
+                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
                     }
-                    |> ProgramTest.start { seed0 = 0 }
+                    |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
                         (Query.find [ Html.id "home-planet-name-example" ]
                             >> Query.has

@@ -1,5 +1,13 @@
-module Shared exposing (Flags)
+module Shared exposing (Effect(..), Flags)
+
+import Game.Components exposing (Name)
+import Random exposing (Seed)
 
 
 type alias Flags =
     { seed0 : Int }
+
+
+type Effect
+    = CreateGame { name : Name, seed : Seed }
+    | DeleteGame Seed

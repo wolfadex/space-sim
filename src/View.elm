@@ -1,4 +1,4 @@
-module View exposing (View, viewToTestDocument)
+module View exposing (View, map, viewToTestDocument)
 
 import Browser exposing (Document)
 import Element exposing (..)
@@ -20,4 +20,11 @@ viewToTestDocument fn view model =
     in
     { title = renderedView.title
     , body = [ fn renderedView.body ]
+    }
+
+
+map : (msg1 -> msg2) -> View msg1 -> View msg2
+map fn view =
+    { title = view.title
+    , body = Element.map fn view.body
     }

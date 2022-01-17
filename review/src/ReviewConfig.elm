@@ -55,6 +55,7 @@ config =
     , NoMissingTypeAnnotationInLetIn.rule
     , NoMissingTypeExpose.rule
     , NoModuleOnExposedNames.rule
+        |> Review.Rule.ignoreErrorsForFiles [ "src/View.elm" ]
     , NoPrematureLetComputation.rule
     , NoSimpleLetBody.rule
     , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument

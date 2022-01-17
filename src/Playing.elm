@@ -1,10 +1,6 @@
-module App exposing
+module Playing exposing
     ( CivilizationFocus
-    , Model(..)
     , Msg(..)
-    , NewGameModel
-    , NewGameMsg(..)
-    , PlayingMsg
     , SpaceFocus(..)
     , TickRate
     , World
@@ -16,13 +12,9 @@ module App exposing
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Extra
-import Element.Font as Font
-import Element.Input as Input
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
@@ -43,32 +35,16 @@ import Random.List
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (Flags)
+import Shared exposing (Effect)
+import SubCmd exposing (SubCmd)
 import Time
 import Ui.Button
-import Ui.Text
 import Ui.Theme
 import View exposing (View)
 
 
 
 ---- INIT ----
-
-
-type Model
-    = NewGame NewGameModel
-    | Playing World
-
-
-type alias NewGameModel =
-    { seed : Seed
-    , civilizationNameSingular : String
-    , civilizationNamePlural : String
-    , hasUniquePluralName : Bool
-    , civilizationNamePossessive : String
-    , hasUniquePossessiveName : Bool
-    , homePlanetName : String
-    }
 
 
 type alias World =
@@ -187,23 +163,58 @@ allCivilizationNames =
     ]
 
 
-baseNewGameModel : NewGameModel
-baseNewGameModel =
-    { seed = Random.initialSeed 0
-    , civilizationNameSingular = ""
-    , civilizationNamePlural = ""
-    , hasUniquePluralName = True
-    , civilizationNamePossessive = ""
-    , hasUniquePossessiveName = True
-    , homePlanetName = ""
-    }
-
-
-init : Flags -> ( Model, Effect Msg )
+init : { name : Name, seed : Seed } -> ( World, SubCmd Msg Effect )
 init flags =
-    ( NewGame
-        { baseNewGameModel | seed = Random.initialSeed flags.seed0 }
-    , Effect.none
+    let
+        ( generatedWorld, seed ) =
+            Random.step (generateGalaxy emptyWorld) flags.seed
+
+        viableStartingPlanets : List ( EntityID, Orbit )
+        viableStartingPlanets =
+            generatedWorld.planets
+                |> Set.toList
+                |> List.filterMap
+                    (\planetId ->
+                        Maybe.andThen
+                            (\( type_, orbit ) ->
+                                case type_ of
+                                    Rocky ->
+                                        Just ( planetId, orbit )
+
+                                    Gas ->
+                                        Nothing
+                            )
+                            (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
+                    )
+                |> List.sortWith planetOrbitPreference
+
+        ( shuffledPlanets, finalSeed ) =
+            Random.step (Random.List.shuffle viableStartingPlanets) seed
+
+        ( playerCiv, worldWithPlayerCiv ) =
+            Logic.Entity.Extra.create generatedWorld
+                |> Logic.Entity.with
+                    ( Game.Components.civilizationPopulationSpec
+                    , List.head shuffledPlanets
+                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 100))
+                        |> Maybe.withDefault Dict.empty
+                    )
+                |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
+                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
+                |> Logic.Entity.with
+                    ( Game.Components.knowledgeSpec
+                    , Set.Any.fromList
+                        Game.Components.knowledgeToString
+                        [ LandTravel, WaterSurfaceTravel ]
+                    )
+    in
+    ( { worldWithPlayerCiv
+        | playerCiv = playerCiv
+        , seed = finalSeed
+        , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
+      }
+    , SubCmd.none
     )
 
 
@@ -211,19 +222,14 @@ init flags =
 ---- UPDATE ----
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model of
-        NewGame _ ->
+subscriptions : World -> Sub Msg
+subscriptions world =
+    case world.tickRate of
+        Paused ->
             Sub.none
 
-        Playing world ->
-            case world.tickRate of
-                Paused ->
-                    Sub.none
-
-                _ ->
-                    Time.every (tickRateToMs world.tickRate) (\_ -> PlayingMessage Tick)
+        _ ->
+            Time.every (tickRateToMs world.tickRate) (\_ -> Tick)
 
 
 tickRateToMs : TickRate -> Float
@@ -253,143 +259,11 @@ tickRateToMs tickRate =
 
 
 type Msg
-    = NewGameMessage NewGameMsg
-    | PlayingMessage PlayingMsg
-
-
-type NewGameMsg
-    = SetNameSingular String
-    | SetNamePlural String
-    | ToggleNamePlural Bool
-    | SetNamePossessive String
-    | ToggleNamePossessive Bool
-    | StartGame
-    | SetHomePlanetName String
-
-
-type PlayingMsg
     = DeleteGalaxy
     | SetSpaceFocus SpaceFocus
     | SetCivilizationFocus CivilizationFocus
     | Tick
     | SetTickRate TickRate
-
-
-update : Msg -> Model -> ( Model, Effect Msg )
-update msg model =
-    case ( msg, model ) of
-        ( NewGameMessage message, NewGame newGameModel ) ->
-            newGameUpdate message newGameModel
-
-        ( PlayingMessage message, Playing world ) ->
-            playingUpdate message world
-
-        _ ->
-            ( model, Effect.none )
-
-
-newGameUpdate : NewGameMsg -> NewGameModel -> ( Model, Effect Msg )
-newGameUpdate msg model =
-    case msg of
-        SetNameSingular singular ->
-            ( NewGame { model | civilizationNameSingular = singular }
-            , Effect.none
-            )
-
-        SetNamePlural plural ->
-            ( NewGame { model | civilizationNamePlural = plural }
-            , Effect.none
-            )
-
-        ToggleNamePlural enabled ->
-            ( NewGame { model | hasUniquePluralName = enabled }
-            , Effect.none
-            )
-
-        SetNamePossessive possessive ->
-            ( NewGame { model | civilizationNamePossessive = possessive }
-            , Effect.none
-            )
-
-        ToggleNamePossessive enabled ->
-            ( NewGame { model | hasUniquePossessiveName = enabled }
-            , Effect.none
-            )
-
-        SetHomePlanetName name ->
-            ( NewGame { model | homePlanetName = name }
-            , Effect.none
-            )
-
-        StartGame ->
-            let
-                ( generatedWorld, seed ) =
-                    Random.step (generateGalaxy emptyWorld) model.seed
-
-                viableStartingPlanets : List ( EntityID, Orbit )
-                viableStartingPlanets =
-                    generatedWorld.planets
-                        |> Set.toList
-                        |> List.filterMap
-                            (\planetId ->
-                                Maybe.andThen
-                                    (\( type_, orbit ) ->
-                                        case type_ of
-                                            Rocky ->
-                                                Just ( planetId, orbit )
-
-                                            Gas ->
-                                                Nothing
-                                    )
-                                    (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
-                            )
-                        |> List.sortWith planetOrbitPreference
-
-                ( shuffledPlanets, finalSeed ) =
-                    Random.step (Random.List.shuffle viableStartingPlanets) seed
-
-                ( playerCiv, worldWithPlayerCiv ) =
-                    Logic.Entity.Extra.create generatedWorld
-                        |> Logic.Entity.with
-                            ( Game.Components.civilizationPopulationSpec
-                            , List.head shuffledPlanets
-                                |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 100))
-                                |> Maybe.withDefault Dict.empty
-                            )
-                        |> Logic.Entity.with
-                            ( Game.Components.namedSpec
-                            , { singular = model.civilizationNameSingular
-                              , possessive =
-                                    if model.hasUniquePossessiveName then
-                                        Just model.civilizationNamePossessive
-
-                                    else
-                                        Nothing
-                              , many =
-                                    if model.hasUniquePluralName then
-                                        Just model.civilizationNameSingular
-
-                                    else
-                                        Nothing
-                              }
-                            )
-                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
-                        |> Logic.Entity.with
-                            ( Game.Components.knowledgeSpec
-                            , Set.Any.fromList
-                                Game.Components.knowledgeToString
-                                [ LandTravel, WaterSurfaceTravel ]
-                            )
-            in
-            ( Playing
-                { worldWithPlayerCiv
-                    | playerCiv = playerCiv
-                    , seed = finalSeed
-                    , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
-                }
-            , Effect.none
-            )
 
 
 planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
@@ -425,35 +299,33 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
         EQ
 
 
-playingUpdate : PlayingMsg -> World -> ( Model, Effect Msg )
-playingUpdate msg world =
+update : Msg -> World -> ( World, SubCmd Msg Effect )
+update msg world =
     case msg of
         SetTickRate tickRate ->
-            ( Playing { world | tickRate = tickRate }, Effect.none )
+            ( { world | tickRate = tickRate }, SubCmd.none )
 
         DeleteGalaxy ->
-            ( NewGame { baseNewGameModel | seed = world.seed }
-            , Effect.none
+            ( world
+            , SubCmd.effect (Shared.DeleteGame world.seed)
             )
 
         SetSpaceFocus focus ->
-            ( Playing { world | spaceFocus = focus }, Effect.none )
+            ( { world | spaceFocus = focus }, SubCmd.none )
 
         SetCivilizationFocus focus ->
-            ( Playing { world | civilizationFocus = focus }, Effect.none )
+            ( { world | civilizationFocus = focus }, SubCmd.none )
 
         Tick ->
-            ( Playing
-                (world
-                    |> reproductionAndHappinessSystem
-                        Game.Components.civilizationReproductionRateSpec
-                        Game.Components.civilizationHappinessSpec
-                    |> birthSystem
-                        Game.Components.civilizationReproductionRateSpec
-                        Game.Components.civilizationPopulationSpec
-                    |> discoverySystem Game.Components.knowledgeSpec
-                )
-            , Effect.none
+            ( world
+                |> reproductionAndHappinessSystem
+                    Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationHappinessSpec
+                |> birthSystem
+                    Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationPopulationSpec
+                |> discoverySystem Game.Components.knowledgeSpec
+            , SubCmd.none
             )
 
 
@@ -761,153 +633,14 @@ generateEntity world fn =
 ---- VIEW ----
 
 
-view : Model -> View Msg
-view model =
+view : World -> View Msg
+view world =
     { title = "Hello Space!"
-    , body =
-        case model of
-            NewGame newGameModel ->
-                map NewGameMessage (viewNewGame newGameModel)
-
-            Playing world ->
-                map PlayingMessage (viewPlaying world)
+    , body = viewPlaying world
     }
 
 
-
--- New Game View
-
-
-viewNewGame : NewGameModel -> Element NewGameMsg
-viewNewGame model =
-    column
-        [ centerX
-        , centerY
-        , spacing 64
-        ]
-        [ text "Space Sim!"
-            |> el [ centerX, Font.size 64 ]
-        , wrappedRow
-            [ centerX
-            , centerY
-            , spacing 16
-            , padding 16
-            , width shrink
-            ]
-            [ column
-                [ spacing 16
-                , width fill
-                ]
-                [ Ui.Text.default
-                    []
-                    { onChange = SetNameSingular
-                    , text = model.civilizationNameSingular
-                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
-                    }
-                , Ui.Text.default
-                    []
-                    { onChange = SetNamePlural
-                    , text = model.civilizationNamePlural
-                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
-                    }
-                , Ui.Button.default
-                    { label =
-                        text <|
-                            if model.hasUniquePluralName then
-                                "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
-
-                            else
-                                "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
-                    , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
-                    }
-                , Ui.Text.default
-                    []
-                    { onChange = SetNamePossessive
-                    , text = model.civilizationNamePossessive
-                    , label = Input.labelLeft [ width fill ] (text "Civilization Name Possessive:")
-                    }
-                , Ui.Button.default
-                    { label =
-                        text <|
-                            if model.hasUniquePossessiveName then
-                                "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
-
-                            else
-                                "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
-                    , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
-                    }
-                , Ui.Text.default
-                    []
-                    { onChange = SetHomePlanetName
-                    , text = model.homePlanetName
-                    , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
-                    }
-                , Ui.Button.primary
-                    { label = text "Start Game"
-                    , onPress = Just StartGame
-                    }
-                    |> el [ centerX ]
-                ]
-            , column
-                [ spacing 8
-                , alignTop
-                , fill
-                    |> minimum 400
-                    |> maximum 600
-                    |> width
-                ]
-                [ text "Example:"
-                , paragraph
-                    []
-                    [ text
-                        "As the battle rages on between the "
-                    , el
-                        [ Font.color (rgb 1 0 1)
-                        , Element.Extra.id "plural-name-example"
-                        ]
-                        (text <|
-                            if model.hasUniquePluralName then
-                                model.civilizationNamePlural
-
-                            else
-                                model.civilizationNameSingular
-                        )
-                    , text " and the Federation, the "
-                    , el
-                        [ Font.color (rgb 1 0 1)
-                        , Element.Extra.id "singular-name-example"
-                        ]
-                        (text model.civilizationNameSingular)
-                    , text " people begin to question the morality of continuing the war. But the "
-                    , el
-                        [ Font.color (rgb 1 0 1)
-                        , Element.Extra.id "possessive-name-example"
-                        ]
-                        (text <|
-                            if model.hasUniquePossessiveName then
-                                model.civilizationNamePossessive
-
-                            else
-                                model.civilizationNameSingular
-                        )
-                    , text " home planet, "
-                    , el
-                        [ Font.color (rgb 1 0 1)
-                        , Element.Extra.id "home-planet-name-example"
-                        ]
-                        (text model.homePlanetName)
-                    , text ", hangs in the balance."
-                    ]
-                ]
-            ]
-        ]
-
-
-
--- Playing View
-
-
-viewPlaying : World -> Element PlayingMsg
+viewPlaying : World -> Element Msg
 viewPlaying world =
     column
         [ width fill, height fill ]
@@ -991,7 +724,7 @@ viewPlaying world =
         ]
 
 
-viewSlice : Element PlayingMsg -> Element PlayingMsg
+viewSlice : Element Msg -> Element Msg
 viewSlice slice =
     column
         [ height fill
@@ -1005,7 +738,7 @@ viewSlice slice =
         ]
 
 
-viewBody : World -> (World -> EntityID -> Element PlayingMsg) -> EntityID -> Element PlayingMsg
+viewBody : World -> (World -> EntityID -> Element Msg) -> EntityID -> Element Msg
 viewBody model bodyFn id =
     column
         [ spacing 8, height fill, padding 8 ]
@@ -1019,7 +752,7 @@ viewBody model bodyFn id =
         ]
 
 
-viewGalaxy : World -> Element PlayingMsg
+viewGalaxy : World -> Element Msg
 viewGalaxy model =
     Set.toList model.solarSystems
         |> List.map (viewSolarSystemSimple model)
@@ -1031,7 +764,7 @@ viewGalaxy model =
             ]
 
 
-viewSolarSystemSimple : World -> EntityID -> Element PlayingMsg
+viewSolarSystemSimple : World -> EntityID -> Element Msg
 viewSolarSystemSimple world solarSystemId =
     let
         ( starCount, planetCount ) =
@@ -1105,7 +838,7 @@ viewSolarSystemSimple world solarSystemId =
         ]
 
 
-viewSolarSystemDetailed : World -> EntityID -> Element PlayingMsg
+viewSolarSystemDetailed : World -> EntityID -> Element Msg
 viewSolarSystemDetailed world solarSystemId =
     let
         ( stars, planets ) =
@@ -1140,7 +873,7 @@ viewSolarSystemDetailed world solarSystemId =
         ]
 
 
-viewStarSimple : World -> EntityID -> Element PlayingMsg
+viewStarSimple : World -> EntityID -> Element Msg
 viewStarSimple _ starId =
     row
         [ spacing 8, width fill ]
@@ -1150,7 +883,7 @@ viewStarSimple _ starId =
         ]
 
 
-viewStarDetailed : World -> EntityID -> Element PlayingMsg
+viewStarDetailed : World -> EntityID -> Element Msg
 viewStarDetailed model starId =
     case Logic.Component.get starId model.starForms of
         Nothing ->
@@ -1183,7 +916,7 @@ viewStarDetailed model starId =
                 ]
 
 
-viewPlanetSimple : World -> EntityID -> Element PlayingMsg
+viewPlanetSimple : World -> EntityID -> Element Msg
 viewPlanetSimple world planetId =
     column
         [ spacing 8, width fill ]
@@ -1230,7 +963,7 @@ viewPlanetSimple world planetId =
         ]
 
 
-viewPlanetDetailed : World -> EntityID -> Element PlayingMsg
+viewPlanetDetailed : World -> EntityID -> Element Msg
 viewPlanetDetailed world planetId =
     case Logic.Component.get planetId world.planetTypes of
         Nothing ->
@@ -1286,7 +1019,7 @@ viewPlanetDetailed world planetId =
                 ]
 
 
-viewCivilizations : World -> Element PlayingMsg
+viewCivilizations : World -> Element Msg
 viewCivilizations world =
     world.civilizations
         |> Set.toList
@@ -1294,7 +1027,7 @@ viewCivilizations world =
         |> column [ spacing 8, alignTop, width fill ]
 
 
-viewCivilizationSimple : World -> EntityID -> Element PlayingMsg
+viewCivilizationSimple : World -> EntityID -> Element Msg
 viewCivilizationSimple world civId =
     case Logic.Component.get civId world.named of
         Nothing ->
@@ -1324,7 +1057,7 @@ viewCivilizationSimple world civId =
                 ]
 
 
-viewCivilizationDetailed : World -> EntityID -> Element PlayingMsg
+viewCivilizationDetailed : World -> EntityID -> Element Msg
 viewCivilizationDetailed world civId =
     column
         [ padding 16
