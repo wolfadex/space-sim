@@ -2,7 +2,6 @@ module Game.Components exposing
     ( CelestialBodyForm(..)
     , CivilizationReproductionRate
     , Knowledge(..)
-    , Name
     , Orbit
     , StarSize(..)
     , Water
@@ -10,8 +9,8 @@ module Game.Components exposing
     , civilizationHappinessSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
-    , knowledgeSpec
     , knowledgeComparableConfig
+    , knowledgeSpec
     , namedSpec
     , orbitSpec
     , parentSpec
@@ -21,6 +20,7 @@ module Game.Components exposing
     , waterSpec
     )
 
+import Data.Names exposing (ComplexName)
 import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -38,16 +38,9 @@ type alias CivilizationReproductionRate =
     Float
 
 
-namedSpec : Spec Name { world | named : Logic.Component.Set Name }
+namedSpec : Spec ComplexName { world | named : Logic.Component.Set ComplexName }
 namedSpec =
     Logic.Component.Spec .named (\comps world -> { world | named = comps })
-
-
-type alias Name =
-    { singular : String
-    , possessive : Maybe String
-    , many : Maybe String
-    }
 
 
 planetTypeSpec : Spec CelestialBodyForm { world | planetTypes : Logic.Component.Set CelestialBodyForm }
@@ -132,27 +125,28 @@ type Knowledge
 
 
 knowledgeComparableConfig : { toComparable : Knowledge -> String }
-knowledgeComparableConfig  =
-    { toComparable = \knowledge ->
-    case knowledge of
-        LandTravel ->
-            "LandTravel"
+knowledgeComparableConfig =
+    { toComparable =
+        \knowledge ->
+            case knowledge of
+                LandTravel ->
+                    "LandTravel"
 
-        WaterSurfaceTravel ->
-            "WaterSurfaceTravel"
+                WaterSurfaceTravel ->
+                    "WaterSurfaceTravel"
 
-        UnderwaterTravel ->
-            "UnderwaterTravel"
+                UnderwaterTravel ->
+                    "UnderwaterTravel"
 
-        Flight ->
-            "Flight"
+                Flight ->
+                    "Flight"
 
-        PlanetarySpaceTravel ->
-            "PlanetarySpaceTravel"
+                PlanetarySpaceTravel ->
+                    "PlanetarySpaceTravel"
 
-        InterplanetarySpaceTravel ->
-            "InterplanetarySpaceTravel"
+                InterplanetarySpaceTravel ->
+                    "InterplanetarySpaceTravel"
 
-        FTLSpaceTravel ->
-            "FTLSpaceTravel"
+                FTLSpaceTravel ->
+                    "FTLSpaceTravel"
     }

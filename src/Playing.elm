@@ -13,6 +13,7 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Data.Names exposing (ComplexName)
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -22,7 +23,6 @@ import Game.Components
         ( CelestialBodyForm(..)
         , CivilizationReproductionRate
         , Knowledge(..)
-        , Name
         , Orbit
         , StarSize(..)
         , Water
@@ -63,7 +63,7 @@ type alias World =
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , civilizationHappiness : Logic.Component.Set Float
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
-    , named : Logic.Component.Set Name
+    , named : Logic.Component.Set ComplexName
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -80,7 +80,7 @@ type alias World =
     , solarSystems : Set EntityID
     , playerCiv : EntityID
     , civilizations : Set EntityID
-    , availableCivilizationNames : List Name
+    , availableCivilizationNames : List ComplexName
     , starDate : StarDate
     , eventLog : List Log
     }
@@ -145,46 +145,26 @@ emptyWorld =
     , solarSystems = Set.empty
     , playerCiv = -1
     , civilizations = Set.empty
-    , availableCivilizationNames = allCivilizationNames
+    , availableCivilizationNames = Data.Names.allCivilizationNames
     , starDate = 0
     , eventLog = []
     }
 
 
-allCivilizationNames : List Name
-allCivilizationNames =
-    [ { singular = "Morlock"
-      , possessive = Just "Morlock's"
-      , many = Just "Morlocks"
-      }
-    , { singular = "Klingon"
-      , possessive = Just "Klingon's"
-      , many = Just "Klingons"
-      }
-    , { singular = "Federation"
-      , possessive = Just "Federation's"
-      , many = Nothing
-      }
-    , { singular = "Borg"
-      , possessive = Just "Borg's"
-      , many = Nothing
-      }
-    , { singular = "Empire"
-      , possessive = Just "Empire's"
-      , many = Nothing
-      }
-    , { singular = "Gorn"
-      , possessive = Nothing
-      , many = Nothing
-      }
-    ]
-
-
-init : { name : Name, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
+init : { name : ComplexName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
 init flags =
     let
+        -- Filter out a civilization name if the player's chosen name matches
+        worldWithPlayerDataFilteredOut : World
+        worldWithPlayerDataFilteredOut =
+            { emptyWorld
+                | availableCivilizationNames =
+                    List.filter (\name -> String.toLower name.singular /= String.toLower flags.name.singular)
+                        emptyWorld.availableCivilizationNames
+            }
+
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy emptyWorld) flags.seed
+            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) flags.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -606,7 +586,7 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
         Random.constant world
 
 
-generateCivilization : Float -> World -> EntityID -> Name -> Generator World
+generateCivilization : Float -> World -> EntityID -> ComplexName -> Generator World
 generateCivilization waterPercent worldWithFewerNames planetId name =
     Random.map4
         (\initialPopulationSize reproductionRate initialHappiness baseKnowledge ->
@@ -643,7 +623,7 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
         )
 
 
-generateCivilizationName : World -> Generator ( Maybe Name, World )
+generateCivilizationName : World -> Generator ( Maybe ComplexName, World )
 generateCivilizationName world =
     Random.List.choose world.availableCivilizationNames
         |> Random.map
@@ -1044,7 +1024,7 @@ viewPlanetDetailed world planetId =
 
         Just planetType ->
             let
-                civsOnPlanet : List ( EntityID, Name )
+                civsOnPlanet : List ( EntityID, ComplexName )
                 civsOnPlanet =
                     Set.toList world.civilizations
                         |> List.filterMap
@@ -1221,7 +1201,7 @@ happinessToString happiness =
 
 
 type alias CivilizationDetails =
-    { name : Name
+    { name : ComplexName
     , occupiedPlanets : Dict EntityID ScaledNumber
     , happiness : Float
     , logs : List Log
