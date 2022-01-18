@@ -11,6 +11,7 @@ import NoDebug.Log
 import NoDebug.TodoOrToString
 import NoDeprecated
 import NoExposingEverything
+import NoFunctionOutsideOfModules
 import NoImportingEverything
 import NoInconsistentAliases
 import NoMissingTypeAnnotation
@@ -40,6 +41,10 @@ config =
     , NoDeprecated.rule NoDeprecated.defaults
     , NoExposingEverything.rule
         |> Review.Rule.ignoreErrorsForDirectories [ "tests" ]
+    , NoFunctionOutsideOfModules.rule
+        [ ( [ "Element.Input.text" ], [ "Ui.Text" ] )
+        , ( [ "Element.Input.button" ], [ "Ui.Button" ] )
+        ]
     , NoImportingEverything.rule [ "Element" ]
     , NoInconsistentAliases.config
         [ ( "Element.Input", "Input" )
