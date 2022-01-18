@@ -1,6 +1,7 @@
 module Game.Components exposing
     ( CelestialBodyForm(..)
     , CivilizationReproductionRate
+    , GalacticCoordinates
     , Knowledge(..)
     , Orbit
     , StarSize(..)
@@ -16,14 +17,18 @@ module Game.Components exposing
     , parentSpec
     , planetSizeSpec
     , planetTypeSpec
+    , positionSpec
     , starFormSpec
     , waterSpec
     )
 
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
+import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
+import Point2d exposing (coordinates)
+import Point3d exposing (Point3d)
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
@@ -150,3 +155,12 @@ knowledgeComparableConfig =
                 FTLSpaceTravel ->
                     "FTLSpaceTravel"
     }
+
+
+positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }
+positionSpec =
+    Logic.Component.Spec .galaxyPositions (\comps world -> { world | galaxyPositions = comps })
+
+
+type GalacticCoordinates
+    = GalacticCoordinates

@@ -18,19 +18,23 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationReproductionRate
+        , GalacticCoordinates
         , Knowledge(..)
         , Orbit
         , StarSize(..)
         , Water
         )
+import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
+import Point3d exposing (Point3d)
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Random.List
@@ -73,6 +77,7 @@ type alias World =
     , planetSize : Logic.Component.Set Float
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
+    , galaxyPositions : Logic.Component.Set (Point3d Meters GalacticCoordinates)
 
     ---- Book keeping entities by ID
     , planets : Set EntityID
@@ -138,6 +143,7 @@ emptyWorld =
     , civilizationPopulations = Logic.Component.empty
     , civilizationHappiness = Logic.Component.empty
     , civilizationKnowledge = Logic.Component.empty
+    , galaxyPositions = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -525,15 +531,27 @@ generateSolarSystem ( solarSystemId, world ) =
     generateManyEntities 1 3 world (generateStar solarSystemId)
         |> Random.andThen
             (\( starIds, starWorld ) ->
-                Random.map
-                    (\( planetIds, finalWorld ) ->
+                Random.map2
+                    (\( planetIds, finalWorld ) galacticPosition ->
                         ( solarSystemId
                         , { finalWorld | solarSystems = Set.insert solarSystemId finalWorld.solarSystems }
                         )
                             |> Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
+                            |> Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
                     )
                     (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
+                    generateGalacticPosition
             )
+
+
+generateGalacticPosition : Generator (Point3d Meters GalacticCoordinates)
+generateGalacticPosition =
+    Random.map2
+        (\x y ->
+            Point3d.meters x y 0
+        )
+        (Random.float -1.0 1.0)
+        (Random.float -1.0 1.0)
 
 
 generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
@@ -841,15 +859,16 @@ viewBody model bodyFn id =
 
 
 viewGalaxy : World -> Element Msg
-viewGalaxy model =
-    Set.toList model.solarSystems
-        |> List.map (viewSolarSystemSimple model)
-        |> column
-            [ spacing 8
-            , width fill
-            , spacing 8
-            , Background.color Ui.Theme.darkGray
-            ]
+viewGalaxy world =
+    -- Set.toList world.solarSystems
+    --     |> List.map (viewSolarSystemSimple world)
+    --     |> column
+    --         [ spacing 8
+    --         , width fill
+    --         , spacing 8
+    --         , Background.color Ui.Theme.darkGray
+    --         ]
+    Galaxy3d.view world
 
 
 viewSolarSystemSimple : World -> EntityID -> Element Msg
