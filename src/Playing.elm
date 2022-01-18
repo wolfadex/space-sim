@@ -718,50 +718,22 @@ view world =
 viewPlaying : World -> Element Msg
 viewPlaying world =
     column
-        [ width fill, height fill ]
-        [ row
-            [ padding 16, spacing 16 ]
-            [ text "Game Speed:"
-            , Ui.Button.toggle
-                { label = text "||"
-                , onPress = Just (SetTickRate Paused)
-                , enabled = world.tickRate == Paused
-                }
-            , Ui.Button.toggle
-                { label = text "|>"
-                , onPress = Just (SetTickRate HalfSpeed)
-                , enabled = world.tickRate == HalfSpeed
-                }
-            , Ui.Button.toggle
-                { label = text ">"
-                , onPress = Just (SetTickRate Normal)
-                , enabled = world.tickRate == Normal
-                }
-            , Ui.Button.toggle
-                { label = text ">>"
-                , onPress = Just (SetTickRate Fast)
-                , enabled = world.tickRate == Fast
-                }
-            , Ui.Button.toggle
-                { label = text ">>>"
-                , onPress = Just (SetTickRate ExtraFast)
-                , enabled = world.tickRate == ExtraFast
-                }
-            , Ui.Button.default
-                { label = text "Delete"
-                , onPress = Just DeleteGalaxy
-                }
-            , text ("Star Date: " ++ String.fromInt world.starDate)
-            ]
+        [ width fill
+        , height fill
+        ]
+        [ viewControls world
         , row
             [ width fill
             , height fill
+            , scrollbarY
             , padding 16
             , spacing 8
             ]
             [ el
                 [ alignTop
+                , width fill
                 , height fill
+                , scrollbarY
                 , Border.solid
                 , Border.width 1
                 ]
@@ -800,6 +772,46 @@ viewPlaying world =
         ]
 
 
+viewControls : World -> Element Msg
+viewControls world =
+    row
+        [ padding 16
+        , spacing 16
+        ]
+        [ text "Game Speed:"
+        , Ui.Button.toggle
+            { label = text "||"
+            , onPress = Just (SetTickRate Paused)
+            , enabled = world.tickRate == Paused
+            }
+        , Ui.Button.toggle
+            { label = text "|>"
+            , onPress = Just (SetTickRate HalfSpeed)
+            , enabled = world.tickRate == HalfSpeed
+            }
+        , Ui.Button.toggle
+            { label = text ">"
+            , onPress = Just (SetTickRate Normal)
+            , enabled = world.tickRate == Normal
+            }
+        , Ui.Button.toggle
+            { label = text ">>"
+            , onPress = Just (SetTickRate Fast)
+            , enabled = world.tickRate == Fast
+            }
+        , Ui.Button.toggle
+            { label = text ">>>"
+            , onPress = Just (SetTickRate ExtraFast)
+            , enabled = world.tickRate == ExtraFast
+            }
+        , Ui.Button.default
+            { label = text "Delete"
+            , onPress = Just DeleteGalaxy
+            }
+        , text ("Star Date: " ++ String.fromInt world.starDate)
+        ]
+
+
 viewSlice : Element Msg -> Element Msg
 viewSlice slice =
     column
@@ -833,7 +845,7 @@ viewGalaxy model =
     Set.toList model.solarSystems
         |> List.map (viewSolarSystemSimple model)
         |> column
-            [ height fill
+            [ spacing 8
             , width fill
             , spacing 8
             , Background.color Ui.Theme.darkGray
@@ -1100,7 +1112,12 @@ viewCivilizations world =
     world.civilizations
         |> Set.toList
         |> List.map (viewCivilizationSimple world)
-        |> column [ spacing 8, alignTop, width fill ]
+        |> column
+            [ spacing 8
+            , alignTop
+            , width fill
+            , scrollbarY
+            ]
 
 
 viewCivilizationSimple : World -> EntityID -> Element Msg
@@ -1112,13 +1129,6 @@ viewCivilizationSimple world civId =
         Just name ->
             row
                 [ spacing 8
-
-                -- , paddingEach
-                --     { top = 0
-                --     , bottom = 0
-                --     , left = 0
-                --     , right = 16
-                --     }
                 , width fill
                 , Background.color <|
                     if civId == world.playerCiv then
@@ -1138,6 +1148,8 @@ viewCivilizationDetailed world civId =
     column
         [ padding 16
         , width fill
+        , height fill
+        , scrollbarY
         , spacing 16
         , alignTop
         , Border.solid
