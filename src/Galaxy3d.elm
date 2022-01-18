@@ -3,6 +3,7 @@ module Galaxy3d exposing (view)
 import Angle
 import Camera3d
 import Color
+import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Element
 import Game.Components exposing (GalacticCoordinates)
@@ -29,11 +30,18 @@ view world =
     Element.html
         (Scene3d.unlit
             { entities =
-                Scene3d.quad (Material.color Color.blue)
-                    (Point3d.meters -1 -1 0)
-                    (Point3d.meters 1 -1 0)
-                    (Point3d.meters 1 1 0)
-                    (Point3d.meters -1 1 0)
+                Scene3d.quad (Material.color Color.black)
+                    (Point3d.meters -1.5 -1.5 0)
+                    (Point3d.meters 1.5 -1.5 0)
+                    (Point3d.meters 1.5 1.5 0)
+                    (Point3d.meters -1.5 1.5 0)
+                    :: Scene3d.cylinder (Material.color (Color.rgb 0 0.1 0.3))
+                        (Cylinder3d.centeredOn Point3d.origin
+                            Direction3d.positiveZ
+                            { radius = Length.meters 1.1
+                            , length = Length.meters 0.001
+                            }
+                        )
                     :: solarSystems
             , camera =
                 Camera3d.perspective
@@ -57,7 +65,7 @@ viewSolarSystem world solarSystemId =
     Maybe.map
         (\position ->
             Scene3d.sphere
-                (Material.color Color.red)
+                (Material.color Color.gray)
                 (Sphere3d.atPoint position (Length.meters 0.025))
         )
         (Logic.Component.get solarSystemId world.galaxyPositions)

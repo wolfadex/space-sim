@@ -522,7 +522,7 @@ reproductionAndHappinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 10 20 model generateSolarSystem
+    generateManyEntities 100 200 model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -546,12 +546,27 @@ generateSolarSystem ( solarSystemId, world ) =
 
 generateGalacticPosition : Generator (Point3d Meters GalacticCoordinates)
 generateGalacticPosition =
-    Random.map2
-        (\x y ->
-            Point3d.meters x y 0
+    Random.map3
+        (\randT randU1 randU2 ->
+            let
+                t =
+                    2 * pi * randT
+
+                u =
+                    randU1 + randU2
+
+                r =
+                    if u > 1 then
+                        2 - u
+
+                    else
+                        u
+            in
+            Point3d.meters (r * cos t) (r * sin t) 0
         )
-        (Random.float -1.0 1.0)
-        (Random.float -1.0 1.0)
+        (Random.float 0.0 1.0)
+        (Random.float 0.0 1.0)
+        (Random.float 0.0 1.0)
 
 
 generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
