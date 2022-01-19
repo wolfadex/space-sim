@@ -5,6 +5,7 @@ module Playing exposing
     , SpaceFocus(..)
     , StarDate
     , TickRate
+    , ViewStyle
     , World
     , init
     , subscriptions
@@ -18,19 +19,23 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationReproductionRate
+        , GalacticCoordinates
         , Knowledge(..)
         , Orbit
         , StarSize(..)
         , Water
         )
+import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
+import Point3d exposing (Point3d)
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Random.List
@@ -54,6 +59,7 @@ type alias World =
     , spaceFocus : SpaceFocus
     , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
+    , viewStyle : ViewStyle
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -73,6 +79,7 @@ type alias World =
     , planetSize : Logic.Component.Set Float
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
+    , galaxyPositions : Logic.Component.Set (Point3d Meters GalacticCoordinates)
 
     ---- Book keeping entities by ID
     , planets : Set EntityID
@@ -84,6 +91,11 @@ type alias World =
     , starDate : StarDate
     , eventLog : List Log
     }
+
+
+type ViewStyle
+    = TwoD
+    | ThreeD
 
 
 type alias Log =
@@ -123,6 +135,7 @@ emptyWorld =
     , spaceFocus = FGalaxy
     , civilizationFocus = FAll
     , tickRate = Normal
+    , viewStyle = ThreeD
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -138,6 +151,7 @@ emptyWorld =
     , civilizationPopulations = Logic.Component.empty
     , civilizationHappiness = Logic.Component.empty
     , civilizationKnowledge = Logic.Component.empty
+    , galaxyPositions = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -294,6 +308,7 @@ type Msg
     | SetCivilizationFocus CivilizationFocus
     | Tick
     | SetTickRate TickRate
+    | GotViewStyle ViewStyle
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
@@ -312,6 +327,9 @@ update msg world =
 
         SetCivilizationFocus focus ->
             ( { world | civilizationFocus = focus }, SubCmd.none )
+
+        GotViewStyle viewStyle ->
+            ( { world | viewStyle = viewStyle }, SubCmd.none )
 
         Tick ->
             ( { world | starDate = world.starDate + 1 }
@@ -516,7 +534,7 @@ reproductionAndHappinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 10 20 model generateSolarSystem
+    generateManyEntities 100 200 model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -525,15 +543,45 @@ generateSolarSystem ( solarSystemId, world ) =
     generateManyEntities 1 3 world (generateStar solarSystemId)
         |> Random.andThen
             (\( starIds, starWorld ) ->
-                Random.map
-                    (\( planetIds, finalWorld ) ->
+                Random.map2
+                    (\( planetIds, finalWorld ) galacticPosition ->
                         ( solarSystemId
                         , { finalWorld | solarSystems = Set.insert solarSystemId finalWorld.solarSystems }
                         )
                             |> Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
+                            |> Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
                     )
                     (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
+                    generateGalacticPosition
             )
+
+
+generateGalacticPosition : Generator (Point3d Meters GalacticCoordinates)
+generateGalacticPosition =
+    Random.map3
+        (\randT randU1 randU2 ->
+            let
+                t : Float
+                t =
+                    2 * pi * randT
+
+                u : Float
+                u =
+                    randU1 + randU2
+
+                r : Float
+                r =
+                    if u > 1 then
+                        2 - u
+
+                    else
+                        u
+            in
+            Point3d.meters (r * cos t) (r * sin t) 0
+        )
+        (Random.float 0.0 1.0)
+        (Random.float 0.0 1.0)
+        (Random.float 0.0 1.0)
 
 
 generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
@@ -809,6 +857,17 @@ viewControls world =
             , onPress = Just DeleteGalaxy
             }
         , text ("Star Date: " ++ String.fromInt world.starDate)
+        , Ui.Button.default <|
+            case world.viewStyle of
+                ThreeD ->
+                    { label = text "View 2D Glaxy"
+                    , onPress = Just (GotViewStyle TwoD)
+                    }
+
+                TwoD ->
+                    { label = text "View 3D Glaxy"
+                    , onPress = Just (GotViewStyle ThreeD)
+                    }
         ]
 
 
@@ -841,15 +900,20 @@ viewBody model bodyFn id =
 
 
 viewGalaxy : World -> Element Msg
-viewGalaxy model =
-    Set.toList model.solarSystems
-        |> List.map (viewSolarSystemSimple model)
-        |> column
-            [ spacing 8
-            , width fill
-            , spacing 8
-            , Background.color Ui.Theme.darkGray
-            ]
+viewGalaxy world =
+    case world.viewStyle of
+        ThreeD ->
+            Galaxy3d.view world (FSolarSystem >> SetSpaceFocus)
+
+        TwoD ->
+            Set.toList world.solarSystems
+                |> List.map (viewSolarSystemSimple world)
+                |> column
+                    [ spacing 8
+                    , width fill
+                    , spacing 8
+                    , Background.color Ui.Theme.darkGray
+                    ]
 
 
 viewSolarSystemSimple : World -> EntityID -> Element Msg
