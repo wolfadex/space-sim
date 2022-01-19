@@ -43,7 +43,7 @@ view world onPress =
             List.filterMap (solarSystemPoint world)
                 (Set.toList world.solarSystems)
 
-        solarSystems : List (Scene3d.Entity LightYear)
+        solarSystems : List (Scene3d.Entity ScaledViewPoint)
         solarSystems =
             List.map (Tuple.second >> viewSolarSystem) solarSystemPoints
 
@@ -96,11 +96,12 @@ view world onPress =
 
         -- Take all vertices of the logo shape, rotate them the same amount as
         -- the logo itself and then project them into 2D screen space
-        vertices2d : List ( EntityID, Point2d.Point2d Pixels.Pixels coordinates )
+        vertices2d : List ( EntityID, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
         vertices2d =
             List.map
                 (Tuple.mapSecond
-                    (Point3d.rotateAround Axis3d.z angle
+                    (scalePointInLightYearsToOne
+                        >> Point3d.rotateAround Axis3d.z angle
                         >> Point3d.Projection.toScreenSpace camera screenRectangle
                     )
                 )
@@ -212,23 +213,27 @@ view world onPress =
         )
 
 
-viewSolarSystem : Point3d Meters LightYear -> Scene3d.Entity LightYear
+viewSolarSystem : Point3d Meters LightYear -> Scene3d.Entity ScaledViewPoint
 viewSolarSystem position =
-    let
-        drawPosition : Point3d Meters coordinates
-        drawPosition =
-            Point3d.fromMeters
-                { x = Length.inLightYears (Point3d.xCoordinate position) / 5000
-                , y = Length.inLightYears (Point3d.yCoordinate position) / 5000
-                , z = Length.inLightYears (Point3d.zCoordinate position) / 5000
-                }
-    in
     Scene3d.sphere
         (Material.color Color.gray)
-        (Sphere3d.atPoint drawPosition (Length.meters 0.025))
+        (Sphere3d.atPoint (scalePointInLightYearsToOne position) (Length.meters 0.025))
 
 
 solarSystemPoint : { a | galaxyPositions : Logic.Component.Set (Point3d Meters LightYear) } -> EntityID -> Maybe ( EntityID, Point3d Meters LightYear )
 solarSystemPoint world solarSystemId =
     Maybe.map (Tuple.pair solarSystemId)
         (Logic.Component.get solarSystemId world.galaxyPositions)
+
+
+type ScaledViewPoint
+    = ScaledViewPoint Never
+
+
+scalePointInLightYearsToOne : Point3d Meters LightYear -> Point3d Meters ScaledViewPoint
+scalePointInLightYearsToOne point =
+    Point3d.fromMeters
+        { x = Length.inLightYears (Point3d.xCoordinate point) / 5000
+        , y = Length.inLightYears (Point3d.yCoordinate point) / 5000
+        , z = Length.inLightYears (Point3d.zCoordinate point) / 5000
+        }
