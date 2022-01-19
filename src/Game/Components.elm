@@ -1,8 +1,8 @@
 module Game.Components exposing
     ( CelestialBodyForm(..)
     , CivilizationReproductionRate
-    , GalacticCoordinates
     , Knowledge(..)
+    , LightYear
     , Orbit
     , StarSize(..)
     , Water
@@ -161,5 +161,5 @@ positionSpec =
     Logic.Component.Spec .galaxyPositions (\comps world -> { world | galaxyPositions = comps })
 
 
-type GalacticCoordinates
-    = GalacticCoordinates Never
+type LightYear
+    = LightYear Never

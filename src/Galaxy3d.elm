@@ -11,7 +11,7 @@ import Direction2d
 import Direction3d
 import Element
 import Frame2d
-import Game.Components exposing (GalacticCoordinates)
+import Game.Components exposing (LightYear)
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
@@ -35,15 +35,15 @@ import Svg.Events
 import Viewpoint3d
 
 
-view : { a | solarSystems : Set EntityID, galaxyPositions : Logic.Component.Set (Point3d Meters GalacticCoordinates) } -> (EntityID -> msg) -> Element.Element msg
+view : { a | solarSystems : Set EntityID, galaxyPositions : Logic.Component.Set (Point3d Meters LightYear) } -> (EntityID -> msg) -> Element.Element msg
 view world onPress =
     let
-        solarSystemPoints : List ( EntityID, Point3d Meters GalacticCoordinates )
+        solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
         solarSystemPoints =
             List.filterMap (solarSystemPoint world)
                 (Set.toList world.solarSystems)
 
-        solarSystems : List (Scene3d.Entity GalacticCoordinates)
+        solarSystems : List (Scene3d.Entity LightYear)
         solarSystems =
             List.map (Tuple.second >> viewSolarSystem) solarSystemPoints
 
@@ -212,14 +212,23 @@ view world onPress =
         )
 
 
-viewSolarSystem : Point3d Meters GalacticCoordinates -> Scene3d.Entity GalacticCoordinates
+viewSolarSystem : Point3d Meters LightYear -> Scene3d.Entity LightYear
 viewSolarSystem position =
+    let
+        drawPosition : Point3d Meters coordinates
+        drawPosition =
+            Point3d.fromMeters
+                { x = Length.inLightYears (Point3d.xCoordinate position) / 5000
+                , y = Length.inLightYears (Point3d.yCoordinate position) / 5000
+                , z = Length.inLightYears (Point3d.zCoordinate position) / 5000
+                }
+    in
     Scene3d.sphere
         (Material.color Color.gray)
-        (Sphere3d.atPoint position (Length.meters 0.025))
+        (Sphere3d.atPoint drawPosition (Length.meters 0.025))
 
 
-solarSystemPoint : { a | galaxyPositions : Logic.Component.Set (Point3d Meters GalacticCoordinates) } -> EntityID -> Maybe ( EntityID, Point3d Meters GalacticCoordinates )
+solarSystemPoint : { a | galaxyPositions : Logic.Component.Set (Point3d Meters LightYear) } -> EntityID -> Maybe ( EntityID, Point3d Meters LightYear )
 solarSystemPoint world solarSystemId =
     Maybe.map (Tuple.pair solarSystemId)
         (Logic.Component.get solarSystemId world.galaxyPositions)

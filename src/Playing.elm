@@ -24,13 +24,13 @@ import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationReproductionRate
-        , GalacticCoordinates
         , Knowledge(..)
+        , LightYear
         , Orbit
         , StarSize(..)
         , Water
         )
-import Length exposing (Meters)
+import Length exposing (Length, Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -79,7 +79,7 @@ type alias World =
     , planetSize : Logic.Component.Set Float
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
-    , galaxyPositions : Logic.Component.Set (Point3d Meters GalacticCoordinates)
+    , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
 
     ---- Book keeping entities by ID
     , planets : Set EntityID
@@ -556,7 +556,7 @@ generateSolarSystem ( solarSystemId, world ) =
             )
 
 
-generateGalacticPosition : Generator (Point3d Meters GalacticCoordinates)
+generateGalacticPosition : Generator (Point3d Meters LightYear)
 generateGalacticPosition =
     Random.map3
         (\randT randU1 randU2 ->
@@ -576,8 +576,20 @@ generateGalacticPosition =
 
                     else
                         u
+
+                x : Length
+                x =
+                    Length.lightYears ((r * cos t) * 5000)
+
+                y : Length
+                y =
+                    Length.lightYears ((r * sin t) * 5000)
             in
-            Point3d.meters (r * cos t) (r * sin t) 0
+            Point3d.fromMeters
+                { x = Length.inMeters x
+                , y = Length.inMeters y
+                , z = 0
+                }
         )
         (Random.float 0.0 1.0)
         (Random.float 0.0 1.0)
