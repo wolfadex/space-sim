@@ -1,12 +1,5 @@
 module Playing exposing
-    ( CivilizationFocus
-    , Log
-    , Msg(..)
-    , SpaceFocus(..)
-    , StarDate
-    , TickRate
-    , ViewStyle
-    , World
+    ( Msg(..)
     , init
     , subscriptions
     , update
@@ -23,12 +16,20 @@ import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
+        , CivilizationFocus(..)
         , CivilizationReproductionRate
         , Knowledge(..)
         , LightYear
+        , Log
         , Orbit
+        , SpaceFocus(..)
+        , StarDate
         , StarSize(..)
+        , TickRate(..)
+        , ViewStyle(..)
         , Water
+        , World
+        , emptyWorld
         )
 import Length exposing (Length, Meters)
 import Logic.Component exposing (Spec)
@@ -52,117 +53,6 @@ import View exposing (View)
 
 
 ---- INIT ----
-
-
-type alias World =
-    { seed : Seed
-    , spaceFocus : SpaceFocus
-    , civilizationFocus : CivilizationFocus
-    , tickRate : TickRate
-    , viewStyle : ViewStyle
-
-    ---- ECS stuff
-    , ecsInternals : Logic.Entity.Extra.Internals
-
-    -- CIV
-    , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
-    , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
-    , civilizationHappiness : Logic.Component.Set Float
-    , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
-    , named : Logic.Component.Set CivilizationName
-
-    -- Other
-    , planetTypes : Logic.Component.Set CelestialBodyForm
-    , starForms : Logic.Component.Set StarSize
-    , orbits : Logic.Component.Set Orbit
-    , waterContent : Logic.Component.Set Water
-    , planetSize : Logic.Component.Set Float
-    , parents : Logic.Component.Set EntityID
-    , children : Logic.Component.Set (Set EntityID)
-    , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
-
-    ---- Book keeping entities by ID
-    , planets : Set EntityID
-    , stars : Set EntityID
-    , solarSystems : Set EntityID
-    , playerCiv : EntityID
-    , civilizations : Set EntityID
-    , availableCivilizationNames : List CivilizationName
-    , starDate : StarDate
-    , eventLog : List Log
-    }
-
-
-type ViewStyle
-    = TwoD
-    | ThreeD
-
-
-type alias Log =
-    { description : String
-    , time : StarDate
-    , civilizationId : EntityID
-    }
-
-
-type alias StarDate =
-    Int
-
-
-type SpaceFocus
-    = FGalaxy
-    | FSolarSystem EntityID
-    | FStar EntityID
-    | FPlanet EntityID
-
-
-type CivilizationFocus
-    = FAll
-    | FOne EntityID
-
-
-type TickRate
-    = Paused
-    | Normal
-    | Fast
-    | ExtraFast
-    | HalfSpeed
-
-
-emptyWorld : World
-emptyWorld =
-    { seed = Random.initialSeed 0
-    , spaceFocus = FGalaxy
-    , civilizationFocus = FAll
-    , tickRate = Normal
-    , viewStyle = ThreeD
-
-    --
-    , ecsInternals = Logic.Entity.Extra.initInternals
-    , named = Logic.Component.empty
-    , civilizationReproductionRates = Logic.Component.empty
-    , planetTypes = Logic.Component.empty
-    , starForms = Logic.Component.empty
-    , parents = Logic.Component.empty
-    , children = Logic.Component.empty
-    , orbits = Logic.Component.empty
-    , waterContent = Logic.Component.empty
-    , planetSize = Logic.Component.empty
-    , civilizationPopulations = Logic.Component.empty
-    , civilizationHappiness = Logic.Component.empty
-    , civilizationKnowledge = Logic.Component.empty
-    , galaxyPositions = Logic.Component.empty
-
-    --
-    , planets = Set.empty
-    , stars = Set.empty
-    , solarSystems = Set.empty
-    , playerCiv = -1
-    , civilizations = Set.empty
-    , availableCivilizationNames = Data.Names.allCivilizationNames
-    , starDate = 0
-    , eventLog = []
-    }
 
 
 init : { name : CivilizationName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
@@ -915,7 +805,7 @@ viewGalaxy : World -> Element Msg
 viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
-            Galaxy3d.view world (FSolarSystem >> SetSpaceFocus)
+            Galaxy3d.viewGalaxy world (FSolarSystem >> SetSpaceFocus)
 
         TwoD ->
             Set.toList world.solarSystems
@@ -1015,26 +905,37 @@ viewSolarSystemDetailed world solarSystemId =
                     )
                 |> Maybe.withDefault ( Set.empty, Set.empty )
     in
-    column
-        [ padding 8 ]
-        [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
-        , column [ padding 8 ]
-            [ text "Stars:"
-            , stars
-                |> Set.toList
-                |> List.map (viewStarSimple world)
-                |> column [ padding 8, spacing 4 ]
-            ]
-        , column [ padding 8 ]
-            [ text "Planets:"
-            , planets
-                |> Set.toList
-                |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
-                |> List.sortBy (\( _, orbit ) -> orbit)
-                |> List.map (Tuple.first >> viewPlanetSimple world)
-                |> column [ padding 8, spacing 4 ]
-            ]
-        ]
+    case world.viewStyle of
+        ThreeD ->
+            Galaxy3d.viewSolarSystem
+                { onPressStar = FStar >> SetSpaceFocus
+                , onPressPlanet = FPlanet >> SetSpaceFocus
+                , stars = stars
+                , planets = planets
+                }
+                world
+
+        TwoD ->
+            column
+                [ padding 8 ]
+                [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
+                , column [ padding 8 ]
+                    [ text "Stars:"
+                    , stars
+                        |> Set.toList
+                        |> List.map (viewStarSimple world)
+                        |> column [ padding 8, spacing 4 ]
+                    ]
+                , column [ padding 8 ]
+                    [ text "Planets:"
+                    , planets
+                        |> Set.toList
+                        |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
+                        |> List.sortBy (\( _, orbit ) -> orbit)
+                        |> List.map (Tuple.first >> viewPlanetSimple world)
+                        |> column [ padding 8, spacing 4 ]
+                    ]
+                ]
 
 
 viewStarSimple : World -> EntityID -> Element Msg

@@ -2,6 +2,7 @@ module Main exposing (Model, Msg, main)
 
 import Browser exposing (Document)
 import Element exposing (..)
+import Game.Components
 import NewGame
 import Playing
 import Random
@@ -22,7 +23,7 @@ main =
 
 type Model
     = NewGame NewGame.Model
-    | Playing Playing.World
+    | Playing Game.Components.World
 
 
 init : Flags -> ( Model, Cmd Msg )

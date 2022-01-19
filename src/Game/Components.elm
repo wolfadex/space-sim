@@ -1,15 +1,24 @@
 module Game.Components exposing
-    ( CelestialBodyForm(..)
+    ( AstronomicalUnit
+    , CelestialBodyForm(..)
+    , CivilizationFocus(..)
     , CivilizationReproductionRate
     , Knowledge(..)
     , LightYear
+    , Log
     , Orbit
+    , SpaceFocus(..)
+    , StarDate
     , StarSize(..)
+    , TickRate(..)
+    , ViewStyle(..)
     , Water
+    , World
     , childrenSpec
     , civilizationHappinessSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
+    , emptyWorld
     , knowledgeComparableConfig
     , knowledgeSpec
     , namedSpec
@@ -27,10 +36,123 @@ import Dict exposing (Dict)
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
+import Logic.Entity.Extra
 import Point3d exposing (Point3d)
+import Random exposing (Seed)
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
+
+
+type alias World =
+    { seed : Seed
+    , spaceFocus : SpaceFocus
+    , civilizationFocus : CivilizationFocus
+    , tickRate : TickRate
+    , viewStyle : ViewStyle
+
+    ---- ECS stuff
+    , ecsInternals : Logic.Entity.Extra.Internals
+
+    -- CIV
+    , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
+    , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
+    , civilizationHappiness : Logic.Component.Set Float
+    , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
+    , named : Logic.Component.Set CivilizationName
+
+    -- Other
+    , planetTypes : Logic.Component.Set CelestialBodyForm
+    , starForms : Logic.Component.Set StarSize
+    , orbits : Logic.Component.Set Orbit
+    , waterContent : Logic.Component.Set Water
+    , planetSize : Logic.Component.Set Float
+    , parents : Logic.Component.Set EntityID
+    , children : Logic.Component.Set (Set EntityID)
+    , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+
+    ---- Book keeping entities by ID
+    , planets : Set EntityID
+    , stars : Set EntityID
+    , solarSystems : Set EntityID
+    , playerCiv : EntityID
+    , civilizations : Set EntityID
+    , availableCivilizationNames : List CivilizationName
+    , starDate : StarDate
+    , eventLog : List Log
+    }
+
+
+emptyWorld : World
+emptyWorld =
+    { seed = Random.initialSeed 0
+    , spaceFocus = FGalaxy
+    , civilizationFocus = FAll
+    , tickRate = Normal
+    , viewStyle = ThreeD
+
+    --
+    , ecsInternals = Logic.Entity.Extra.initInternals
+    , named = Logic.Component.empty
+    , civilizationReproductionRates = Logic.Component.empty
+    , planetTypes = Logic.Component.empty
+    , starForms = Logic.Component.empty
+    , parents = Logic.Component.empty
+    , children = Logic.Component.empty
+    , orbits = Logic.Component.empty
+    , waterContent = Logic.Component.empty
+    , planetSize = Logic.Component.empty
+    , civilizationPopulations = Logic.Component.empty
+    , civilizationHappiness = Logic.Component.empty
+    , civilizationKnowledge = Logic.Component.empty
+    , galaxyPositions = Logic.Component.empty
+
+    --
+    , planets = Set.empty
+    , stars = Set.empty
+    , solarSystems = Set.empty
+    , playerCiv = -1
+    , civilizations = Set.empty
+    , availableCivilizationNames = Data.Names.allCivilizationNames
+    , starDate = 0
+    , eventLog = []
+    }
+
+
+type ViewStyle
+    = TwoD
+    | ThreeD
+
+
+type alias Log =
+    { description : String
+    , time : StarDate
+    , civilizationId : EntityID
+    }
+
+
+type alias StarDate =
+    Int
+
+
+type SpaceFocus
+    = FGalaxy
+    | FSolarSystem EntityID
+    | FStar EntityID
+    | FPlanet EntityID
+
+
+type CivilizationFocus
+    = FAll
+    | FOne EntityID
+
+
+type TickRate
+    = Paused
+    | Normal
+    | Fast
+    | ExtraFast
+    | HalfSpeed
 
 
 civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
@@ -163,3 +285,7 @@ positionSpec =
 
 type LightYear
     = LightYear Never
+
+
+type AstronomicalUnit
+    = AstronomicalUnit Never
