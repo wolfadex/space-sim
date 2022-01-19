@@ -38,8 +38,8 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Point3d exposing (Point3d)
+import Population exposing (Population)
 import Random exposing (Seed)
-import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 
@@ -55,7 +55,7 @@ type alias World =
     , ecsInternals : Logic.Entity.Extra.Internals
 
     -- CIV
-    , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
+    , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
     , civilizationHappiness : Logic.Component.Set Float
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
@@ -225,7 +225,7 @@ type alias Water =
     Float
 
 
-civilizationPopulationSpec : Spec (Dict EntityID ScaledNumber) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber) }
+civilizationPopulationSpec : Spec (Dict EntityID Population) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID Population) }
 civilizationPopulationSpec =
     Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })
 

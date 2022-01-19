@@ -37,10 +37,12 @@ import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
 import Point3d exposing (Point3d)
+import Population exposing (Population)
+import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Random.List
-import ScaledNumber exposing (ScaledNumber)
+import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (Effect)
@@ -97,7 +99,7 @@ init flags =
                 |> Logic.Entity.with
                     ( Game.Components.civilizationPopulationSpec
                     , List.head shuffledPlanets
-                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 7))
+                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
                         |> Maybe.withDefault Dict.empty
                     )
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
@@ -390,14 +392,14 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
         seed
 
 
-birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID ScaledNumber) world -> System world
+birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID Population) world -> System world
 birthSystem =
     Logic.System.step2
         (\( reproductionRate, _ ) ( populationSizes, setPopulationSize ) ->
             setPopulationSize
                 (Dict.map
                     (\_ populationSize ->
-                        ScaledNumber.scaleBy reproductionRate populationSize
+                        Population.multiplyBy reproductionRate populationSize
                     )
                     populationSizes
                 )
@@ -568,7 +570,7 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
                     Logic.Entity.Extra.create worldWithFewerNames
                         |> Logic.Entity.with
                             ( Game.Components.civilizationPopulationSpec
-                            , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
+                            , Dict.singleton planetId (Population.millions initialPopulationSize)
                             )
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
@@ -1145,17 +1147,17 @@ viewCivilizationDetailed world civId =
 
             Just details ->
                 let
-                    totalPopulationSize : ScaledNumber
+                    totalPopulationSize : Population
                     totalPopulationSize =
                         details.occupiedPlanets
                             |> Dict.toList
-                            |> List.foldl (\( _, planetPupulationCount ) -> ScaledNumber.sum planetPupulationCount) (ScaledNumber.millions 0)
+                            |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
                 in
                 [ Ui.Button.default
                     { label = text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
-                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
+                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString details.happiness)
                 , text "They occupy planets:"
                 , details.occupiedPlanets
@@ -1169,7 +1171,7 @@ viewCivilizationDetailed world civId =
                                     , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
                                 , paragraph [ padding 8 ]
-                                    [ text ("population: " ++ ScaledNumber.toString populationCount)
+                                    [ text ("population: " ++ populationToString populationCount)
                                     ]
                                 ]
                         )
@@ -1180,6 +1182,23 @@ viewCivilizationDetailed world civId =
                     |> column [ spacing 4 ]
                 ]
         )
+
+
+populationToString : Population -> String
+populationToString population =
+    let
+        postFix : String -> (Population -> Float) -> String
+        postFix str fn =
+            Round.round 3 (fn population) ++ str
+    in
+    if Quantity.lessThan Population.billion population then
+        postFix " million" Population.inMillions
+
+    else if Quantity.lessThan Population.trillion population then
+        postFix " billion" Population.inBillions
+
+    else
+        postFix " trillion" Population.inTrillions
 
 
 viewLog : Log -> Element Msg
@@ -1214,7 +1233,7 @@ happinessToString happiness =
 
 type alias CivilizationDetails =
     { name : CivilizationName
-    , occupiedPlanets : Dict EntityID ScaledNumber
+    , occupiedPlanets : Dict EntityID Population
     , happiness : Float
     , logs : List Log
     }
