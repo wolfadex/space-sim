@@ -5,6 +5,7 @@ module Playing exposing
     , SpaceFocus(..)
     , StarDate
     , TickRate
+    , ViewStyle
     , World
     , init
     , subscriptions
@@ -58,6 +59,7 @@ type alias World =
     , spaceFocus : SpaceFocus
     , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
+    , viewStyle : ViewStyle
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -89,6 +91,11 @@ type alias World =
     , starDate : StarDate
     , eventLog : List Log
     }
+
+
+type ViewStyle
+    = TwoD
+    | ThreeD
 
 
 type alias Log =
@@ -128,6 +135,7 @@ emptyWorld =
     , spaceFocus = FGalaxy
     , civilizationFocus = FAll
     , tickRate = Normal
+    , viewStyle = ThreeD
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -300,6 +308,7 @@ type Msg
     | SetCivilizationFocus CivilizationFocus
     | Tick
     | SetTickRate TickRate
+    | GotViewStyle ViewStyle
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
@@ -318,6 +327,9 @@ update msg world =
 
         SetCivilizationFocus focus ->
             ( { world | civilizationFocus = focus }, SubCmd.none )
+
+        GotViewStyle viewStyle ->
+            ( { world | viewStyle = viewStyle }, SubCmd.none )
 
         Tick ->
             ( { world | starDate = world.starDate + 1 }
@@ -549,12 +561,15 @@ generateGalacticPosition =
     Random.map3
         (\randT randU1 randU2 ->
             let
+                t : Float
                 t =
                     2 * pi * randT
 
+                u : Float
                 u =
                     randU1 + randU2
 
+                r : Float
                 r =
                     if u > 1 then
                         2 - u
@@ -842,6 +857,17 @@ viewControls world =
             , onPress = Just DeleteGalaxy
             }
         , text ("Star Date: " ++ String.fromInt world.starDate)
+        , Ui.Button.default <|
+            case world.viewStyle of
+                ThreeD ->
+                    { label = text "View 2D Glaxy"
+                    , onPress = Just (GotViewStyle TwoD)
+                    }
+
+                TwoD ->
+                    { label = text "View 3D Glaxy"
+                    , onPress = Just (GotViewStyle ThreeD)
+                    }
         ]
 
 
@@ -875,15 +901,19 @@ viewBody model bodyFn id =
 
 viewGalaxy : World -> Element Msg
 viewGalaxy world =
-    -- Set.toList world.solarSystems
-    --     |> List.map (viewSolarSystemSimple world)
-    --     |> column
-    --         [ spacing 8
-    --         , width fill
-    --         , spacing 8
-    --         , Background.color Ui.Theme.darkGray
-    --         ]
-    Galaxy3d.view world
+    case world.viewStyle of
+        ThreeD ->
+            Galaxy3d.view world (FSolarSystem >> SetSpaceFocus)
+
+        TwoD ->
+            Set.toList world.solarSystems
+                |> List.map (viewSolarSystemSimple world)
+                |> column
+                    [ spacing 8
+                    , width fill
+                    , spacing 8
+                    , Background.color Ui.Theme.darkGray
+                    ]
 
 
 viewSolarSystemSimple : World -> EntityID -> Element Msg

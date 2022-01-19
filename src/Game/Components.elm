@@ -27,7 +27,6 @@ import Dict exposing (Dict)
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
-import Point2d exposing (coordinates)
 import Point3d exposing (Point3d)
 import ScaledNumber exposing (ScaledNumber)
 import Set exposing (Set)
@@ -163,4 +162,4 @@ positionSpec =
 
 
 type GalacticCoordinates
-    = GalacticCoordinates
+    = GalacticCoordinates Never
