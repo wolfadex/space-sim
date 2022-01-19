@@ -1,6 +1,6 @@
 # Space Sim
 
-![ci status](https://github.com/wolfadex/space-sim/actions/workflows/ci.yml/badge.svg)
+![pr status](https://github.com/wolfadex/space-sim/actions/workflows/test-pr.yml/badge.svg)
 
 ⚠️ WIP ⚠️
 
