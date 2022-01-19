@@ -97,7 +97,7 @@ init flags =
                 |> Logic.Entity.with
                     ( Game.Components.civilizationPopulationSpec
                     , List.head shuffledPlanets
-                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 100))
+                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 7))
                         |> Maybe.withDefault Dict.empty
                     )
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
@@ -582,9 +582,9 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
         )
-        (Random.float 50 150)
+        (Random.float 3 10)
         (Random.float 0.8 1.5)
-        (Random.float 0.5 1.5)
+        (Random.float 0.9 1.1)
         (Random.weighted ( 1.0 - waterPercent, [ LandTravel ] )
             [ ( waterPercent, [ WaterSurfaceTravel ] )
             , if waterPercent > 0.9 then
