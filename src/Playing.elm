@@ -378,7 +378,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                         giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
 
                     else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                        giveKnowledge FTLSpaceTravel (\name -> name ++ " makes to faster than light leap.")
+                        giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
 
                     else
                         ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
