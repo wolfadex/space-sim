@@ -39,6 +39,7 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
+import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
 import Quantity
@@ -109,7 +110,7 @@ init flags =
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
                 |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.toRate 0.3 )
                 |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.toRate 0.1 )
-                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Rate.toRate 1.0 )
+                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Percent.toPercent 100.0 )
                 |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
     in
     ( { worldWithPlayerCiv
@@ -423,7 +424,7 @@ birthAndDeathSystem =
         )
 
 
-happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Rate Happiness) world -> System world
+happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Percent Happiness) world -> System world
 happinessSystem =
     Logic.System.step3
         (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessRate, setHappiness ) ->
@@ -434,7 +435,7 @@ happinessSystem =
 
                 happiness : Float
                 happiness =
-                    Rate.fromRate happinessRate
+                    Percent.fromPercent happinessRate
 
                 mortality : Float
                 mortality =
@@ -454,7 +455,7 @@ happinessSystem =
                         |> setHappiness
 
                 newReproductinRate =
-                    (if happiness > 1 then
+                    (if happiness > 80.0 then
                         repro + 0.01
 
                      else
@@ -464,7 +465,7 @@ happinessSystem =
                         |> setReproductionRate
 
                 newMortalityRate =
-                    (if happiness < 0.5 then
+                    (if happiness < 50.0 then
                         mortality - 0.01
 
                      else
@@ -636,7 +637,7 @@ generateCivilization worldWithFewerNames planetId name =
         (Random.float 3 10)
         (Rate.random 0.2 0.3)
         (Rate.random 0.1 0.2)
-        (Rate.random 0.9 1.1)
+        (Percent.random 90.0 100.0)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
@@ -1109,12 +1110,12 @@ viewLog log =
         ]
 
 
-happinessToString : Rate Happiness -> String
+happinessToString : Percent Happiness -> String
 happinessToString happiness =
     let
         hap : Float
         hap =
-            Rate.fromRate happiness
+            Percent.fromPercent happiness
     in
     if hap > 1.2 then
         ":D"
@@ -1135,7 +1136,7 @@ happinessToString happiness =
 type alias CivilizationDetails =
     { name : CivilizationName
     , occupiedPlanets : Dict EntityID Population
-    , happiness : Rate Happiness
+    , happiness : Percent Happiness
     , logs : List Log
     }
 

@@ -40,6 +40,7 @@ import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
+import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
 import Random exposing (Seed)
@@ -62,7 +63,7 @@ type alias World =
     , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , civilizationReproductionRates : Logic.Component.Set (Rate Reproduction)
     , civilizationMortalityRates : Logic.Component.Set (Rate Mortality)
-    , civilizationHappiness : Logic.Component.Set (Rate Happiness)
+    , civilizationHappiness : Logic.Component.Set (Percent Happiness)
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , named : Logic.Component.Set CivilizationName
 
@@ -245,7 +246,7 @@ civilizationPopulationSpec =
     Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })
 
 
-civilizationHappinessSpec : Spec (Rate Happiness) { world | civilizationHappiness : Logic.Component.Set (Rate Happiness) }
+civilizationHappinessSpec : Spec (Percent Happiness) { world | civilizationHappiness : Logic.Component.Set (Percent Happiness) }
 civilizationHappinessSpec =
     Logic.Component.Spec .civilizationHappiness (\comps world -> { world | civilizationHappiness = comps })
 
