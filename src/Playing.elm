@@ -492,7 +492,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                         giveKnowledge BasicAgriculture (\name -> "After much trial and error, eating the wrong foods, " ++ name ++ " manages to figure out rudimentary agriculture.")
 
                     else if doesntKnow BasicMetalWorking then
-                        giveKnowledge BasicAgriculture (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
+                        giveKnowledge BasicMetalWorking (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
 
                     else if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
                         giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
