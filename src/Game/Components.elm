@@ -63,7 +63,7 @@ type alias World =
     , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , civilizationReproductionRates : Logic.Component.Set (Rate Reproduction)
     , civilizationMortalityRates : Logic.Component.Set (Rate Mortality)
-    , civilizationHappiness : Logic.Component.Set (Percent Happiness)
+    , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , named : Logic.Component.Set CivilizationName
 
@@ -246,7 +246,7 @@ civilizationPopulationSpec =
     Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })
 
 
-civilizationHappinessSpec : Spec (Percent Happiness) { world | civilizationHappiness : Logic.Component.Set (Percent Happiness) }
+civilizationHappinessSpec : Spec (Dict EntityID (Percent Happiness)) { world | civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness)) }
 civilizationHappinessSpec =
     Logic.Component.Spec .civilizationHappiness (\comps world -> { world | civilizationHappiness = comps })
 

@@ -96,21 +96,24 @@ init flags =
                     )
                 |> List.sortWith planetOrbitPreference
 
-        ( shuffledPlanets, finalSeed ) =
+        ( inhabitedPlanets, finalSeed ) =
             Random.step (Random.List.shuffle viableStartingPlanets) seed
+                |> Tuple.mapFirst
+                    (List.head
+                        >> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
+                        >> Maybe.withDefault Dict.empty
+                    )
 
         ( playerCiv, worldWithPlayerCiv ) =
             Logic.Entity.Extra.create generatedWorld
-                |> Logic.Entity.with
-                    ( Game.Components.civilizationPopulationSpec
-                    , List.head shuffledPlanets
-                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
-                        |> Maybe.withDefault Dict.empty
-                    )
+                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.toRate 0.3 )
-                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.toRate 0.1 )
-                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Percent.toPercent 100.0 )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                |> Logic.Entity.with
+                    ( Game.Components.civilizationHappinessSpec
+                    , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                    )
                 |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
     in
     ( { worldWithPlayerCiv
@@ -235,8 +238,32 @@ update msg world =
                     Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationPopulationSpec
                 |> discoverySystem Game.Components.knowledgeSpec
+              -- |> civilUnrestSystem
             , SubCmd.none
             )
+
+
+
+-- civilUnrestSystem : World -> World
+-- civilUnrestSystem world =
+--     let
+--         civsToBreakUp : List EntityID
+--         civsToBreakUp =
+--             world.civilizations
+--                 |> Set.toList
+--                 |> List.filterMap
+--                     (\civId ->
+--                         Maybe.andThen
+--                             (\happinessPercent ->
+--                                 if Quantity.lessThan (Percent.fromFloat 15.0) happinessPercent then
+--                                     Just civId
+--                                 else
+--                                     Nothing
+--                             )
+--                             (Logic.Component.get civId world.civilizationHappiness)
+--                     )
+--     in
+--     world
 
 
 discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
@@ -411,11 +438,11 @@ birthAndDeathSystem =
                         let
                             births : Population
                             births =
-                                Population.multiplyBy (Rate.fromRate reproductionRate) populationSize
+                                Population.multiplyBy (Rate.toFloat reproductionRate) populationSize
 
                             deaths : Population
                             deaths =
-                                Population.multiplyBy (Rate.fromRate mortalityRate) populationSize
+                                Population.multiplyBy (Rate.toFloat mortalityRate) populationSize
                         in
                         Population.plus (Population.difference populationSize deaths) births
                     )
@@ -424,36 +451,43 @@ birthAndDeathSystem =
         )
 
 
-happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Percent Happiness) world -> System world
+happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID (Percent Happiness)) world -> System world
 happinessSystem =
     Logic.System.step3
-        (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessRate, setHappiness ) ->
+        (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessPercent, setHappiness ) ->
             let
+                averageHappiness : Percent Happiness
+                averageHappiness =
+                    averageCivilizationHappiness happinessPercent
+
                 repro : Float
                 repro =
-                    Rate.fromRate reproductionRate
+                    Rate.toFloat reproductionRate
 
                 happiness : Float
                 happiness =
-                    Percent.fromPercent happinessRate
+                    Percent.toFloat averageHappiness
 
                 mortality : Float
                 mortality =
-                    Rate.fromRate mortalityRate
+                    Rate.toFloat mortalityRate
 
+                -- Providing type annotations here causes a Haskell runtime error
                 newHappiness =
                     (if mortality > repro then
-                        happiness - 0.1
+                        -0.1
 
                      else if repro > mortality * 2 then
-                        happiness - 0.1
+                        -0.1
 
                      else
-                        happiness + 0.1
+                        0.1
                     )
-                        |> Rate.toRate
+                        |> Percent.fromFloat
+                        |> (\percentChange -> Dict.map (\_ -> Quantity.plus percentChange) happinessPercent)
                         |> setHappiness
 
+                -- Providing type annotations here causes a Haskell runtime error
                 newReproductinRate =
                     (if happiness > 80.0 then
                         repro + 0.01
@@ -461,9 +495,10 @@ happinessSystem =
                      else
                         repro - 0.01
                     )
-                        |> Rate.toRate
+                        |> Rate.fromFloat
                         |> setReproductionRate
 
+                -- Providing type annotations here causes a Haskell runtime error
                 newMortalityRate =
                     (if happiness < 50.0 then
                         mortality - 0.01
@@ -471,7 +506,7 @@ happinessSystem =
                      else
                         mortality + 0.01
                     )
-                        |> Rate.toRate
+                        |> Rate.fromFloat
                         |> setMortalityRate
             in
             newHappiness >> newReproductinRate >> newMortalityRate
@@ -629,7 +664,7 @@ generateCivilization worldWithFewerNames planetId name =
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
                         |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, initialHappiness )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
                         |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
@@ -1055,7 +1090,7 @@ viewCivilizationDetailed world civId =
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
                 , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
-                , text ("Happiness " ++ happinessToString details.happiness)
+                , text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
                 , text "They occupy planets:"
                 , details.occupiedPlanets
                     |> Dict.toList
@@ -1067,8 +1102,16 @@ viewCivilizationDetailed world civId =
                                     { label = text ("P_" ++ String.fromInt planetId)
                                     , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
-                                , paragraph [ padding 8 ]
-                                    [ text ("population: " ++ populationToString populationCount)
+                                , column [ spacing 4, width fill ]
+                                    [ paragraph [] [ text ("Population: " ++ populationToString populationCount) ]
+                                    , paragraph []
+                                        [ case Dict.get planetId details.happiness of
+                                            Just happiness ->
+                                                text ("Happiness: " ++ happinessToString happiness)
+
+                                            Nothing ->
+                                                none
+                                        ]
                                     ]
                                 ]
                         )
@@ -1079,6 +1122,13 @@ viewCivilizationDetailed world civId =
                     |> column [ spacing 4 ]
                 ]
         )
+
+
+averageCivilizationHappiness : Dict EntityID (Percent Happiness) -> Percent Happiness
+averageCivilizationHappiness happiness =
+    Dict.toList happiness
+        |> List.foldl (\( _, happinessPerPlanet ) -> Quantity.plus happinessPerPlanet) Percent.zero
+        |> Quantity.divideBy (toFloat (Dict.size happiness))
 
 
 populationToString : Population -> String
@@ -1115,7 +1165,7 @@ happinessToString happiness =
     let
         hap : Float
         hap =
-            Percent.fromPercent happiness
+            Percent.toFloat happiness
     in
     if hap > 1.2 then
         ":D"
@@ -1136,7 +1186,7 @@ happinessToString happiness =
 type alias CivilizationDetails =
     { name : CivilizationName
     , occupiedPlanets : Dict EntityID Population
-    , happiness : Percent Happiness
+    , happiness : Dict EntityID (Percent Happiness)
     , logs : List Log
     }
 

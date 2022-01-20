@@ -1,8 +1,8 @@
 module Rate exposing
     ( Rate
-    , fromRate
+    , fromFloat
     , random
-    , toRate
+    , toFloat
     )
 
 import Quantity exposing (Quantity(..))
@@ -13,17 +13,17 @@ type alias Rate a =
     Quantity Float a
 
 
-toRate : Float -> Rate a
-toRate =
+fromFloat : Float -> Rate a
+fromFloat =
     Quantity
 
 
-fromRate : Rate a -> Float
-fromRate (Quantity a) =
+toFloat : Rate a -> Float
+toFloat (Quantity a) =
     a
 
 
 random : Float -> Float -> Generator (Rate a)
 random min max =
-    Random.map toRate
+    Random.map fromFloat
         (Random.float min max)
