@@ -275,7 +275,7 @@ type
     | BasicMetalWorking
 
 
-knowledgeComparableConfig : { toComparable : Knowledge -> String }
+knowledgeComparableConfig : { toComparable : Knowledge -> String, fromComparable : String -> Knowledge }
 knowledgeComparableConfig =
     { toComparable =
         \knowledge ->
@@ -306,6 +306,38 @@ knowledgeComparableConfig =
 
                 BasicMetalWorking ->
                     "BasicMetalWorking"
+    , fromComparable =
+        \str ->
+            case str of
+                "LandTravel" ->
+                    LandTravel
+
+                "WaterSurfaceTravel" ->
+                    WaterSurfaceTravel
+
+                "UnderwaterTravel" ->
+                    UnderwaterTravel
+
+                "Flight" ->
+                    Flight
+
+                "PlanetarySpaceTravel" ->
+                    PlanetarySpaceTravel
+
+                "InterplanetarySpaceTravel" ->
+                    InterplanetarySpaceTravel
+
+                "FTLSpaceTravel" ->
+                    FTLSpaceTravel
+
+                "BasicAgriculture" ->
+                    BasicAgriculture
+
+                "BasicMetalWorking" ->
+                    BasicMetalWorking
+
+                _ ->
+                    BasicAgriculture
     }
 
 

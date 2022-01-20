@@ -238,32 +238,128 @@ update msg world =
                     Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationPopulationSpec
                 |> discoverySystem Game.Components.knowledgeSpec
-              -- |> civilUnrestSystem
+                |> civilUnrestSystem
             , SubCmd.none
             )
 
 
+civilUnrestSystem : World -> World
+civilUnrestSystem world =
+    let
+        revoltingCivs : List ( EntityID, EntityID )
+        revoltingCivs =
+            world.civilizations
+                |> Set.toList
+                |> List.concatMap
+                    (\civId ->
+                        Maybe.map
+                            (Dict.foldl
+                                (\planetId planetHappiness planetsRevolting ->
+                                    if Quantity.lessThan (Percent.fromFloat 15.0) planetHappiness then
+                                        ( civId, planetId ) :: planetsRevolting
 
--- civilUnrestSystem : World -> World
--- civilUnrestSystem world =
---     let
---         civsToBreakUp : List EntityID
---         civsToBreakUp =
---             world.civilizations
---                 |> Set.toList
---                 |> List.filterMap
---                     (\civId ->
---                         Maybe.andThen
---                             (\happinessPercent ->
---                                 if Quantity.lessThan (Percent.fromFloat 15.0) happinessPercent then
---                                     Just civId
---                                 else
---                                     Nothing
---                             )
---                             (Logic.Component.get civId world.civilizationHappiness)
---                     )
---     in
---     world
+                                    else
+                                        planetsRevolting
+                                )
+                                []
+                            )
+                            (Logic.Component.get civId world.civilizationHappiness)
+                            |> Maybe.withDefault []
+                    )
+
+        ( worldWithNewCivs, seed ) =
+            Random.step (generateRevoltingCivs revoltingCivs world) world.seed
+    in
+    { worldWithNewCivs | seed = seed }
+
+
+generateRevoltingCivs : List ( EntityID, EntityID ) -> World -> Generator World
+generateRevoltingCivs revoltingCivs world =
+    List.foldl
+        (\( civId, planetId ) updatedWorld ->
+            case getCivilizationDetails world civId of
+                Nothing ->
+                    updatedWorld
+
+                Just details ->
+                    Random.andThen
+                        (\w ->
+                            generateRevoltingCivilization w civId planetId details
+                        )
+                        updatedWorld
+        )
+        (Random.constant world)
+        revoltingCivs
+
+
+{-|
+
+  - Assign the planet to the new Civ, aka the revolting populace
+  - The old civ loses a percent of their knowledge (penalty for having revolts)
+  - The new civ loses a larger percent of that knowledge (penalty for revolting)
+
+-}
+generateRevoltingCivilization : World -> EntityID -> EntityID -> CivilizationDetails -> Generator World
+generateRevoltingCivilization world oldCivId planetId civDetails =
+    Random.map3
+        (\initialHappiness knowledge oldCivNewKnowledge ->
+            let
+                ( civId, worldWithNewCiv ) =
+                    Logic.Entity.Extra.create world
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationPopulationSpec
+                            , Dict.singleton planetId
+                                (Maybe.withDefault (Population.millions 3)
+                                    (Dict.get planetId civDetails.occupiedPlanets)
+                                )
+                            )
+                        |> Logic.Entity.with
+                            ( Game.Components.namedSpec
+                            , { singular = "Renegade " ++ civDetails.name.singular
+                              , possessive = Maybe.map ((++) "Renegade ") civDetails.name.possessive
+                              , many = Maybe.map ((++) "Renegade ") civDetails.name.many
+                              }
+                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, civDetails.mortalityRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, knowledge )
+            in
+            { worldWithNewCiv
+                | civilizations = Set.insert civId worldWithNewCiv.civilizations
+                , civilizationKnowledge =
+                    Logic.Component.update oldCivId
+                        (\_ -> oldCivNewKnowledge)
+                        worldWithNewCiv.civilizationKnowledge
+            }
+        )
+        (Percent.random 95.0 100.0)
+        (Random.andThen
+            (\percent -> dropRandom Game.Components.knowledgeComparableConfig percent civDetails.knowledge)
+            (Percent.random 5.0 25.0)
+        )
+        (Random.andThen
+            (\percent -> dropRandom Game.Components.knowledgeComparableConfig percent civDetails.knowledge)
+            (Percent.random 1.0 5.0)
+        )
+
+
+dropRandom : { r | fromComparable : comparable -> b, toComparable : b -> comparable } -> Percent a -> AnySet comparable b -> Generator (AnySet comparable b)
+dropRandom anySetConfig percent set =
+    let
+        setList : List b
+        setList =
+            Set.Any.toList anySetConfig set
+
+        toDrop : Int
+        toDrop =
+            Quantity.multiplyBy 100.0 percent
+                |> Quantity.divideBy (toFloat (List.length setList))
+                |> Percent.toFloat
+                |> floor
+    in
+    Random.map (List.drop toDrop >> Set.Any.fromList anySetConfig)
+        (Random.List.shuffle setList)
 
 
 discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
@@ -1184,24 +1280,34 @@ happinessToString happiness =
 
 
 type alias CivilizationDetails =
-    { name : CivilizationName
-    , occupiedPlanets : Dict EntityID Population
-    , happiness : Dict EntityID (Percent Happiness)
+    { occupiedPlanets : Dict EntityID Population
+    , reproductionRate : Rate Reproduction
+    , mortalityRate : Rate Mortality
+    , knowledge : AnySet String Knowledge
     , logs : List Log
+    , name : CivilizationName
+    , happiness : Dict EntityID (Percent Happiness)
     }
 
 
 getCivilizationDetails : World -> EntityID -> Maybe CivilizationDetails
 getCivilizationDetails world civId =
-    Maybe.map2
-        (\name happiness ->
-            { name = name
-            , occupiedPlanets =
+    Maybe.map4
+        (\reproductionRate mortalityRate name happiness ->
+            { occupiedPlanets =
                 Logic.Component.get civId world.civilizationPopulations
                     |> Maybe.withDefault Dict.empty
-            , happiness = happiness
+            , reproductionRate = reproductionRate
+            , mortalityRate = mortalityRate
+            , knowledge =
+                Logic.Component.get civId world.civilizationKnowledge
+                    |> Maybe.withDefault Set.Any.empty
             , logs = List.filter (.civilizationId >> (==) civId) world.eventLog
+            , name = name
+            , happiness = happiness
             }
         )
+        (Logic.Component.get civId world.civilizationReproductionRates)
+        (Logic.Component.get civId world.civilizationMortalityRates)
         (Logic.Component.get civId world.named)
         (Logic.Component.get civId world.civilizationHappiness)

@@ -3,6 +3,7 @@ module Set.Any exposing
     , empty
     , insert
     , member
+    , toList, fromList
     )
 
 import Set exposing (Set)
@@ -25,3 +26,13 @@ insert config key (AnySet set) =
 empty : AnySet comparable a
 empty =
     AnySet Set.empty
+
+
+toList : { r | fromComparable : comparable -> a } -> AnySet comparable a -> List a
+toList config (AnySet set) =
+    List.map config.fromComparable (Set.toList set)
+
+
+fromList : { r | toComparable : a -> comparable } -> List a -> AnySet comparable a
+fromList config list =
+    AnySet (Set.fromList (List.map config.toComparable list))
