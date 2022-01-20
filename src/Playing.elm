@@ -494,6 +494,9 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                     else if doesntKnow BasicMetalWorking then
                         giveKnowledge BasicMetalWorking (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
 
+                    else if doesntKnow WaterSurfaceTravel then
+                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invedted boating.")
+
                     else if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
                         giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
 
@@ -508,6 +511,9 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
 
                     else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
                         giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
+
+                    else if knows InterplanetarySpaceTravel && doesntKnow LandTravel then
+                        giveKnowledge LandTravel (\name -> name ++ " thinks it's a good idea to put wheels on a boat.")
 
                     else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
                         giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
