@@ -18,11 +18,13 @@ import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationFocus(..)
-        , CivilizationReproductionRate
+        , Happiness
         , Knowledge(..)
         , LightYear
         , Log
+        , Mortality
         , Orbit
+        , Reproduction
         , SpaceFocus(..)
         , StarDate
         , StarSize(..)
@@ -43,6 +45,7 @@ import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Random.List
+import Rate exposing (Rate)
 import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
@@ -104,14 +107,10 @@ init flags =
                         |> Maybe.withDefault Dict.empty
                     )
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
-                |> Logic.Entity.with
-                    ( Game.Components.knowledgeSpec
-                    , Set.Any.fromList
-                        Game.Components.knowledgeComparableConfig
-                        [ LandTravel, WaterSurfaceTravel ]
-                    )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.toRate 0.3 )
+                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.toRate 0.1 )
+                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Rate.toRate 1.0 )
+                |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
@@ -226,11 +225,13 @@ update msg world =
 
         Tick ->
             ( { world | starDate = world.starDate + 1 }
-                |> reproductionAndHappinessSystem
+                |> happinessSystem
                     Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationHappinessSpec
-                |> birthSystem
+                |> birthAndDeathSystem
                     Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationPopulationSpec
                 |> discoverySystem Game.Components.knowledgeSpec
             , SubCmd.none
@@ -363,7 +364,13 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                                 }
                             )
                     in
-                    if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
+                    if doesntKnow BasicAgriculture then
+                        giveKnowledge BasicAgriculture (\name -> "After much trial and error, eating the wrong foods, " ++ name ++ "manages to figure out rudimentary agriculture.")
+
+                    else if doesntKnow BasicMetalWorking then
+                        giveKnowledge BasicAgriculture (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
+
+                    else if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
                         giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
 
                     else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
@@ -393,35 +400,80 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
         seed
 
 
-birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID Population) world -> System world
-birthSystem =
-    Logic.System.step2
-        (\( reproductionRate, _ ) ( populationSizes, setPopulationSize ) ->
+birthAndDeathSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID Population) world -> System world
+birthAndDeathSystem =
+    Logic.System.step3
+        (\( reproductionRate, _ ) ( mortalityRate, _ ) ( populationSizes, setPopulationSize ) ->
             setPopulationSize
                 (Dict.map
                     (\_ populationSize ->
-                        Population.multiplyBy reproductionRate populationSize
+                        let
+                            births : Population
+                            births =
+                                Population.multiplyBy (Rate.fromRate reproductionRate) populationSize
+
+                            deaths : Population
+                            deaths =
+                                Population.multiplyBy (Rate.fromRate mortalityRate) populationSize
+                        in
+                        Population.plus (Population.difference populationSize deaths) births
                     )
                     populationSizes
                 )
         )
 
 
-reproductionAndHappinessSystem : Spec CivilizationReproductionRate world -> Spec Float world -> System world
-reproductionAndHappinessSystem =
-    Logic.System.step2
-        (\( reproductionRate, setReproductionRate ) ( happiness, setHappiness ) ->
-            if reproductionRate > 1.1 && happiness > 1.1 then
-                setHappiness (happiness - 0.2)
+happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Rate Happiness) world -> System world
+happinessSystem =
+    Logic.System.step3
+        (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessRate, setHappiness ) ->
+            let
+                repro : Float
+                repro =
+                    Rate.fromRate reproductionRate
 
-            else if reproductionRate >= 1.1 && happiness <= 1.1 then
-                setReproductionRate (reproductionRate - 0.2)
+                happiness : Float
+                happiness =
+                    Rate.fromRate happinessRate
 
-            else if reproductionRate < 0.9 && happiness < 1.5 then
-                setHappiness (happiness + 0.1)
+                mortality : Float
+                mortality =
+                    Rate.fromRate mortalityRate
 
-            else
-                setReproductionRate (reproductionRate + 0.1)
+                newHappiness =
+                    (if mortality > repro then
+                        happiness - 0.1
+
+                     else if repro > mortality * 2 then
+                        happiness - 0.1
+
+                     else
+                        happiness + 0.1
+                    )
+                        |> Rate.toRate
+                        |> setHappiness
+
+                newReproductinRate =
+                    (if happiness > 1 then
+                        repro + 0.01
+
+                     else
+                        repro - 0.01
+                    )
+                        |> Rate.toRate
+                        |> setReproductionRate
+
+                newMortalityRate =
+                    (if happiness < 0.5 then
+                        mortality - 0.01
+
+                     else
+                        mortality + 0.01
+                    )
+                        |> Rate.toRate
+                        |> setMortalityRate
+            in
+            newHappiness >> newReproductinRate >> newMortalityRate
         )
 
 
@@ -532,12 +584,12 @@ generatePlanet solarSystemId ( planetId, world ) =
                             Random.int 5 12
                     )
                     (generatePlanetRadius planetType)
-                    (attemptToGenerateCivilization planetType waterPercent planetId world)
+                    (attemptToGenerateCivilization planetType planetId world)
             )
 
 
-attemptToGenerateCivilization : CelestialBodyForm -> Float -> EntityID -> World -> Generator World
-attemptToGenerateCivilization planetType waterPercent planetId world =
+attemptToGenerateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
+attemptToGenerateCivilization planetType planetId world =
     if planetType == Rocky then
         Random.Extra.oneIn 10
             |> Random.andThen
@@ -551,7 +603,7 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
                                             Random.constant worldWithFewerNames
 
                                         Just name ->
-                                            generateCivilization waterPercent worldWithFewerNames planetId name
+                                            generateCivilization worldWithFewerNames planetId name
                                 )
 
                     else
@@ -562,10 +614,10 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
         Random.constant world
 
 
-generateCivilization : Float -> World -> EntityID -> CivilizationName -> Generator World
-generateCivilization waterPercent worldWithFewerNames planetId name =
+generateCivilization : World -> EntityID -> CivilizationName -> Generator World
+generateCivilization worldWithFewerNames planetId name =
     Random.map4
-        (\initialPopulationSize reproductionRate initialHappiness baseKnowledge ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -575,28 +627,16 @@ generateCivilization waterPercent worldWithFewerNames planetId name =
                             )
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
                         |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, initialHappiness )
-                        |> Logic.Entity.with
-                            ( Game.Components.knowledgeSpec
-                            , Set.Any.fromList
-                                Game.Components.knowledgeComparableConfig
-                                baseKnowledge
-                            )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
         )
         (Random.float 3 10)
-        (Random.float 0.8 1.5)
-        (Random.float 0.9 1.1)
-        (Random.weighted ( 1.0 - waterPercent, [ LandTravel ] )
-            [ ( waterPercent, [ WaterSurfaceTravel ] )
-            , if waterPercent > 0.9 then
-                ( 1.0, [ UnderwaterTravel ] )
-
-              else
-                ( 0, [] )
-            ]
-        )
+        (Rate.random 0.2 0.3)
+        (Rate.random 0.1 0.2)
+        (Rate.random 0.9 1.1)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
@@ -1069,18 +1109,23 @@ viewLog log =
         ]
 
 
-happinessToString : Float -> String
+happinessToString : Rate Happiness -> String
 happinessToString happiness =
-    if happiness > 1.2 then
+    let
+        hap : Float
+        hap =
+            Rate.fromRate happiness
+    in
+    if hap > 1.2 then
         ":D"
 
-    else if happiness > 1.0 then
+    else if hap > 1.0 then
         ":)"
 
-    else if happiness == 1.0 then
+    else if hap == 1.0 then
         ":|"
 
-    else if happiness < 0.8 then
+    else if hap < 0.8 then
         "D:"
 
     else
@@ -1090,7 +1135,7 @@ happinessToString happiness =
 type alias CivilizationDetails =
     { name : CivilizationName
     , occupiedPlanets : Dict EntityID Population
-    , happiness : Float
+    , happiness : Rate Happiness
     , logs : List Log
     }
 

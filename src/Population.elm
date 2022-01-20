@@ -2,6 +2,7 @@ module Population exposing
     ( Population
     , PopulationInTrillions
     , billion
+    , difference
     , inBillions
     , inMillions
     , inTrillions
@@ -60,3 +61,8 @@ multiplyBy =
 plus : Population -> Population -> Population
 plus =
     Quantity.plus
+
+
+difference : Population -> Population -> Population
+difference =
+    Quantity.difference

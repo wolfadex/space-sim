@@ -1,4 +1,4 @@
-module Galaxy2d exposing (viewGalaxy, viewPlanetSimple, viewSolarSystem, viewStarSimple)
+module Galaxy2d exposing (viewGalaxy, viewSolarSystem)
 
 import Dict
 import Element exposing (..)
@@ -146,7 +146,7 @@ viewPlanetSimple :
     -> World
     -> EntityID
     -> Element msg
-viewPlanetSimple {onPressPlanet, onPressCivilization} world planetId =
+viewPlanetSimple { onPressPlanet, onPressCivilization } world planetId =
     column
         [ spacing 8, width fill ]
         [ row
