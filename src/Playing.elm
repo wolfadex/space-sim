@@ -7,21 +7,24 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Galaxy2d exposing (viewSolarSystem)
 import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationFocus(..)
-        , CivilizationReproductionRate
-        , Knowledge(..)
+        , Happiness
         , LightYear
         , Log
+        , Mortality
         , Orbit
+        , Reproduction
         , SpaceFocus(..)
         , StarDate
         , StarSize(..)
@@ -36,11 +39,15 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
+import Percent exposing (Percent)
 import Point3d exposing (Point3d)
+import Population exposing (Population)
+import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
 import Random.List
-import ScaledNumber exposing (ScaledNumber)
+import Rate exposing (Rate)
+import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (Effect)
@@ -89,26 +96,25 @@ init flags =
                     )
                 |> List.sortWith planetOrbitPreference
 
-        ( shuffledPlanets, finalSeed ) =
+        ( inhabitedPlanets, finalSeed ) =
             Random.step (Random.List.shuffle viableStartingPlanets) seed
+                |> Tuple.mapFirst
+                    (List.head
+                        >> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
+                        >> Maybe.withDefault Dict.empty
+                    )
 
         ( playerCiv, worldWithPlayerCiv ) =
             Logic.Entity.Extra.create generatedWorld
-                |> Logic.Entity.with
-                    ( Game.Components.civilizationPopulationSpec
-                    , List.head shuffledPlanets
-                        |> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (ScaledNumber.millions 100))
-                        |> Maybe.withDefault Dict.empty
-                    )
+                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
                 |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, 1.1 )
-                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, 1.0 )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
                 |> Logic.Entity.with
-                    ( Game.Components.knowledgeSpec
-                    , Set.Any.fromList
-                        Game.Components.knowledgeComparableConfig
-                        [ LandTravel, WaterSurfaceTravel ]
+                    ( Game.Components.civilizationHappinessSpec
+                    , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
                     )
+                |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
@@ -223,15 +229,284 @@ update msg world =
 
         Tick ->
             ( { world | starDate = world.starDate + 1 }
-                |> reproductionAndHappinessSystem
+                |> happinessSystem
                     Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationHappinessSpec
-                |> birthSystem
+                |> birthAndDeathSystem
                     Game.Components.civilizationReproductionRateSpec
+                    Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationPopulationSpec
                 |> discoverySystem Game.Components.knowledgeSpec
+                |> expansionSystem
+                |> civilUnrestSystem
             , SubCmd.none
             )
+
+
+expansionSystem : World -> World
+expansionSystem world =
+    let
+        planetsAndKnowledge : List { id : EntityID, knowledge : AnySet String Knowledge, populatedPlanets : List EntityID }
+        planetsAndKnowledge =
+            Set.toList world.civilizations
+                |> List.filterMap
+                    (\civId ->
+                        Maybe.map2
+                            (\knowledge population -> { id = civId, knowledge = knowledge, populatedPlanets = Dict.keys population })
+                            (Logic.Component.get civId world.civilizationKnowledge)
+                            (Logic.Component.get civId world.civilizationPopulations)
+                    )
+    in
+    List.foldl
+        (\civ nextWorld ->
+            let
+                totalPopulationSize : Population
+                totalPopulationSize =
+                    Logic.Component.get civ.id world.civilizationPopulations
+                        |> Maybe.withDefault Dict.empty
+                        |> Dict.toList
+                        |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
+            in
+            if Quantity.lessThan Population.trillion totalPopulationSize then
+                nextWorld
+
+            else
+                let
+                    filterBySameSolarSystem : EntityID -> Maybe (List EntityID)
+                    filterBySameSolarSystem planetId =
+                        Maybe.andThen
+                            (\solarSystemId ->
+                                Maybe.map
+                                    (\childIds ->
+                                        Set.filter
+                                            (\childId ->
+                                                (childId /= planetId) && Set.member childId world.planets
+                                            )
+                                            childIds
+                                            |> Set.toList
+                                    )
+                                    (Logic.Component.get solarSystemId world.children)
+                            )
+                            (Logic.Component.get planetId world.parents)
+
+                    allPopulatedPlanets : Set EntityID
+                    allPopulatedPlanets =
+                        Logic.Component.toList world.civilizationPopulations
+                            |> List.concatMap (Tuple.second >> Dict.keys)
+                            |> Set.fromList
+
+                    allAvailablePlanets : Set EntityID
+                    allAvailablePlanets =
+                        world.planets
+                            |> Set.filter
+                                (\planetId ->
+                                    case Logic.Component.get planetId world.planetTypes of
+                                        Nothing ->
+                                            False
+
+                                        Just Gas ->
+                                            False
+
+                                        Just Rocky ->
+                                            True
+                                )
+                            |> (\allPlanets -> Set.diff allPlanets allPopulatedPlanets)
+
+                    planetsInSameSolarSystem : List EntityID
+                    planetsInSameSolarSystem =
+                        List.concat (List.filterMap filterBySameSolarSystem civ.populatedPlanets)
+
+                    possiblePlanetsToExpandInto : List ( Float, EntityID )
+                    possiblePlanetsToExpandInto =
+                        if Data.Knowledge.knows civ.knowledge FTLSpaceTravel then
+                            Set.toList allAvailablePlanets
+                                |> List.map
+                                    (\planetId ->
+                                        ( if List.member planetId planetsInSameSolarSystem then
+                                            2.0
+
+                                          else
+                                            1.0
+                                        , planetId
+                                        )
+                                    )
+
+                        else if Data.Knowledge.knows civ.knowledge InterplanetarySpaceTravel then
+                            planetsInSameSolarSystem
+                                |> List.filterMap
+                                    (\planetId ->
+                                        if Set.member planetId allAvailablePlanets then
+                                            Just ( 1.0, planetId )
+
+                                        else
+                                            Nothing
+                                    )
+
+                        else
+                            []
+                in
+                case possiblePlanetsToExpandInto of
+                    [] ->
+                        nextWorld
+
+                    _ ->
+                        let
+                            ( expandedWorld, seed ) =
+                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextWorld.seed
+                        in
+                        { expandedWorld | seed = seed }
+        )
+        world
+        planetsAndKnowledge
+
+
+possiblyExpandToPlanet : EntityID -> List ( Float, EntityID ) -> World -> Generator World
+possiblyExpandToPlanet civId possiblePlanetsToExpandInto world =
+    weightedChoose possiblePlanetsToExpandInto
+        |> Random.map
+            (\maybePlanetId ->
+                case maybePlanetId of
+                    Nothing ->
+                        world
+
+                    Just planetId ->
+                        { world
+                            | civilizationPopulations =
+                                Logic.Component.update civId
+                                    (Dict.insert planetId Population.million)
+                                    world.civilizationPopulations
+                        }
+            )
+
+
+weightedChoose : List ( Float, a ) -> Generator (Maybe a)
+weightedChoose items =
+    case items of
+        [] ->
+            Random.constant Nothing
+
+        first :: rest ->
+            Random.map Just (Random.weighted first rest)
+
+
+civilUnrestSystem : World -> World
+civilUnrestSystem world =
+    let
+        revoltingCivs : List ( EntityID, EntityID )
+        revoltingCivs =
+            world.civilizations
+                |> Set.toList
+                |> List.concatMap
+                    (\civId ->
+                        Maybe.map
+                            (Dict.foldl
+                                (\planetId planetHappiness planetsRevolting ->
+                                    if Quantity.lessThan (Percent.fromFloat 15.0) planetHappiness then
+                                        ( civId, planetId ) :: planetsRevolting
+
+                                    else
+                                        planetsRevolting
+                                )
+                                []
+                            )
+                            (Logic.Component.get civId world.civilizationHappiness)
+                            |> Maybe.withDefault []
+                    )
+
+        ( worldWithNewCivs, seed ) =
+            Random.step (generateRevoltingCivs revoltingCivs world) world.seed
+    in
+    { worldWithNewCivs | seed = seed }
+
+
+generateRevoltingCivs : List ( EntityID, EntityID ) -> World -> Generator World
+generateRevoltingCivs revoltingCivs world =
+    List.foldl
+        (\( civId, planetId ) updatedWorld ->
+            case getCivilizationDetails world civId of
+                Nothing ->
+                    updatedWorld
+
+                Just details ->
+                    Random.andThen
+                        (\w ->
+                            generateRevoltingCivilization w civId planetId details
+                        )
+                        updatedWorld
+        )
+        (Random.constant world)
+        revoltingCivs
+
+
+{-|
+
+  - Assign the planet to the new Civ, aka the revolting populace
+  - The old civ loses a percent of their knowledge (penalty for having revolts)
+  - The new civ loses a larger percent of that knowledge (penalty for revolting)
+
+-}
+generateRevoltingCivilization : World -> EntityID -> EntityID -> CivilizationDetails -> Generator World
+generateRevoltingCivilization world oldCivId planetId civDetails =
+    Random.map3
+        (\initialHappiness knowledge oldCivNewKnowledge ->
+            let
+                ( civId, worldWithNewCiv ) =
+                    Logic.Entity.Extra.create world
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationPopulationSpec
+                            , Dict.singleton planetId
+                                (Maybe.withDefault (Population.millions 3)
+                                    (Dict.get planetId civDetails.occupiedPlanets)
+                                )
+                            )
+                        |> Logic.Entity.with
+                            ( Game.Components.namedSpec
+                            , { singular = "Renegade " ++ civDetails.name.singular
+                              , possessive = Maybe.map ((++) "Renegade ") civDetails.name.possessive
+                              , many = Maybe.map ((++) "Renegade ") civDetails.name.many
+                              }
+                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, civDetails.mortalityRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, knowledge )
+            in
+            { worldWithNewCiv
+                | civilizations = Set.insert civId worldWithNewCiv.civilizations
+                , civilizationKnowledge =
+                    Logic.Component.update oldCivId
+                        (\_ -> oldCivNewKnowledge)
+                        worldWithNewCiv.civilizationKnowledge
+            }
+        )
+        (Percent.random 95.0 100.0)
+        (Random.andThen
+            (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
+            (Percent.random 5.0 25.0)
+        )
+        (Random.andThen
+            (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
+            (Percent.random 1.0 5.0)
+        )
+
+
+dropRandom : { r | fromComparable : comparable -> b, toComparable : b -> comparable } -> Percent a -> AnySet comparable b -> Generator (AnySet comparable b)
+dropRandom anySetConfig percent set =
+    let
+        setList : List b
+        setList =
+            Set.Any.toList anySetConfig set
+
+        toDrop : Int
+        toDrop =
+            Quantity.multiplyBy 100.0 percent
+                |> Quantity.divideBy (toFloat (List.length setList))
+                |> Percent.toFloat
+                |> floor
+    in
+    Random.map (List.drop toDrop >> Set.Any.fromList anySetConfig)
+        (Random.List.shuffle setList)
 
 
 discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
@@ -342,17 +617,13 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
             (\gainsKnowledge personName ->
                 if gainsKnowledge then
                     let
-                        knows : Knowledge -> Bool
-                        knows k =
-                            Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge
-
                         doesntKnow : Knowledge -> Bool
-                        doesntKnow k =
-                            not (Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge)
+                        doesntKnow =
+                            Data.Knowledge.doesntKnow civKnowledge
 
                         giveKnowledge : Knowledge -> (String -> String) -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
                         giveKnowledge learns description =
-                            ( Array.set index (Just (Set.Any.insert Game.Components.knowledgeComparableConfig learns civKnowledge)) allCivsKnowledge
+                            ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig learns civKnowledge)) allCivsKnowledge
                             , Just
                                 { time = starDate
                                 , description = description (Data.Names.enhancedEventDescription civName personName)
@@ -360,26 +631,44 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                                 }
                             )
                     in
-                    if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
+                    if doesntKnow BasicAgriculture then
+                        giveKnowledge BasicAgriculture (\name -> "After much trial and error, eating the wrong foods, " ++ name ++ " manages to figure out rudimentary agriculture.")
 
-                    else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
-                        giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
+                    else if doesntKnow BasicMetalWorking then
+                        giveKnowledge BasicMetalWorking (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
 
-                    else if knows Flight && doesntKnow PlanetarySpaceTravel then
-                        giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
-
-                    else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
-                        giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
-
-                    else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
-                        giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
-
-                    else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                        giveKnowledge FTLSpaceTravel (\name -> name ++ " makes to faster than light leap.")
+                    else if doesntKnow WaterSurfaceTravel then
+                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invedted boating.")
 
                     else
-                        ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
+                        let
+                            knows : Knowledge -> Bool
+                            knows =
+                                Data.Knowledge.knows civKnowledge
+                        in
+                        if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
+                            giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
+
+                        else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
+                            giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
+
+                        else if knows Flight && doesntKnow PlanetarySpaceTravel then
+                            giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
+
+                        else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
+                            giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
+                            giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow LandTravel then
+                            giveKnowledge LandTravel (\name -> name ++ " thinks it's a good idea to put wheels on a boat.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
+                            giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
+
+                        else
+                            ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
 
                 else
                     ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
@@ -390,35 +679,88 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
         seed
 
 
-birthSystem : Spec CivilizationReproductionRate world -> Spec (Dict EntityID ScaledNumber) world -> System world
-birthSystem =
-    Logic.System.step2
-        (\( reproductionRate, _ ) ( populationSizes, setPopulationSize ) ->
+birthAndDeathSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID Population) world -> System world
+birthAndDeathSystem =
+    Logic.System.step3
+        (\( reproductionRate, _ ) ( mortalityRate, _ ) ( populationSizes, setPopulationSize ) ->
             setPopulationSize
                 (Dict.map
                     (\_ populationSize ->
-                        ScaledNumber.scaleBy reproductionRate populationSize
+                        let
+                            births : Population
+                            births =
+                                Population.multiplyBy (Rate.toFloat reproductionRate) populationSize
+
+                            deaths : Population
+                            deaths =
+                                Population.multiplyBy (Rate.toFloat mortalityRate) populationSize
+                        in
+                        Population.plus (Population.difference populationSize deaths) births
                     )
                     populationSizes
                 )
         )
 
 
-reproductionAndHappinessSystem : Spec CivilizationReproductionRate world -> Spec Float world -> System world
-reproductionAndHappinessSystem =
-    Logic.System.step2
-        (\( reproductionRate, setReproductionRate ) ( happiness, setHappiness ) ->
-            if reproductionRate > 1.1 && happiness > 1.1 then
-                setHappiness (happiness - 0.2)
+happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID (Percent Happiness)) world -> System world
+happinessSystem =
+    Logic.System.step3
+        (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessPercent, setHappiness ) ->
+            let
+                averageHappiness : Percent Happiness
+                averageHappiness =
+                    averageCivilizationHappiness happinessPercent
 
-            else if reproductionRate >= 1.1 && happiness <= 1.1 then
-                setReproductionRate (reproductionRate - 0.2)
+                repro : Float
+                repro =
+                    Rate.toFloat reproductionRate
 
-            else if reproductionRate < 0.9 && happiness < 1.5 then
-                setHappiness (happiness + 0.1)
+                happiness : Float
+                happiness =
+                    Percent.toFloat averageHappiness
 
-            else
-                setReproductionRate (reproductionRate + 0.1)
+                mortality : Float
+                mortality =
+                    Rate.toFloat mortalityRate
+
+                -- Providing type annotations here causes a Haskell runtime error
+                newHappiness =
+                    (if mortality > repro then
+                        -0.1
+
+                     else if repro > mortality * 2 then
+                        -0.1
+
+                     else
+                        0.1
+                    )
+                        |> Percent.fromFloat
+                        |> (\percentChange -> Dict.map (\_ -> Quantity.plus percentChange) happinessPercent)
+                        |> setHappiness
+
+                -- Providing type annotations here causes a Haskell runtime error
+                newReproductinRate =
+                    (if happiness > 80.0 then
+                        repro + 0.01
+
+                     else
+                        repro - 0.01
+                    )
+                        |> Rate.fromFloat
+                        |> setReproductionRate
+
+                -- Providing type annotations here causes a Haskell runtime error
+                newMortalityRate =
+                    (if happiness < 50.0 then
+                        mortality - 0.01
+
+                     else
+                        mortality + 0.01
+                    )
+                        |> Rate.fromFloat
+                        |> setMortalityRate
+            in
+            newHappiness >> newReproductinRate >> newMortalityRate
         )
 
 
@@ -529,12 +871,12 @@ generatePlanet solarSystemId ( planetId, world ) =
                             Random.int 5 12
                     )
                     (generatePlanetRadius planetType)
-                    (attemptToGenerateCivilization planetType waterPercent planetId world)
+                    (attemptToGenerateCivilization planetType planetId world)
             )
 
 
-attemptToGenerateCivilization : CelestialBodyForm -> Float -> EntityID -> World -> Generator World
-attemptToGenerateCivilization planetType waterPercent planetId world =
+attemptToGenerateCivilization : CelestialBodyForm -> EntityID -> World -> Generator World
+attemptToGenerateCivilization planetType planetId world =
     if planetType == Rocky then
         Random.Extra.oneIn 10
             |> Random.andThen
@@ -548,7 +890,7 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
                                             Random.constant worldWithFewerNames
 
                                         Just name ->
-                                            generateCivilization waterPercent worldWithFewerNames planetId name
+                                            generateCivilization worldWithFewerNames planetId name
                                 )
 
                     else
@@ -559,41 +901,29 @@ attemptToGenerateCivilization planetType waterPercent planetId world =
         Random.constant world
 
 
-generateCivilization : Float -> World -> EntityID -> CivilizationName -> Generator World
-generateCivilization waterPercent worldWithFewerNames planetId name =
+generateCivilization : World -> EntityID -> CivilizationName -> Generator World
+generateCivilization worldWithFewerNames planetId name =
     Random.map4
-        (\initialPopulationSize reproductionRate initialHappiness baseKnowledge ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
                         |> Logic.Entity.with
                             ( Game.Components.civilizationPopulationSpec
-                            , Dict.singleton planetId (ScaledNumber.millions initialPopulationSize)
+                            , Dict.singleton planetId (Population.millions initialPopulationSize)
                             )
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, initialHappiness )
-                        |> Logic.Entity.with
-                            ( Game.Components.knowledgeSpec
-                            , Set.Any.fromList
-                                Game.Components.knowledgeComparableConfig
-                                baseKnowledge
-                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
             in
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
         )
-        (Random.float 50 150)
-        (Random.float 0.8 1.5)
-        (Random.float 0.5 1.5)
-        (Random.weighted ( 1.0 - waterPercent, [ LandTravel ] )
-            [ ( waterPercent, [ WaterSurfaceTravel ] )
-            , if waterPercent > 0.9 then
-                ( 1.0, [ UnderwaterTravel ] )
-
-              else
-                ( 0, [] )
-            ]
-        )
+        (Random.float 3 10)
+        (Rate.random 0.2 0.3)
+        (Rate.random 0.1 0.2)
+        (Percent.random 90.0 100.0)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
@@ -808,88 +1138,11 @@ viewGalaxy world =
             Galaxy3d.viewGalaxy world (FSolarSystem >> SetSpaceFocus)
 
         TwoD ->
-            Set.toList world.solarSystems
-                |> List.map (viewSolarSystemSimple world)
-                |> column
-                    [ spacing 8
-                    , width fill
-                    , spacing 8
-                    , Background.color Ui.Theme.darkGray
-                    ]
-
-
-viewSolarSystemSimple : World -> EntityID -> Element Msg
-viewSolarSystemSimple world solarSystemId =
-    let
-        ( starCount, planetCount ) =
-            Logic.Component.get solarSystemId world.children
-                |> Maybe.map
-                    (\children ->
-                        ( Set.intersect children world.stars
-                        , Set.intersect children world.planets
-                        )
-                    )
-                |> Maybe.withDefault ( Set.empty, Set.empty )
-                |> Tuple.mapBoth Set.size Set.size
-    in
-    column
-        [ padding 8
-        , Background.color Ui.Theme.nearlyWhite
-        , width fill
-        ]
-        [ row
-            [ spacing 8, width fill ]
-            [ el [ width fill ] (text ("Solar System: SS_" ++ String.fromInt solarSystemId))
-            , Ui.Button.inspect
-                (Just (SetSpaceFocus (FSolarSystem solarSystemId)))
-            ]
-        , text ("Stars: " ++ String.fromInt starCount)
-        , text ("Planets: " ++ String.fromInt planetCount)
-        , world.civilizations
-            |> Set.toList
-            |> List.filterMap
-                (\civId ->
-                    Logic.Component.get civId world.civilizationPopulations
-                        |> Maybe.andThen
-                            (\dictPlanetPopulatiopns ->
-                                let
-                                    solarSystemsCivIsIn : List EntityID
-                                    solarSystemsCivIsIn =
-                                        List.filterMap
-                                            (\planetId ->
-                                                Logic.Component.get planetId world.parents
-                                            )
-                                            (Dict.keys dictPlanetPopulatiopns)
-                                in
-                                if List.any ((==) solarSystemId) solarSystemsCivIsIn then
-                                    let
-                                        civName : String
-                                        civName =
-                                            Logic.Component.get civId world.named
-                                                |> Maybe.map .singular
-                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
-                                    in
-                                    Just
-                                        (if civId == world.playerCiv then
-                                            Ui.Button.primary
-                                                { label = text civName
-                                                , onPress = Just (SetCivilizationFocus (FOne civId))
-                                                }
-
-                                         else
-                                            Ui.Button.default
-                                                { label = text civName
-                                                , onPress = Just (SetCivilizationFocus (FOne civId))
-                                                }
-                                        )
-
-                                else
-                                    Nothing
-                            )
-                )
-            |> (::) (text "Occupied by: ")
-            |> wrappedRow [ spacing 8 ]
-        ]
+            Galaxy2d.viewGalaxy
+                { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
+                , onPressCivilization = FOne >> SetCivilizationFocus
+                }
+                world
 
 
 viewSolarSystemDetailed : World -> EntityID -> Element Msg
@@ -916,36 +1169,15 @@ viewSolarSystemDetailed world solarSystemId =
                 world
 
         TwoD ->
-            column
-                [ padding 8 ]
-                [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
-                , column [ padding 8 ]
-                    [ text "Stars:"
-                    , stars
-                        |> Set.toList
-                        |> List.map (viewStarSimple world)
-                        |> column [ padding 8, spacing 4 ]
-                    ]
-                , column [ padding 8 ]
-                    [ text "Planets:"
-                    , planets
-                        |> Set.toList
-                        |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
-                        |> List.sortBy (\( _, orbit ) -> orbit)
-                        |> List.map (Tuple.first >> viewPlanetSimple world)
-                        |> column [ padding 8, spacing 4 ]
-                    ]
-                ]
-
-
-viewStarSimple : World -> EntityID -> Element Msg
-viewStarSimple _ starId =
-    row
-        [ spacing 8, width fill ]
-        [ el [ width fill ] (text ("S_" ++ String.fromInt starId))
-        , Ui.Button.inspect
-            (Just (SetSpaceFocus (FStar starId)))
-        ]
+            viewSolarSystem
+                { onPressPlanet = FPlanet >> SetSpaceFocus
+                , onPressStar = FStar >> SetSpaceFocus
+                , onPressCivilization = FOne >> SetCivilizationFocus
+                }
+                solarSystemId
+                stars
+                world
+                planets
 
 
 viewStarDetailed : World -> EntityID -> Element Msg
@@ -979,53 +1211,6 @@ viewStarDetailed model starId =
                 [ text ("Name: S_" ++ String.fromInt starId)
                 , text ("Size: " ++ sizeStr)
                 ]
-
-
-viewPlanetSimple : World -> EntityID -> Element Msg
-viewPlanetSimple world planetId =
-    column
-        [ spacing 8, width fill ]
-        [ row
-            [ spacing 8, width fill ]
-            [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
-            , Ui.Button.inspect
-                (Just (SetSpaceFocus (FPlanet planetId)))
-            ]
-        , world.civilizations
-            |> Set.toList
-            |> List.filterMap
-                (\civId ->
-                    Logic.Component.get civId world.civilizationPopulations
-                        |> Maybe.andThen
-                            (\dictPlanetPopulatiopns ->
-                                if Dict.member planetId dictPlanetPopulatiopns then
-                                    let
-                                        civName : String
-                                        civName =
-                                            Logic.Component.get civId world.named
-                                                |> Maybe.map .singular
-                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
-                                    in
-                                    Just
-                                        (if civId == world.playerCiv then
-                                            Ui.Button.primary
-                                                { label = text civName
-                                                , onPress = Just (SetCivilizationFocus (FOne civId))
-                                                }
-
-                                         else
-                                            Ui.Button.default
-                                                { label = text civName
-                                                , onPress = Just (SetCivilizationFocus (FOne civId))
-                                                }
-                                        )
-
-                                else
-                                    Nothing
-                            )
-                )
-            |> wrappedRow [ spacing 8 ]
-        ]
 
 
 viewPlanetDetailed : World -> EntityID -> Element Msg
@@ -1145,18 +1330,18 @@ viewCivilizationDetailed world civId =
 
             Just details ->
                 let
-                    totalPopulationSize : ScaledNumber
+                    totalPopulationSize : Population
                     totalPopulationSize =
                         details.occupiedPlanets
                             |> Dict.toList
-                            |> List.foldl (\( _, planetPupulationCount ) -> ScaledNumber.sum planetPupulationCount) (ScaledNumber.millions 0)
+                            |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
                 in
                 [ Ui.Button.default
                     { label = text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
-                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ ScaledNumber.toString totalPopulationSize ++ " citizens.")
-                , text ("Happiness " ++ happinessToString details.happiness)
+                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
+                , text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
                 , text "They occupy planets:"
                 , details.occupiedPlanets
                     |> Dict.toList
@@ -1168,8 +1353,16 @@ viewCivilizationDetailed world civId =
                                     { label = text ("P_" ++ String.fromInt planetId)
                                     , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
-                                , paragraph [ padding 8 ]
-                                    [ text ("population: " ++ ScaledNumber.toString populationCount)
+                                , column [ spacing 4, width fill ]
+                                    [ paragraph [] [ text ("Population: " ++ populationToString populationCount) ]
+                                    , paragraph []
+                                        [ case Dict.get planetId details.happiness of
+                                            Just happiness ->
+                                                text ("Happiness: " ++ happinessToString happiness)
+
+                                            Nothing ->
+                                                none
+                                        ]
                                     ]
                                 ]
                         )
@@ -1180,6 +1373,30 @@ viewCivilizationDetailed world civId =
                     |> column [ spacing 4 ]
                 ]
         )
+
+
+averageCivilizationHappiness : Dict EntityID (Percent Happiness) -> Percent Happiness
+averageCivilizationHappiness happiness =
+    Dict.toList happiness
+        |> List.foldl (\( _, happinessPerPlanet ) -> Quantity.plus happinessPerPlanet) Percent.zero
+        |> Quantity.divideBy (toFloat (Dict.size happiness))
+
+
+populationToString : Population -> String
+populationToString population =
+    let
+        postFix : String -> (Population -> Float) -> String
+        postFix str fn =
+            Round.round 3 (fn population) ++ str
+    in
+    if Quantity.lessThan Population.billion population then
+        postFix " million" Population.inMillions
+
+    else if Quantity.lessThan Population.trillion population then
+        postFix " billion" Population.inBillions
+
+    else
+        postFix " trillion" Population.inTrillions
 
 
 viewLog : Log -> Element Msg
@@ -1194,18 +1411,23 @@ viewLog log =
         ]
 
 
-happinessToString : Float -> String
+happinessToString : Percent Happiness -> String
 happinessToString happiness =
-    if happiness > 1.2 then
+    let
+        hap : Float
+        hap =
+            Percent.toFloat happiness
+    in
+    if hap > 1.2 then
         ":D"
 
-    else if happiness > 1.0 then
+    else if hap > 1.0 then
         ":)"
 
-    else if happiness == 1.0 then
+    else if hap == 1.0 then
         ":|"
 
-    else if happiness < 0.8 then
+    else if hap < 0.8 then
         "D:"
 
     else
@@ -1213,24 +1435,34 @@ happinessToString happiness =
 
 
 type alias CivilizationDetails =
-    { name : CivilizationName
-    , occupiedPlanets : Dict EntityID ScaledNumber
-    , happiness : Float
+    { occupiedPlanets : Dict EntityID Population
+    , reproductionRate : Rate Reproduction
+    , mortalityRate : Rate Mortality
+    , knowledge : AnySet String Knowledge
     , logs : List Log
+    , name : CivilizationName
+    , happiness : Dict EntityID (Percent Happiness)
     }
 
 
 getCivilizationDetails : World -> EntityID -> Maybe CivilizationDetails
 getCivilizationDetails world civId =
-    Maybe.map2
-        (\name happiness ->
-            { name = name
-            , occupiedPlanets =
+    Maybe.map4
+        (\reproductionRate mortalityRate name happiness ->
+            { occupiedPlanets =
                 Logic.Component.get civId world.civilizationPopulations
                     |> Maybe.withDefault Dict.empty
-            , happiness = happiness
+            , reproductionRate = reproductionRate
+            , mortalityRate = mortalityRate
+            , knowledge =
+                Logic.Component.get civId world.civilizationKnowledge
+                    |> Maybe.withDefault Set.Any.empty
             , logs = List.filter (.civilizationId >> (==) civId) world.eventLog
+            , name = name
+            , happiness = happiness
             }
         )
+        (Logic.Component.get civId world.civilizationReproductionRates)
+        (Logic.Component.get civId world.civilizationMortalityRates)
         (Logic.Component.get civId world.named)
         (Logic.Component.get civId world.civilizationHappiness)

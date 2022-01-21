@@ -66,7 +66,7 @@ enhancedEventDescription civName =
 
         "Borg" ->
             \_ ->
-                "The collective"
+                "The Collective"
 
         "Empire" ->
             \personName -> personName ++ " of the Empire"

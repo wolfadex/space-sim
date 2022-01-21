@@ -6,5 +6,9 @@ export default defineConfig({
     hot: false,
     liveReload: true,
   },
-  plugins: [elmPlugin()],
+  plugins: [
+    elmPlugin({
+      debug: false,
+    }),
+  ],
 });

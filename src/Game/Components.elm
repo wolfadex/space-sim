@@ -2,11 +2,12 @@ module Game.Components exposing
     ( AstronomicalUnit
     , CelestialBodyForm(..)
     , CivilizationFocus(..)
-    , CivilizationReproductionRate
-    , Knowledge(..)
+    , Happiness
     , LightYear
     , Log
+    , Mortality
     , Orbit
+    , Reproduction
     , SpaceFocus(..)
     , StarDate
     , StarSize(..)
@@ -16,10 +17,10 @@ module Game.Components exposing
     , World
     , childrenSpec
     , civilizationHappinessSpec
+    , civilizationMortalityRateSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
-    , knowledgeComparableConfig
     , knowledgeSpec
     , namedSpec
     , orbitSpec
@@ -31,15 +32,18 @@ module Game.Components exposing
     , waterSpec
     )
 
+import Data.Knowledge exposing (Knowledge)
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
+import Percent exposing (Percent)
 import Point3d exposing (Point3d)
+import Population exposing (Population)
 import Random exposing (Seed)
-import ScaledNumber exposing (ScaledNumber)
+import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 
@@ -55,9 +59,10 @@ type alias World =
     , ecsInternals : Logic.Entity.Extra.Internals
 
     -- CIV
-    , civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber)
-    , civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate
-    , civilizationHappiness : Logic.Component.Set Float
+    , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
+    , civilizationReproductionRates : Logic.Component.Set (Rate Reproduction)
+    , civilizationMortalityRates : Logic.Component.Set (Rate Mortality)
+    , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , named : Logic.Component.Set CivilizationName
 
@@ -95,6 +100,7 @@ emptyWorld =
     , ecsInternals = Logic.Entity.Extra.initInternals
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
+    , civilizationMortalityRates = Logic.Component.empty
     , planetTypes = Logic.Component.empty
     , starForms = Logic.Component.empty
     , parents = Logic.Component.empty
@@ -155,13 +161,22 @@ type TickRate
     | HalfSpeed
 
 
-civilizationReproductionRateSpec : Spec CivilizationReproductionRate { world | civilizationReproductionRates : Logic.Component.Set CivilizationReproductionRate }
+civilizationReproductionRateSpec : Spec (Rate Reproduction) { world | civilizationReproductionRates : Logic.Component.Set (Rate Reproduction) }
 civilizationReproductionRateSpec =
     Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
 
 
-type alias CivilizationReproductionRate =
-    Float
+civilizationMortalityRateSpec : Spec (Rate Mortality) { world | civilizationMortalityRates : Logic.Component.Set (Rate Mortality) }
+civilizationMortalityRateSpec =
+    Logic.Component.Spec .civilizationMortalityRates (\comps world -> { world | civilizationMortalityRates = comps })
+
+
+type Reproduction
+    = Reproduction Never
+
+
+type Mortality
+    = Mortality Never
 
 
 namedSpec : Spec CivilizationName { world | named : Logic.Component.Set CivilizationName }
@@ -225,57 +240,23 @@ type alias Water =
     Float
 
 
-civilizationPopulationSpec : Spec (Dict EntityID ScaledNumber) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID ScaledNumber) }
+civilizationPopulationSpec : Spec (Dict EntityID Population) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID Population) }
 civilizationPopulationSpec =
     Logic.Component.Spec .civilizationPopulations (\comps world -> { world | civilizationPopulations = comps })
 
 
-civilizationHappinessSpec : Spec Float { world | civilizationHappiness : Logic.Component.Set Float }
+civilizationHappinessSpec : Spec (Dict EntityID (Percent Happiness)) { world | civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness)) }
 civilizationHappinessSpec =
     Logic.Component.Spec .civilizationHappiness (\comps world -> { world | civilizationHappiness = comps })
+
+
+type Happiness
+    = Happiness Never
 
 
 knowledgeSpec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
 knowledgeSpec =
     Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })
-
-
-type Knowledge
-    = LandTravel
-    | WaterSurfaceTravel
-    | UnderwaterTravel
-    | Flight
-    | PlanetarySpaceTravel
-    | InterplanetarySpaceTravel
-    | FTLSpaceTravel
-
-
-knowledgeComparableConfig : { toComparable : Knowledge -> String }
-knowledgeComparableConfig =
-    { toComparable =
-        \knowledge ->
-            case knowledge of
-                LandTravel ->
-                    "LandTravel"
-
-                WaterSurfaceTravel ->
-                    "WaterSurfaceTravel"
-
-                UnderwaterTravel ->
-                    "UnderwaterTravel"
-
-                Flight ->
-                    "Flight"
-
-                PlanetarySpaceTravel ->
-                    "PlanetarySpaceTravel"
-
-                InterplanetarySpaceTravel ->
-                    "InterplanetarySpaceTravel"
-
-                FTLSpaceTravel ->
-                    "FTLSpaceTravel"
-    }
 
 
 positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }
