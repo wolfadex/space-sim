@@ -3,7 +3,6 @@ module Game.Components exposing
     , CelestialBodyForm(..)
     , CivilizationFocus(..)
     , Happiness
-    , Knowledge(..)
     , LightYear
     , Log
     , Mortality
@@ -22,7 +21,6 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
-    , knowledgeComparableConfig
     , knowledgeSpec
     , namedSpec
     , orbitSpec
@@ -34,6 +32,7 @@ module Game.Components exposing
     , waterSpec
     )
 
+import Data.Knowledge exposing (Knowledge)
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Length exposing (Meters)
@@ -258,87 +257,6 @@ type Happiness
 knowledgeSpec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
 knowledgeSpec =
     Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })
-
-
-type
-    Knowledge
-    -- Modes of travel
-    = LandTravel
-    | WaterSurfaceTravel
-    | UnderwaterTravel
-    | Flight
-    | PlanetarySpaceTravel
-    | InterplanetarySpaceTravel
-    | FTLSpaceTravel
-      -- Basics of civilization
-    | BasicAgriculture
-    | BasicMetalWorking
-
-
-knowledgeComparableConfig : { toComparable : Knowledge -> String, fromComparable : String -> Knowledge }
-knowledgeComparableConfig =
-    { toComparable =
-        \knowledge ->
-            case knowledge of
-                LandTravel ->
-                    "LandTravel"
-
-                WaterSurfaceTravel ->
-                    "WaterSurfaceTravel"
-
-                UnderwaterTravel ->
-                    "UnderwaterTravel"
-
-                Flight ->
-                    "Flight"
-
-                PlanetarySpaceTravel ->
-                    "PlanetarySpaceTravel"
-
-                InterplanetarySpaceTravel ->
-                    "InterplanetarySpaceTravel"
-
-                FTLSpaceTravel ->
-                    "FTLSpaceTravel"
-
-                BasicAgriculture ->
-                    "BasicAgriculture"
-
-                BasicMetalWorking ->
-                    "BasicMetalWorking"
-    , fromComparable =
-        \str ->
-            case str of
-                "LandTravel" ->
-                    LandTravel
-
-                "WaterSurfaceTravel" ->
-                    WaterSurfaceTravel
-
-                "UnderwaterTravel" ->
-                    UnderwaterTravel
-
-                "Flight" ->
-                    Flight
-
-                "PlanetarySpaceTravel" ->
-                    PlanetarySpaceTravel
-
-                "InterplanetarySpaceTravel" ->
-                    InterplanetarySpaceTravel
-
-                "FTLSpaceTravel" ->
-                    FTLSpaceTravel
-
-                "BasicAgriculture" ->
-                    BasicAgriculture
-
-                "BasicMetalWorking" ->
-                    BasicMetalWorking
-
-                _ ->
-                    BasicAgriculture
-    }
 
 
 positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }

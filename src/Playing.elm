@@ -7,6 +7,7 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Element exposing (..)
@@ -19,7 +20,6 @@ import Game.Components
         ( CelestialBodyForm(..)
         , CivilizationFocus(..)
         , Happiness
-        , Knowledge(..)
         , LightYear
         , Log
         , Mortality
@@ -238,9 +238,156 @@ update msg world =
                     Game.Components.civilizationMortalityRateSpec
                     Game.Components.civilizationPopulationSpec
                 |> discoverySystem Game.Components.knowledgeSpec
+                |> expansionSystem
                 |> civilUnrestSystem
             , SubCmd.none
             )
+
+
+expansionSystem : World -> World
+expansionSystem world =
+    let
+        planetsAndKnowledge : List { id : EntityID, knowledge : AnySet String Knowledge, populatedPlanets : List EntityID }
+        planetsAndKnowledge =
+            Set.toList world.civilizations
+                |> List.filterMap
+                    (\civId ->
+                        Maybe.map2
+                            (\knowledge population -> { id = civId, knowledge = knowledge, populatedPlanets = Dict.keys population })
+                            (Logic.Component.get civId world.civilizationKnowledge)
+                            (Logic.Component.get civId world.civilizationPopulations)
+                    )
+    in
+    List.foldl
+        (\civ nextWorld ->
+            let
+                totalPopulationSize : Population
+                totalPopulationSize =
+                    Logic.Component.get civ.id world.civilizationPopulations
+                        |> Maybe.withDefault Dict.empty
+                        |> Dict.toList
+                        |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
+            in
+            if Quantity.lessThan Population.trillion totalPopulationSize then
+                nextWorld
+
+            else
+                let
+                    filterBySameSolarSystem : EntityID -> Maybe (List EntityID)
+                    filterBySameSolarSystem planetId =
+                        Maybe.andThen
+                            (\solarSystemId ->
+                                Maybe.map
+                                    (\childIds ->
+                                        Set.filter
+                                            (\childId ->
+                                                (childId /= planetId) && Set.member childId world.planets
+                                            )
+                                            childIds
+                                            |> Set.toList
+                                    )
+                                    (Logic.Component.get solarSystemId world.children)
+                            )
+                            (Logic.Component.get planetId world.parents)
+
+                    allPopulatedPlanets : Set EntityID
+                    allPopulatedPlanets =
+                        Logic.Component.toList world.civilizationPopulations
+                            |> List.concatMap (Tuple.second >> Dict.keys)
+                            |> Set.fromList
+
+                    allAvailablePlanets : Set EntityID
+                    allAvailablePlanets =
+                        world.planets
+                            |> Set.filter
+                                (\planetId ->
+                                    case Logic.Component.get planetId world.planetTypes of
+                                        Nothing ->
+                                            False
+
+                                        Just Gas ->
+                                            False
+
+                                        Just Rocky ->
+                                            True
+                                )
+                            |> (\allPlanets -> Set.diff allPlanets allPopulatedPlanets)
+
+                    planetsInSameSolarSystem : List EntityID
+                    planetsInSameSolarSystem =
+                        List.concat (List.filterMap filterBySameSolarSystem civ.populatedPlanets)
+
+                    possiblePlanetsToExpandInto : List ( Float, EntityID )
+                    possiblePlanetsToExpandInto =
+                        if Data.Knowledge.knows civ.knowledge FTLSpaceTravel then
+                            Set.toList allAvailablePlanets
+                                |> List.map
+                                    (\planetId ->
+                                        ( if List.member planetId planetsInSameSolarSystem then
+                                            2.0
+
+                                          else
+                                            1.0
+                                        , planetId
+                                        )
+                                    )
+
+                        else if Data.Knowledge.knows civ.knowledge InterplanetarySpaceTravel then
+                            planetsInSameSolarSystem
+                                |> List.filterMap
+                                    (\planetId ->
+                                        if Set.member planetId allAvailablePlanets then
+                                            Just ( 1.0, planetId )
+
+                                        else
+                                            Nothing
+                                    )
+
+                        else
+                            []
+                in
+                case possiblePlanetsToExpandInto of
+                    [] ->
+                        nextWorld
+
+                    _ ->
+                        let
+                            ( expandedWorld, seed ) =
+                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextWorld.seed
+                        in
+                        { expandedWorld | seed = seed }
+        )
+        world
+        planetsAndKnowledge
+
+
+possiblyExpandToPlanet : EntityID -> List ( Float, EntityID ) -> World -> Generator World
+possiblyExpandToPlanet civId possiblePlanetsToExpandInto world =
+    weightedChoose possiblePlanetsToExpandInto
+        |> Random.map
+            (\maybePlanetId ->
+                case maybePlanetId of
+                    Nothing ->
+                        world
+
+                    Just planetId ->
+                        { world
+                            | civilizationPopulations =
+                                Logic.Component.update civId
+                                    (Dict.insert planetId Population.million)
+                                    world.civilizationPopulations
+                        }
+            )
+
+
+weightedChoose : List ( Float, a ) -> Generator (Maybe a)
+weightedChoose items =
+    case items of
+        [] ->
+            Random.constant Nothing
+
+        first :: rest ->
+            Random.map Just (Random.weighted first rest)
 
 
 civilUnrestSystem : World -> World
@@ -335,11 +482,11 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
         )
         (Percent.random 95.0 100.0)
         (Random.andThen
-            (\percent -> dropRandom Game.Components.knowledgeComparableConfig percent civDetails.knowledge)
+            (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
             (Percent.random 5.0 25.0)
         )
         (Random.andThen
-            (\percent -> dropRandom Game.Components.knowledgeComparableConfig percent civDetails.knowledge)
+            (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
             (Percent.random 1.0 5.0)
         )
 
@@ -470,17 +617,13 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
             (\gainsKnowledge personName ->
                 if gainsKnowledge then
                     let
-                        knows : Knowledge -> Bool
-                        knows k =
-                            Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge
-
                         doesntKnow : Knowledge -> Bool
-                        doesntKnow k =
-                            not (Set.Any.member Game.Components.knowledgeComparableConfig k civKnowledge)
+                        doesntKnow =
+                            Data.Knowledge.doesntKnow civKnowledge
 
                         giveKnowledge : Knowledge -> (String -> String) -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
                         giveKnowledge learns description =
-                            ( Array.set index (Just (Set.Any.insert Game.Components.knowledgeComparableConfig learns civKnowledge)) allCivsKnowledge
+                            ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig learns civKnowledge)) allCivsKnowledge
                             , Just
                                 { time = starDate
                                 , description = description (Data.Names.enhancedEventDescription civName personName)
@@ -497,29 +640,35 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                     else if doesntKnow WaterSurfaceTravel then
                         giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invedted boating.")
 
-                    else if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
-
-                    else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
-                        giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
-
-                    else if knows Flight && doesntKnow PlanetarySpaceTravel then
-                        giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
-
-                    else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
-                        giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
-
-                    else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
-                        giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
-
-                    else if knows InterplanetarySpaceTravel && doesntKnow LandTravel then
-                        giveKnowledge LandTravel (\name -> name ++ " thinks it's a good idea to put wheels on a boat.")
-
-                    else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                        giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
-
                     else
-                        ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
+                        let
+                            knows : Knowledge -> Bool
+                            knows =
+                                Data.Knowledge.knows civKnowledge
+                        in
+                        if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
+                            giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
+
+                        else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
+                            giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
+
+                        else if knows Flight && doesntKnow PlanetarySpaceTravel then
+                            giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
+
+                        else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
+                            giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
+                            giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow LandTravel then
+                            giveKnowledge LandTravel (\name -> name ++ " thinks it's a good idea to put wheels on a boat.")
+
+                        else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
+                            giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
+
+                        else
+                            ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
 
                 else
                     ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )

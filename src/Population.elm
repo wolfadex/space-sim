@@ -6,6 +6,7 @@ module Population exposing
     , inBillions
     , inMillions
     , inTrillions
+    , million
     , millions
     , multiplyBy
     , plus
@@ -41,6 +42,11 @@ inBillions (Quantity population) =
 inTrillions : Population -> Float
 inTrillions (Quantity population) =
     population
+
+
+million : Population
+million =
+    Quantity 0.000001
 
 
 billion : Population

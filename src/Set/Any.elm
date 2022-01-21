@@ -1,9 +1,10 @@
 module Set.Any exposing
     ( AnySet
     , empty
+    , fromList
     , insert
     , member
-    , toList, fromList
+    , toList
     )
 
 import Set exposing (Set)
