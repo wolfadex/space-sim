@@ -21,6 +21,10 @@ A 4X space game inspired by Dwarf Fortress.
   - Happiness
   - Knowledge (can be gained, not yet lost)
   - Logs of important events
+  - Revolts (civs split when too unhappy)
+  - Expansion into nearby planets/solar systems
+- "Gameplay"
+  - 2D (data first) or 3D (beauty first) view of the galaxy
 
 ## Get Started
 
