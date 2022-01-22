@@ -43,12 +43,12 @@ type alias Model =
 baseNewGameModel : Model
 baseNewGameModel =
     { seed = Random.initialSeed 0
-    , civilizationNameSingular = "Carl"
+    , civilizationNameSingular = ""
     , civilizationNamePlural = ""
-    , hasUniquePluralName = False
+    , hasUniquePluralName = True
     , civilizationNamePossessive = ""
-    , hasUniquePossessiveName = False
-    , homePlanetName = "Carlos"
+    , hasUniquePossessiveName = True
+    , homePlanetName = ""
     , errors = []
     }
 
