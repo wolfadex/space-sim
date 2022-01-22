@@ -29,10 +29,12 @@ import Pixels
 import Point2d
 import Point3d exposing (Point3d)
 import Point3d.Projection
+import Polyline3d
 import Quantity
 import Rectangle2d
 import Scene3d
 import Scene3d.Material as Material
+import Scene3d.Mesh
 import Set exposing (Set)
 import Sphere3d
 import Svg
@@ -252,7 +254,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
 
         planetEntities : List (Scene3d.Entity ScaledViewPoint)
         planetEntities =
-            List.map renderPlanet planetDetails
+            List.concatMap renderPlanet planetDetails
 
         starEntities : List (Scene3d.Entity ScaledViewPoint)
         starEntities =
@@ -312,9 +314,6 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                 )
                 planetDetails
 
-        -- solarSystemCenter2d : Point2d.Point2d Pixels.Pixels ScaledViewPoint
-        -- solarSystemCenter2d =
-        --     Point3d.Projection.toScreenSpace camera screenRectangle Point3d.origin
         planetLabels : List (Svg.Svg msg)
         planetLabels =
             List.map
@@ -340,7 +339,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                                 "galactic-label-focus-civ"
 
                             else
-                                ""
+                                "galactic-label"
 
                         --"galactic-label"
                         ]
@@ -362,22 +361,21 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             (Circle2d.withRadius (Pixels.float (250 * Length.inKilometers size / 1000000)) vertex)
 
                         -- Orbit
-                        -- , Geometry.Svg.
-                        --     (Geometry.Svg.circle2d
-                        --         [ Svg.Attributes.stroke <|
-                        --             if highlightPlanet then
-                        --                 "rgb(0, 255, 200)"
-                        --             else
-                        --                 "rgb(200, 200, 200)"
-                        --         , Svg.Attributes.strokeWidth "2"
-                        --         , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
-                        --         , Svg.Events.onClick (onPressPlanet planetId)
-                        --         , Svg.Attributes.class "planet-orbit"
-                        --         -- This isn't working, need to debug for accessibility
-                        --         -- , Html.Attributes.tabindex 0
-                        --         ]
-                        --         (Circle2d.withRadius (Point2d.distanceFrom solarSystemCenter2d vertex) solarSystemCenter2d)
-                        --     )
+                        -- , Geometry.Svg.circle2d
+                        --     [ Svg.Attributes.stroke <|
+                        --         if highlightPlanet then
+                        --             "rgb(0, 255, 200)"
+                        --         else
+                        --             "rgb(200, 200, 200)"
+                        --     , Svg.Attributes.strokeWidth "2"
+                        --     , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
+                        --     , Svg.Events.onClick (onPressPlanet planetId)
+                        --     , Svg.Attributes.class "planet-orbit"
+                        --     -- This isn't working, need to debug for accessibility
+                        --     -- , Html.Attributes.tabindex 0
+                        --     ]
+                        --     (Circle2d.withRadius (Point2d.distanceFrom solarSystemCenter2d vertex) solarSystemCenter2d)
+                        --     |> Geometry.Svg.mirrorAcross (Axis2d.through solarSystemCenter2d (Direction2d.fromAngle (Angle.degrees 15)))
                         , Geometry.Svg.lineSegment2d
                             [ Svg.Attributes.stroke "white"
                             , Svg.Attributes.strokeWidth "2"
@@ -441,7 +439,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             ]
                             (Circle2d.withRadius (Pixels.float (190 * Length.inKilometers size / 1000000)) vertex)
                         , Geometry.Svg.lineSegment2d
-                            [ Svg.Attributes.stroke "red"
+                            [ Svg.Attributes.stroke "white"
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.strokeDasharray "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
@@ -452,10 +450,10 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                           -- back right side up
                           Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = world.galaxyViewSize.width / 2, y = world.galaxyViewSize.height / 2 }) Direction2d.x)
                             (Svg.text_
-                                [ Svg.Attributes.fill "red" --"rgb(255, 255, 255)"
-                                , Svg.Attributes.fontFamily "monospace"
-                                , Svg.Attributes.fontSize "20px"
-                                , Svg.Attributes.stroke "none"
+                                [ Svg.Attributes.fill "white"
+                                , Svg.Attributes.fontFamily "sans-serif"
+                                , Svg.Attributes.fontSize "25px"
+                                , Svg.Attributes.stroke "black"
                                 , Svg.Attributes.x (String.fromFloat (world.galaxyViewSize.width / 2))
                                 , Svg.Attributes.y (String.fromFloat 50)
                                 , Svg.Attributes.class "galactic-label-ignore"
@@ -587,11 +585,41 @@ scalePointInLightYearsToOne point =
         }
 
 
-renderPlanet : PlanetRenderDetails -> Scene3d.Entity ScaledViewPoint
+renderPlanet : PlanetRenderDetails -> List (Scene3d.Entity ScaledViewPoint)
 renderPlanet details =
-    Scene3d.sphere
+    [ Scene3d.sphere
         (Material.color details.color)
         (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) details.size)
+    , let
+        segments : number
+        segments =
+            100
+
+        radius : Float
+        radius =
+            Length.inMeters (Point3d.distanceFrom Point3d.origin details.position)
+
+        t : Int -> Float
+        t index =
+            2 * pi / segments * toFloat index
+
+        verts : List (Point3d Meters ScaledViewPoint)
+        verts =
+            List.map
+                (\index ->
+                    scalePointInAstroUnitsToOne
+                        (Point3d.meters
+                            (radius * cos (t index))
+                            (radius * sin (t index))
+                            0
+                        )
+                )
+                (List.range 0 segments)
+      in
+      Scene3d.mesh
+        (Material.color Color.gray)
+        (Scene3d.Mesh.polyline (Polyline3d.fromVertices verts))
+    ]
 
 
 scalePointInAstroUnitsToOne : Point3d Meters AstronomicalUnit -> Point3d Meters ScaledViewPoint
