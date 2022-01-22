@@ -35,7 +35,8 @@ import Game.Components
         , World
         , emptyWorld
         )
-import Length exposing (Length, Meters)
+import Json.Decode exposing (Value)
+import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -180,6 +181,7 @@ type Msg
     | GotViewStyle ViewStyle
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+    | GotZoom Value
 
 
 getGalaxyViewport : SubCmd Msg Effect
@@ -208,6 +210,18 @@ update msg world =
             ( world
             , SubCmd.effect (Shared.DeleteGame world.seed)
             )
+
+        GotZoom zoomValue ->
+            case Json.Decode.decodeValue decodeZoomEvent zoomValue of
+                Ok delta ->
+                    ( { world | zoom = world.zoom + delta }, SubCmd.none )
+
+                Err _ ->
+                    -- let
+                    --     _ =
+                    --         Debug.log "zoom decode error" err
+                    -- in
+                    ( world, SubCmd.none )
 
         SetSpaceFocus focus ->
             ( { world | spaceFocus = focus }, SubCmd.none )
@@ -289,6 +303,11 @@ update msg world =
                 updatedWorld
             , SubCmd.none
             )
+
+
+decodeZoomEvent : Json.Decode.Decoder Float
+decodeZoomEvent =
+    Json.Decode.field "deltaY" Json.Decode.float
 
 
 expansionSystem : World -> World
@@ -813,7 +832,7 @@ happinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 100 200 model generateSolarSystem
+    generateManyEntities 30 40 model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -837,40 +856,27 @@ generateSolarSystem ( solarSystemId, world ) =
 
 generateGalacticPosition : Generator (Point3d Meters LightYear)
 generateGalacticPosition =
-    Random.map3
-        (\randT randU1 randU2 ->
+    Random.map2
+        (\rand1 rand2 ->
             let
-                t : Float
-                t =
-                    2 * pi * randT
+                radius : Float
+                radius =
+                    Length.inMeters (Length.lightYears 50000)
 
-                u : Float
-                u =
-                    randU1 + randU2
+                u2 : Float
+                u2 =
+                    radius * rand2
 
-                r : Float
-                r =
-                    if u > 1 then
-                        2 - u
-
-                    else
-                        u
-
-                x : Length
-                x =
-                    Length.lightYears ((r * cos t) * 5000)
-
-                y : Length
-                y =
-                    Length.lightYears ((r * sin t) * 5000)
+                u1 : Float
+                u1 =
+                    2 * pi * rand1
             in
             Point3d.fromMeters
-                { x = Length.inMeters x
-                , y = Length.inMeters y
+                { x = u2 * cos u1
+                , y = u2 * sin u1
                 , z = 0
                 }
         )
-        (Random.float 0.0 1.0)
         (Random.float 0.0 1.0)
         (Random.float 0.0 1.0)
 
@@ -1183,7 +1189,8 @@ viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewGalaxy
-                { onPress = FSolarSystem >> SetSpaceFocus
+                { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
+                , onZoom = GotZoom
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1227,6 +1234,7 @@ viewSolarSystemDetailed world solarSystemId =
             Galaxy3d.viewSolarSystem
                 { onPressStar = FStar >> SetSpaceFocus
                 , onPressPlanet = FPlanet >> SetSpaceFocus
+                , onZoom = GotZoom
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
