@@ -19,7 +19,7 @@ import Game.Components exposing (AstronomicalUnit, CelestialBodyForm(..), LightY
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
-import Length exposing (Meters)
+import Length exposing (Length, Meters)
 import LineSegment2d
 import Logic.Component
 import Logic.Entity exposing (EntityID)
@@ -269,7 +269,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
 
         width : number
         width =
-            800
+            600
 
         height : number
         height =
@@ -289,7 +289,9 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
             --     }
             Viewpoint3d.lookAt
                 { focalPoint = Point3d.origin
-                , eyePoint = Point3d.meters 5 2 3
+
+                -- , eyePoint = Point3d.meters 5 2 3 |> Point3d.scaleAbout Point3d.origin 1000000000
+                , eyePoint = Point3d.meters 5000000000 2000000000 3000000000
                 , upDirection = Direction3d.positiveZ
                 }
 
@@ -416,7 +418,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                 )
                 planetVertices2d
 
-        starVertices2d : List ( EntityID, Float, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
+        starVertices2d : List ( EntityID, Length, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
         starVertices2d =
             List.map
                 (\details ->
@@ -445,7 +447,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
                             ]
-                            (Circle2d.withRadius (Pixels.float (190 * size)) vertex)
+                            (Circle2d.withRadius (Pixels.float (190 * Length.inKilometers size / 1000000)) vertex)
                         , Geometry.Svg.lineSegment2d
                             [ Svg.Attributes.stroke "red"
                             , Svg.Attributes.strokeWidth "2"
@@ -494,16 +496,16 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         solarSystemScene =
             Scene3d.unlit
                 { entities =
-                    Scene3d.quad (Material.color Color.black)
-                        (Point3d.meters -1.5 -1.5 0)
-                        (Point3d.meters 1.5 -1.5 0)
-                        (Point3d.meters 1.5 1.5 0)
-                        (Point3d.meters -1.5 1.5 0)
+                    Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
+                        (Point3d.meters -1500000000 -1500000000 0)
+                        (Point3d.meters 1500000000 -1500000000 0)
+                        (Point3d.meters 1500000000 1500000000 0)
+                        (Point3d.meters -1500000000 1500000000 0)
                         :: planetEntities
                         ++ starEntities
                 , camera = camera
                 , clipDepth = Length.meters 1
-                , background = Scene3d.transparentBackground
+                , background = Scene3d.backgroundColor Color.black
                 , dimensions = ( Pixels.pixels width, Pixels.pixels height )
                 }
     in
@@ -591,15 +593,15 @@ renderPlanet : PlanetRenderDetails -> Scene3d.Entity ScaledViewPoint
 renderPlanet details =
     Scene3d.sphere
         (Material.color details.color)
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Length.meters details.size))
+        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) details.size)
 
 
 scalePointInAstroUnitsToOne : Point3d Meters AstronomicalUnit -> Point3d Meters ScaledViewPoint
 scalePointInAstroUnitsToOne point =
     Point3d.fromMeters
-        { x = Length.inAstronomicalUnits (Point3d.xCoordinate point) / 12
-        , y = Length.inAstronomicalUnits (Point3d.yCoordinate point) / 12
-        , z = Length.inAstronomicalUnits (Point3d.zCoordinate point) / 12
+        { x = Length.inMeters (Point3d.xCoordinate point) / 1000
+        , y = Length.inMeters (Point3d.yCoordinate point) / 1000
+        , z = Length.inMeters (Point3d.zCoordinate point) / 1000
         }
 
 
@@ -607,7 +609,7 @@ type alias PlanetRenderDetails =
     { id : EntityID
     , color : Color.Color
     , position : Point3d Meters AstronomicalUnit
-    , size : Float
+    , size : Length
     }
 
 
@@ -618,7 +620,7 @@ getPlanetDetails world planetId =
             { id = planetId
             , position =
                 Point3d.fromMeters
-                    { x = Length.inMeters (Length.astronomicalUnits (toFloat orbit))
+                    { x = Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
                     , y = 0
                     , z = 0
                     }
@@ -641,10 +643,10 @@ getPlanetDetails world planetId =
             , size =
                 case planetType_ of
                     Rocky ->
-                        0.05
+                        Length.kilometers 6371
 
                     Gas ->
-                        0.07
+                        Length.kilometers 69911
             }
         )
         (Logic.Component.get planetId world.orbits)
@@ -656,14 +658,14 @@ renderStar : StarRenderDetails -> Scene3d.Entity ScaledViewPoint
 renderStar details =
     Scene3d.sphere
         (Material.color details.color)
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Length.meters details.size))
+        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) details.size)
 
 
 type alias StarRenderDetails =
     { id : EntityID
     , color : Color.Color
     , position : Point3d Meters AstronomicalUnit
-    , size : Float
+    , size : Length
     }
 
 
@@ -697,19 +699,20 @@ getStarDetails world starId =
             , size =
                 case size of
                     Yellow ->
-                        0.1
+                        Length.kilometers 696000
 
                     RedGiant ->
-                        0.2
+                        -- Length.kilometers (696000 * 2)
+                        Length.kilometers 696000
 
                     BlueGiant ->
-                        0.3
+                        Length.kilometers (696000 * 3)
 
                     WhiteDwarf ->
-                        0.05
+                        Length.kilometers (696000 / 2)
 
                     BlackDwarf ->
-                        0.03
+                        Length.kilometers (696000 / 3)
             }
         )
         (Logic.Component.get starId world.starForms)
