@@ -271,7 +271,7 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars
             --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
             --     |> Point3d.rotateAround Axis3d.z (Angle.degrees 60)
             Point3d.meters 5 2 3
-                |> Point3d.scaleAbout Point3d.origin (1000000000 + (world.zoom + 1) * 10000000)
+                |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
@@ -587,7 +587,7 @@ renderPlanet : PlanetRenderDetails -> List (Scene3d.Entity ScaledViewPoint)
 renderPlanet details =
     [ Scene3d.sphere
         (Material.color details.color)
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) details.size)
+        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
     , let
         segments : number
         segments =
@@ -623,9 +623,9 @@ renderPlanet details =
 scalePointInAstroUnitsToOne : Point3d Meters AstronomicalUnit -> Point3d Meters ScaledViewPoint
 scalePointInAstroUnitsToOne point =
     Point3d.fromMeters
-        { x = Length.inMeters (Point3d.xCoordinate point) / 1000
-        , y = Length.inMeters (Point3d.yCoordinate point) / 1000
-        , z = Length.inMeters (Point3d.zCoordinate point) / 1000
+        { x = Length.inMeters (Point3d.xCoordinate point)
+        , y = Length.inMeters (Point3d.yCoordinate point)
+        , z = Length.inMeters (Point3d.zCoordinate point)
         }
 
 
@@ -682,7 +682,7 @@ renderStar : StarRenderDetails -> Scene3d.Entity ScaledViewPoint
 renderStar details =
     Scene3d.sphere
         (Material.color details.color)
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) details.size)
+        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 500 details.size))
 
 
 type alias StarRenderDetails =
