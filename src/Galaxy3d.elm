@@ -14,6 +14,7 @@ import Dict
 import Direction2d
 import Direction3d
 import Element
+import Element.Extra
 import Frame2d
 import Game.Components exposing (AstronomicalUnit, CelestialBodyForm(..), LightYear, StarSize(..), World)
 import Geometry.Svg
@@ -57,14 +58,6 @@ viewGalaxy { onPress, focusedCivilization } world =
         solarSystems =
             List.map (Tuple.second >> renderSolarSystem) solarSystemPoints
 
-        width : number
-        width =
-            800
-
-        height : number
-        height =
-            600
-
         -- eyePoint : Point3d Meters coordinates
         -- eyePoint =
         --     Point3d.meters 4 0 0
@@ -98,7 +91,7 @@ viewGalaxy { onPress, focusedCivilization } world =
         -- projecting 3D points into 2D
         screenRectangle : Rectangle2d.Rectangle2d Pixels.Pixels coordinates
         screenRectangle =
-            Rectangle2d.from Point2d.origin (Point2d.pixels width height)
+            Rectangle2d.from Point2d.origin (Point2d.pixels world.galaxyViewSize.width world.galaxyViewSize.height)
 
         angle : Angle.Angle
         angle =
@@ -174,17 +167,17 @@ viewGalaxy { onPress, focusedCivilization } world =
                             , Svg.Attributes.strokeDasharray "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
                             ]
-                            (LineSegment2d.from vertex (Point2d.pixels (width / 2) (height - 50)))
+                            (LineSegment2d.from vertex (Point2d.pixels (world.galaxyViewSize.width / 2) (world.galaxyViewSize.height - 50)))
                         , -- Hack: flip the text upside down since our later
                           -- 'Svg.relativeTo topLeftFrame' call will flip it
                           -- back right side up
-                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = width / 2, y = height / 2 }) Direction2d.x)
+                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = world.galaxyViewSize.width / 2, y = world.galaxyViewSize.height / 2 }) Direction2d.x)
                             (Svg.text_
                                 [ Svg.Attributes.fill "red" --"rgb(255, 255, 255)"
                                 , Svg.Attributes.fontFamily "monospace"
                                 , Svg.Attributes.fontSize "20px"
                                 , Svg.Attributes.stroke "none"
-                                , Svg.Attributes.x (String.fromFloat (width / 2))
+                                , Svg.Attributes.x (String.fromFloat (world.galaxyViewSize.width / 2))
                                 , Svg.Attributes.y (String.fromFloat 50)
                                 , Svg.Attributes.class "galactic-label-ignore"
                                 ]
@@ -199,7 +192,7 @@ viewGalaxy { onPress, focusedCivilization } world =
         -- corner (which is what SVG natively works in)
         topLeftFrame : Frame2d.Frame2d Pixels.Pixels coordinates defines2
         topLeftFrame =
-            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float height))
+            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height))
                 |> Frame2d.reverseY
 
         -- Create an SVG element with the projected points, lines and
@@ -207,8 +200,8 @@ viewGalaxy { onPress, focusedCivilization } world =
         galaxyLabels : Html msg
         galaxyLabels =
             Svg.svg
-                [ Html.Attributes.width width
-                , Html.Attributes.height height
+                [ Html.Attributes.width (floor world.galaxyViewSize.width)
+                , Html.Attributes.height (floor world.galaxyViewSize.height)
                 ]
                 [ Geometry.Svg.relativeTo topLeftFrame (Svg.g [] svgLabels) ]
 
@@ -216,23 +209,21 @@ viewGalaxy { onPress, focusedCivilization } world =
         galaxyScene =
             Scene3d.unlit
                 { entities =
-                    Scene3d.quad (Material.color Color.black)
-                        (Point3d.meters -1.5 -1.5 0)
-                        (Point3d.meters 1.5 -1.5 0)
-                        (Point3d.meters 1.5 1.5 0)
-                        (Point3d.meters -1.5 1.5 0)
-                        :: Scene3d.cylinder (Material.color (Color.rgb 0 0.1 0.3))
-                            (Cylinder3d.centeredOn Point3d.origin
-                                Direction3d.positiveZ
-                                { radius = Length.meters 1.1
-                                , length = Length.meters 0.001
-                                }
-                            )
+                    Scene3d.cylinder (Material.color (Color.rgb 0 0.1 0.3))
+                        (Cylinder3d.centeredOn Point3d.origin
+                            Direction3d.positiveZ
+                            { radius = Length.meters 1.1
+                            , length = Length.meters 0.001
+                            }
+                        )
                         :: solarSystems
                 , camera = camera
                 , clipDepth = Length.meters 1
-                , background = Scene3d.transparentBackground
-                , dimensions = ( Pixels.pixels width, Pixels.pixels height )
+                , background = Scene3d.backgroundColor Color.black
+                , dimensions =
+                    ( Pixels.pixels (floor world.galaxyViewSize.width)
+                    , Pixels.pixels (floor world.galaxyViewSize.height)
+                    )
                 }
     in
     viewSpace galaxyLabels galaxyScene
@@ -266,14 +257,6 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         starEntities : List (Scene3d.Entity ScaledViewPoint)
         starEntities =
             List.map renderStar starDetails
-
-        width : number
-        width =
-            600
-
-        height : number
-        height =
-            600
 
         -- eyePoint : Point3d Meters coordinates
         -- eyePoint =
@@ -310,7 +293,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         -- projecting 3D points into 2D
         screenRectangle : Rectangle2d.Rectangle2d Pixels.Pixels coordinates
         screenRectangle =
-            Rectangle2d.from Point2d.origin (Point2d.pixels width height)
+            Rectangle2d.from Point2d.origin (Point2d.pixels world.galaxyViewSize.width world.galaxyViewSize.height)
 
         angle : Angle.Angle
         angle =
@@ -398,17 +381,17 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             , Svg.Attributes.strokeDasharray "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
                             ]
-                            (LineSegment2d.from vertex (Point2d.pixels (width / 2) (height - 50)))
+                            (LineSegment2d.from vertex (Point2d.pixels (world.galaxyViewSize.width / 2) (world.galaxyViewSize.height - 50)))
                         , -- Hack: flip the text upside down since our later
                           -- 'Svg.relativeTo topLeftFrame' call will flip it
                           -- back right side up
-                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = width / 2, y = height / 2 }) Direction2d.x)
+                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = world.galaxyViewSize.width / 2, y = world.galaxyViewSize.height / 2 }) Direction2d.x)
                             (Svg.text_
                                 [ Svg.Attributes.fill "red" --"rgb(255, 255, 255)"
                                 , Svg.Attributes.fontFamily "monospace"
                                 , Svg.Attributes.fontSize "20px"
                                 , Svg.Attributes.stroke "none"
-                                , Svg.Attributes.x (String.fromFloat (width / 2))
+                                , Svg.Attributes.x (String.fromFloat (world.galaxyViewSize.width / 2))
                                 , Svg.Attributes.y (String.fromFloat 50)
                                 , Svg.Attributes.class "galactic-label-ignore"
                                 ]
@@ -454,17 +437,17 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             , Svg.Attributes.strokeDasharray "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
                             ]
-                            (LineSegment2d.from vertex (Point2d.pixels (width / 2) (height - 50)))
+                            (LineSegment2d.from vertex (Point2d.pixels (world.galaxyViewSize.width / 2) (world.galaxyViewSize.height - 50)))
                         , -- Hack: flip the text upside down since our later
                           -- 'Svg.relativeTo topLeftFrame' call will flip it
                           -- back right side up
-                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = width / 2, y = height / 2 }) Direction2d.x)
+                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = world.galaxyViewSize.width / 2, y = world.galaxyViewSize.height / 2 }) Direction2d.x)
                             (Svg.text_
                                 [ Svg.Attributes.fill "red" --"rgb(255, 255, 255)"
                                 , Svg.Attributes.fontFamily "monospace"
                                 , Svg.Attributes.fontSize "20px"
                                 , Svg.Attributes.stroke "none"
-                                , Svg.Attributes.x (String.fromFloat (width / 2))
+                                , Svg.Attributes.x (String.fromFloat (world.galaxyViewSize.width / 2))
                                 , Svg.Attributes.y (String.fromFloat 50)
                                 , Svg.Attributes.class "galactic-label-ignore"
                                 ]
@@ -479,7 +462,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         -- corner (which is what SVG natively works in)
         topLeftFrame : Frame2d.Frame2d Pixels.Pixels coordinates defines2
         topLeftFrame =
-            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float height))
+            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height))
                 |> Frame2d.reverseY
 
         -- Create an SVG element with the projected points, lines and
@@ -487,8 +470,8 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         solarSystemLabels : Html msg
         solarSystemLabels =
             Svg.svg
-                [ Html.Attributes.width width
-                , Html.Attributes.height height
+                [ Html.Attributes.width (floor world.galaxyViewSize.width)
+                , Html.Attributes.height (floor world.galaxyViewSize.height)
                 ]
                 [ Geometry.Svg.relativeTo topLeftFrame (Svg.g [] (starLabels ++ planetLabels)) ]
 
@@ -506,7 +489,10 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                 , camera = camera
                 , clipDepth = Length.meters 1
                 , background = Scene3d.backgroundColor Color.black
-                , dimensions = ( Pixels.pixels width, Pixels.pixels height )
+                , dimensions =
+                    ( Pixels.pixels (floor world.galaxyViewSize.width)
+                    , Pixels.pixels (floor world.galaxyViewSize.height)
+                    )
                 }
     in
     viewSpace solarSystemLabels solarSystemScene
@@ -555,6 +541,8 @@ viewSpace labels scene =
 }
 """ ]))
         , Element.inFront (Element.html labels)
+        , Element.width Element.fill
+        , Element.Extra.id "galaxy-view"
         ]
         (Element.html scene)
 

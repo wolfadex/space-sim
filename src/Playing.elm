@@ -7,6 +7,7 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
@@ -52,6 +53,7 @@ import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (Effect)
 import SubCmd exposing (SubCmd)
+import Task
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -120,7 +122,7 @@ init flags =
         , seed = finalSeed
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
-    , SubCmd.none
+    , getGalaxyViewport
     )
 
 
@@ -163,15 +165,10 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 
 subscriptions : World -> Sub Msg
 subscriptions _ =
-    Browser.Events.onAnimationFrameDelta Tick
-
-
-
--- case world.tickRate of
---     Paused ->
---         Sub.none
---     _ ->
---         Time.every (tickRateToMs world.tickRate) (\_ -> Tick)
+    Sub.batch
+        [ Browser.Events.onAnimationFrameDelta Tick
+        , Browser.Events.onResize (\_ _ -> WindowResized)
+        ]
 
 
 type Msg
@@ -181,6 +178,13 @@ type Msg
     | Tick Float
     | SetTickRate TickRate
     | GotViewStyle ViewStyle
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+
+
+getGalaxyViewport : SubCmd Msg Effect
+getGalaxyViewport =
+    SubCmd.cmd (Task.attempt GotGalaxyViewport (Browser.Dom.getViewportOf "galaxy-view"))
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
@@ -188,6 +192,17 @@ update msg world =
     case msg of
         SetTickRate tickRate ->
             ( { world | tickRate = tickRate }, SubCmd.none )
+
+        WindowResized ->
+            ( world, getGalaxyViewport )
+
+        GotGalaxyViewport (Ok { viewport }) ->
+            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height } }
+            , SubCmd.none
+            )
+
+        GotGalaxyViewport (Err _) ->
+            ( world, SubCmd.none )
 
         DeleteGalaxy ->
             ( world
@@ -201,7 +216,7 @@ update msg world =
             ( { world | civilizationFocus = focus }, SubCmd.none )
 
         GotViewStyle viewStyle ->
-            ( { world | viewStyle = viewStyle }, SubCmd.none )
+            ( { world | viewStyle = viewStyle }, getGalaxyViewport )
 
         Tick deltaMs ->
             let
@@ -1138,6 +1153,7 @@ viewSlice : Element Msg -> Element Msg
 viewSlice slice =
     column
         [ height fill
+        , width fill
         , padding 8
         ]
         [ Ui.Button.default
