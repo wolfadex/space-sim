@@ -10,6 +10,7 @@ import Camera3d
 import Circle2d
 import Color
 import Cylinder3d
+import Dict
 import Direction2d
 import Direction3d
 import Element
@@ -38,8 +39,13 @@ import Svg.Events
 import Viewpoint3d
 
 
-viewGalaxy : World -> (EntityID -> msg) -> Element.Element msg
-viewGalaxy world onPress =
+viewGalaxy :
+    { onPress : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
+    }
+    -> World
+    -> Element.Element msg
+viewGalaxy { onPress, focusedCivilization } world =
     let
         solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
         solarSystemPoints =
@@ -114,11 +120,45 @@ viewGalaxy world onPress =
         svgLabels =
             List.map
                 (\( solarSystemId, vertex ) ->
+                    let
+                        highlightSolarSystem : Bool
+                        highlightSolarSystem =
+                            world.civilizations
+                                |> Set.toList
+                                |> List.any
+                                    (\civId ->
+                                        Logic.Component.get civId world.civilizationPopulations
+                                            |> Maybe.map
+                                                (\dictPlanetPopulatiopns ->
+                                                    let
+                                                        solarSystemsCivIsIn : List EntityID
+                                                        solarSystemsCivIsIn =
+                                                            List.filterMap
+                                                                (\planetId ->
+                                                                    Logic.Component.get planetId world.parents
+                                                                )
+                                                                (Dict.keys dictPlanetPopulatiopns)
+                                                    in
+                                                    List.any ((==) solarSystemId) solarSystemsCivIsIn && Just civId == focusedCivilization
+                                                )
+                                            |> Maybe.withDefault False
+                                    )
+                    in
                     Svg.g
-                        [ Svg.Attributes.class "galactic-label"
+                        [ Svg.Attributes.class <|
+                            if highlightSolarSystem then
+                                "galactic-label-focus-civ"
+
+                            else
+                                "galactic-label"
                         ]
                         [ Geometry.Svg.circle2d
-                            [ Svg.Attributes.stroke "rgb(255, 255, 0)"
+                            [ Svg.Attributes.stroke <|
+                                if highlightSolarSystem then
+                                    "rgb(200, 255, 200)"
+
+                                else
+                                    "rgb(255, 255, 0)"
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
                             , Svg.Events.onClick (onPress solarSystemId)
@@ -200,12 +240,13 @@ viewGalaxy world onPress =
 viewSolarSystem :
     { onPressStar : EntityID -> msg
     , onPressPlanet : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
     , stars : Set EntityID
     , planets : Set EntityID
     }
     -> World
     -> Element.Element msg
-viewSolarSystem { onPressStar, onPressPlanet, stars, planets } world =
+viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planets } world =
     let
         planetPoints : List ( EntityID, Point3d Meters AstronomicalUnit )
         planetPoints =
@@ -287,11 +328,36 @@ viewSolarSystem { onPressStar, onPressPlanet, stars, planets } world =
         planetLabels =
             List.map
                 (\( planetId, vertex ) ->
+                    let
+                        highlightPlanet : Bool
+                        highlightPlanet =
+                            world.civilizations
+                                |> Set.toList
+                                |> List.any
+                                    (\civId ->
+                                        Logic.Component.get civId world.civilizationPopulations
+                                            |> Maybe.map
+                                                (\dictPlanetPopulatiopns ->
+                                                    Dict.member planetId dictPlanetPopulatiopns && Just civId == focusedCivilization
+                                                )
+                                            |> Maybe.withDefault False
+                                    )
+                    in
                     Svg.g
-                        [ Svg.Attributes.class "galactic-label"
+                        [ Svg.Attributes.class <|
+                            if highlightPlanet then
+                                "galactic-label-focus-civ"
+
+                            else
+                                "galactic-label"
                         ]
                         [ Geometry.Svg.circle2d
-                            [ Svg.Attributes.stroke "rgb(255, 255, 0)"
+                            [ Svg.Attributes.stroke <|
+                                if highlightPlanet then
+                                    "rgb(0, 255, 200)"
+
+                                else
+                                    "rgb(255, 255, 0)"
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
                             , Svg.Events.onClick (onPressPlanet planetId)
@@ -434,6 +500,23 @@ viewSpace labels scene =
 .galactic-label:focus-within,
 .galactic-label:hover {
     opacity: 1;
+}
+
+.galactic-label-focus-civ {
+    visibility: hidden;
+    cursor: pointer;
+}
+
+.galactic-label-focus-civ > circle {
+    visibility: visible;
+    cursor: pointer;
+}
+
+.galactic-label-focus-civ:active,
+.galactic-label-focus-civ:focus,
+.galactic-label-focus-civ:focus-within,
+.galactic-label-focus-civ:hover {
+    visibility: visible;
 }
 
 .galactic-label-ignore {

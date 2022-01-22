@@ -1135,7 +1135,17 @@ viewGalaxy : World -> Element Msg
 viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
-            Galaxy3d.viewGalaxy world (FSolarSystem >> SetSpaceFocus)
+            Galaxy3d.viewGalaxy
+                { onPress = FSolarSystem >> SetSpaceFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
+                }
+                world
 
         TwoD ->
             Galaxy2d.viewGalaxy
@@ -1170,6 +1180,13 @@ viewSolarSystemDetailed world solarSystemId =
             Galaxy3d.viewSolarSystem
                 { onPressStar = FStar >> SetSpaceFocus
                 , onPressPlanet = FPlanet >> SetSpaceFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 , stars = stars
                 , planets = planets
                 }
