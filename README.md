@@ -8,7 +8,7 @@ Playable at https://space-sim.netlify.app/
 
 A 4X space game inspired by Dwarf Fortress.
 
-<img src="./Screenshot 2022-01-2.png" />
+<img src="./Screenshot 2022-01-22.png" />
 
 ## Features
 
