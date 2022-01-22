@@ -224,10 +224,10 @@ update msg world =
                     ( world, SubCmd.none )
 
         SetSpaceFocus focus ->
-            ( { world | spaceFocus = focus }, SubCmd.none )
+            ( { world | spaceFocus = focus, zoom = 1 }, SubCmd.none )
 
         SetCivilizationFocus focus ->
-            ( { world | civilizationFocus = focus }, SubCmd.none )
+            ( { world | civilizationFocus = focus, zoom = 1 }, SubCmd.none )
 
         GotViewStyle viewStyle ->
             ( { world | viewStyle = viewStyle }, getGalaxyViewport )
