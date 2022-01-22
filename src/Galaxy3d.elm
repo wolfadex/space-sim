@@ -15,7 +15,7 @@ import Direction2d
 import Direction3d
 import Element
 import Frame2d
-import Game.Components exposing (AstronomicalUnit, LightYear, StarSize(..), World)
+import Game.Components exposing (AstronomicalUnit, CelestialBodyForm(..), LightYear, StarSize(..), World)
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
@@ -23,6 +23,7 @@ import Length exposing (Meters)
 import LineSegment2d
 import Logic.Component
 import Logic.Entity exposing (EntityID)
+import Percent
 import Pixels
 import Point2d
 import Point3d exposing (Point3d)
@@ -248,23 +249,23 @@ viewSolarSystem :
     -> Element.Element msg
 viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planets } world =
     let
-        planetPoints : List ( EntityID, Point3d Meters AstronomicalUnit )
-        planetPoints =
-            List.filterMap (planetPoint world)
+        planetDetails : List PlanetRenderDetails
+        planetDetails =
+            List.filterMap (getPlanetDetails world)
                 (Set.toList planets)
 
-        starPoints : List StarRenderDetails
-        starPoints =
-            List.filterMap (starPoint world)
+        starDetails : List StarRenderDetails
+        starDetails =
+            List.filterMap (getStarDetails world)
                 (Set.toList stars)
 
         planetEntities : List (Scene3d.Entity ScaledViewPoint)
         planetEntities =
-            List.map (Tuple.second >> renderPlanet) planetPoints
+            List.map renderPlanet planetDetails
 
         starEntities : List (Scene3d.Entity ScaledViewPoint)
         starEntities =
-            List.map renderStar starPoints
+            List.map renderStar starDetails
 
         width : number
         width =
@@ -316,14 +317,18 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         planetVertices2d : List ( EntityID, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
         planetVertices2d =
             List.map
-                (Tuple.mapSecond
-                    (scalePointInAstroUnitsToOne
-                        >> Point3d.rotateAround Axis3d.z angle
-                        >> Point3d.Projection.toScreenSpace camera screenRectangle
+                (\details ->
+                    ( details.id
+                    , scalePointInAstroUnitsToOne details.position
+                        |> Point3d.rotateAround Axis3d.z angle
+                        |> Point3d.Projection.toScreenSpace camera screenRectangle
                     )
                 )
-                planetPoints
+                planetDetails
 
+        -- solarSystemCenter2d : Point2d.Point2d Pixels.Pixels ScaledViewPoint
+        -- solarSystemCenter2d =
+        --     Point3d.Projection.toScreenSpace camera screenRectangle Point3d.origin
         planetLabels : List (Svg.Svg msg)
         planetLabels =
             List.map
@@ -351,7 +356,8 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             else
                                 "galactic-label"
                         ]
-                        [ Geometry.Svg.circle2d
+                        [ -- Planet highlight
+                          Geometry.Svg.circle2d
                             [ Svg.Attributes.stroke <|
                                 if highlightPlanet then
                                     "rgb(0, 255, 200)"
@@ -366,6 +372,24 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             -- , Html.Attributes.tabindex 0
                             ]
                             (Circle2d.withRadius (Pixels.float 10) vertex)
+
+                        -- Orbit
+                        -- , Geometry.Svg.
+                        --     (Geometry.Svg.circle2d
+                        --         [ Svg.Attributes.stroke <|
+                        --             if highlightPlanet then
+                        --                 "rgb(0, 255, 200)"
+                        --             else
+                        --                 "rgb(200, 200, 200)"
+                        --         , Svg.Attributes.strokeWidth "2"
+                        --         , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
+                        --         , Svg.Events.onClick (onPressPlanet planetId)
+                        --         , Svg.Attributes.class "planet-orbit"
+                        --         -- This isn't working, need to debug for accessibility
+                        --         -- , Html.Attributes.tabindex 0
+                        --         ]
+                        --         (Circle2d.withRadius (Point2d.distanceFrom solarSystemCenter2d vertex) solarSystemCenter2d)
+                        --     )
                         , Geometry.Svg.lineSegment2d
                             [ Svg.Attributes.stroke "red"
                             , Svg.Attributes.strokeWidth "2"
@@ -403,7 +427,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                         |> Point3d.Projection.toScreenSpace camera screenRectangle
                     )
                 )
-                starPoints
+                starDetails
 
         starLabels : List (Svg.Svg msg)
         starLabels =
@@ -490,37 +514,42 @@ viewSpace : Html msg -> Html msg -> Element.Element msg
 viewSpace labels scene =
     Element.el
         [ Element.inFront (Element.html (Html.node "style" [] [ Html.text """
-.galactic-label {
-    opacity: 0;
-    cursor: pointer;
+.galactic-label * {
+  opacity: 0;
+  cursor: pointer;
 }
 
-.galactic-label:active,
-.galactic-label:focus,
-.galactic-label:focus-within,
-.galactic-label:hover {
-    opacity: 1;
+.galactic-label:active *,
+.galactic-label:focus *,
+.galactic-label:focus-within *,
+.galactic-label:hover * {
+  opacity: 1;
 }
 
-.galactic-label-focus-civ {
-    visibility: hidden;
-    cursor: pointer;
+.galactic-label-focus-civ * {
+  visibility: hidden;
+  cursor: pointer;
 }
 
-.galactic-label-focus-civ > circle {
-    visibility: visible;
-    cursor: pointer;
+.galactic-label-focus-civ circle {
+  visibility: visible;
 }
 
-.galactic-label-focus-civ:active,
-.galactic-label-focus-civ:focus,
-.galactic-label-focus-civ:focus-within,
-.galactic-label-focus-civ:hover {
+.galactic-label-focus-civ:active *,
+.galactic-label-focus-civ:focus *,
+.galactic-label-focus-civ:focus-within *,
+.galactic-label-focus-civ:hover * {
     visibility: visible;
 }
 
 .galactic-label-ignore {
     pointer-events: none;
+}
+
+.galactic-label > .planet-orbit {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: none;
 }
 """ ]))
         , Element.inFront (Element.html labels)
@@ -558,11 +587,11 @@ scalePointInLightYearsToOne point =
         }
 
 
-renderPlanet : Point3d Meters AstronomicalUnit -> Scene3d.Entity ScaledViewPoint
-renderPlanet position =
+renderPlanet : PlanetRenderDetails -> Scene3d.Entity ScaledViewPoint
+renderPlanet details =
     Scene3d.sphere
-        (Material.color Color.blue)
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne position) (Length.meters 0.05))
+        (Material.color details.color)
+        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Length.meters details.size))
 
 
 scalePointInAstroUnitsToOne : Point3d Meters AstronomicalUnit -> Point3d Meters ScaledViewPoint
@@ -574,19 +603,53 @@ scalePointInAstroUnitsToOne point =
         }
 
 
-planetPoint : World -> EntityID -> Maybe ( EntityID, Point3d Meters AstronomicalUnit )
-planetPoint world planetId =
-    Maybe.map
-        (\orbit ->
-            ( planetId
-            , Point3d.fromMeters
-                { x = Length.inMeters (Length.astronomicalUnits (toFloat orbit))
-                , y = 0
-                , z = 0
-                }
-            )
+type alias PlanetRenderDetails =
+    { id : EntityID
+    , color : Color.Color
+    , position : Point3d Meters AstronomicalUnit
+    , size : Float
+    }
+
+
+getPlanetDetails : World -> EntityID -> Maybe PlanetRenderDetails
+getPlanetDetails world planetId =
+    Maybe.map3
+        (\orbit planetType_ waterPercent ->
+            { id = planetId
+            , position =
+                Point3d.fromMeters
+                    { x = Length.inMeters (Length.astronomicalUnits (toFloat orbit))
+                    , y = 0
+                    , z = 0
+                    }
+                    |> Point3d.rotateAround Axis3d.z (Angle.degrees (world.elapsedTime / (100 + toFloat orbit)))
+            , color =
+                case planetType_ of
+                    Rocky ->
+                        if waterPercent |> Quantity.lessThan (Percent.fromFloat 50.0) then
+                            Color.brown
+
+                        else
+                            Color.blue
+
+                    Gas ->
+                        if waterPercent |> Quantity.lessThan (Percent.fromFloat 50.0) then
+                            Color.lightGreen
+
+                        else
+                            Color.lightOrange
+            , size =
+                case planetType_ of
+                    Rocky ->
+                        0.05
+
+                    Gas ->
+                        0.07
+            }
         )
         (Logic.Component.get planetId world.orbits)
+        (Logic.Component.get planetId world.planetTypes)
+        (Logic.Component.get planetId world.waterContent)
 
 
 renderStar : StarRenderDetails -> Scene3d.Entity ScaledViewPoint
@@ -604,8 +667,8 @@ type alias StarRenderDetails =
     }
 
 
-starPoint : World -> EntityID -> Maybe StarRenderDetails
-starPoint world starId =
+getStarDetails : World -> EntityID -> Maybe StarRenderDetails
+getStarDetails world starId =
     Maybe.map
         (\size ->
             { id = starId

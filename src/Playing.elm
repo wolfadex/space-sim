@@ -7,6 +7,7 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
@@ -30,7 +31,6 @@ import Game.Components
         , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
-        , Water
         , World
         , emptyWorld
         )
@@ -52,7 +52,6 @@ import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (Effect)
 import SubCmd exposing (SubCmd)
-import Time
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -163,46 +162,23 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 
 
 subscriptions : World -> Sub Msg
-subscriptions world =
-    case world.tickRate of
-        Paused ->
-            Sub.none
-
-        _ ->
-            Time.every (tickRateToMs world.tickRate) (\_ -> Tick)
+subscriptions _ =
+    Browser.Events.onAnimationFrameDelta Tick
 
 
-tickRateToMs : TickRate -> Float
-tickRateToMs tickRate =
-    let
-        baseTickTime : Float
-        baseTickTime =
-            -- 3 seconds
-            3000
-    in
-    case tickRate of
-        Paused ->
-            -- Infinity
-            1 / 0
 
-        HalfSpeed ->
-            baseTickTime * 2
-
-        Normal ->
-            baseTickTime
-
-        Fast ->
-            baseTickTime / 4
-
-        ExtraFast ->
-            baseTickTime / 8
+-- case world.tickRate of
+--     Paused ->
+--         Sub.none
+--     _ ->
+--         Time.every (tickRateToMs world.tickRate) (\_ -> Tick)
 
 
 type Msg
     = DeleteGalaxy
     | SetSpaceFocus SpaceFocus
     | SetCivilizationFocus CivilizationFocus
-    | Tick
+    | Tick Float
     | SetTickRate TickRate
     | GotViewStyle ViewStyle
 
@@ -227,19 +203,75 @@ update msg world =
         GotViewStyle viewStyle ->
             ( { world | viewStyle = viewStyle }, SubCmd.none )
 
-        Tick ->
-            ( { world | starDate = world.starDate + 1 }
-                |> happinessSystem
-                    Game.Components.civilizationReproductionRateSpec
-                    Game.Components.civilizationMortalityRateSpec
-                    Game.Components.civilizationHappinessSpec
-                |> birthAndDeathSystem
-                    Game.Components.civilizationReproductionRateSpec
-                    Game.Components.civilizationMortalityRateSpec
-                    Game.Components.civilizationPopulationSpec
-                |> discoverySystem Game.Components.knowledgeSpec
-                |> expansionSystem
-                |> civilUnrestSystem
+        Tick deltaMs ->
+            let
+                ( doTick, remainingTickTime, newStarDate ) =
+                    let
+                        baseTickTime : Float
+                        baseTickTime =
+                            -- 3 seconds
+                            3000
+
+                        remaining : unknown
+                        remaining =
+                            world.remainingTimeForSystemUpdate + deltaMs
+                    in
+                    case world.tickRate of
+                        Paused ->
+                            ( False, remaining, world.starDate )
+
+                        HalfSpeed ->
+                            if remaining - baseTickTime * 2 >= 0 then
+                                ( True, remaining - baseTickTime * 2, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        Normal ->
+                            if remaining - baseTickTime >= 0 then
+                                ( True, remaining - baseTickTime, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        Fast ->
+                            if remaining - baseTickTime / 4 >= 0 then
+                                ( True, remaining - baseTickTime / 4, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        ExtraFast ->
+                            if remaining - baseTickTime / 8 >= 0 then
+                                ( True, remaining - baseTickTime / 8, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                updatedWorld : World
+                updatedWorld =
+                    { world
+                        | starDate = newStarDate
+                        , elapsedTime = world.elapsedTime + deltaMs
+                        , remainingTimeForSystemUpdate = remainingTickTime
+                    }
+            in
+            ( if doTick then
+                updatedWorld
+                    |> happinessSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationMortalityRateSpec
+                        Game.Components.civilizationHappinessSpec
+                    |> birthAndDeathSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationMortalityRateSpec
+                        Game.Components.civilizationPopulationSpec
+                    |> discoverySystem Game.Components.knowledgeSpec
+                    |> expansionSystem
+                    |> civilUnrestSystem
+
+              else
+                updatedWorld
             , SubCmd.none
             )
 
@@ -850,7 +882,7 @@ generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World 
 generatePlanet solarSystemId ( planetId, world ) =
     Random.map2 Tuple.pair
         (Random.uniform Rocky [ Gas ])
-        generatePlanetWaterPercent
+        (Percent.random 0.0 100.0)
         |> Random.andThen
             (\( planetType, waterPercent ) ->
                 Random.map3
@@ -933,13 +965,6 @@ generateCivilizationName world =
             (\( chosenName, remainingNames ) ->
                 ( chosenName, { world | availableCivilizationNames = remainingNames } )
             )
-
-
-{-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
--}
-generatePlanetWaterPercent : Generator Water
-generatePlanetWaterPercent =
-    Random.float 0.0 100
 
 
 {-| Generate the radius of a planet based on its type.
