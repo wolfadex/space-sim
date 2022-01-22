@@ -1027,7 +1027,13 @@ viewPlaying world =
         , height fill
         ]
         [ viewControls world
-        , row
+        , (case world.viewStyle of
+            ThreeD ->
+                column
+
+            TwoD ->
+                row
+          )
             [ width fill
             , height fill
             , scrollbarY
@@ -1334,6 +1340,7 @@ viewCivilizations world =
             [ spacing 8
             , alignTop
             , width fill
+            , height fill
             , scrollbarY
             ]
 
