@@ -299,11 +299,12 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         angle =
             Angle.degrees 0.0
 
-        planetVertices2d : List ( EntityID, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
+        planetVertices2d : List ( EntityID, Length, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
         planetVertices2d =
             List.map
                 (\details ->
                     ( details.id
+                    , details.size
                     , scalePointInAstroUnitsToOne details.position
                         |> Point3d.rotateAround Axis3d.z angle
                         |> Point3d.Projection.toScreenSpace camera screenRectangle
@@ -317,7 +318,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         planetLabels : List (Svg.Svg msg)
         planetLabels =
             List.map
-                (\( planetId, vertex ) ->
+                (\( planetId, size, vertex ) ->
                     let
                         highlightPlanet : Bool
                         highlightPlanet =
@@ -339,7 +340,9 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                                 "galactic-label-focus-civ"
 
                             else
-                                "galactic-label"
+                                ""
+
+                        --"galactic-label"
                         ]
                         [ -- Planet highlight
                           Geometry.Svg.circle2d
@@ -356,7 +359,7 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
                             ]
-                            (Circle2d.withRadius (Pixels.float 10) vertex)
+                            (Circle2d.withRadius (Pixels.float (250 * Length.inKilometers size / 1000000)) vertex)
 
                         -- Orbit
                         -- , Geometry.Svg.
@@ -376,23 +379,29 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
                         --         (Circle2d.withRadius (Point2d.distanceFrom solarSystemCenter2d vertex) solarSystemCenter2d)
                         --     )
                         , Geometry.Svg.lineSegment2d
-                            [ Svg.Attributes.stroke "red"
+                            [ Svg.Attributes.stroke "white"
                             , Svg.Attributes.strokeWidth "2"
-                            , Svg.Attributes.strokeDasharray "5 5"
+                            , Svg.Attributes.strokeDashoffset "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
                             ]
-                            (LineSegment2d.from vertex (Point2d.pixels (world.galaxyViewSize.width / 2) (world.galaxyViewSize.height - 50)))
+                            (LineSegment2d.from vertex
+                                (Point2d.pixels
+                                    (Pixels.toFloat (Point2d.xCoordinate vertex))
+                                    (Pixels.toFloat (Point2d.yCoordinate vertex) + 40)
+                                )
+                            )
                         , -- Hack: flip the text upside down since our later
                           -- 'Svg.relativeTo topLeftFrame' call will flip it
                           -- back right side up
-                          Geometry.Svg.mirrorAcross (Axis2d.through (Point2d.fromMeters { x = world.galaxyViewSize.width / 2, y = world.galaxyViewSize.height / 2 }) Direction2d.x)
+                          Geometry.Svg.mirrorAcross (Axis2d.through vertex Direction2d.x)
                             (Svg.text_
-                                [ Svg.Attributes.fill "red" --"rgb(255, 255, 255)"
-                                , Svg.Attributes.fontFamily "monospace"
-                                , Svg.Attributes.fontSize "20px"
-                                , Svg.Attributes.stroke "none"
-                                , Svg.Attributes.x (String.fromFloat (world.galaxyViewSize.width / 2))
-                                , Svg.Attributes.y (String.fromFloat 50)
+                                [ Svg.Attributes.fill "white"
+                                , Svg.Attributes.fontSize "25px"
+                                , Svg.Attributes.stroke "black"
+                                , Svg.Attributes.strokeWidth "1px"
+                                , Svg.Attributes.fontFamily "sans-serif"
+                                , Svg.Attributes.y (String.fromFloat (Pixels.toFloat (Point2d.yCoordinate vertex) - 40))
+                                , Svg.Attributes.x (String.fromFloat (Pixels.toFloat (Point2d.xCoordinate vertex)))
                                 , Svg.Attributes.class "galactic-label-ignore"
                                 ]
                                 [ Svg.text ("P_" ++ String.fromInt planetId) ]
@@ -479,12 +488,13 @@ viewSolarSystem { onPressStar, onPressPlanet, focusedCivilization, stars, planet
         solarSystemScene =
             Scene3d.unlit
                 { entities =
-                    Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
-                        (Point3d.meters -1500000000 -1500000000 0)
-                        (Point3d.meters 1500000000 -1500000000 0)
-                        (Point3d.meters 1500000000 1500000000 0)
-                        (Point3d.meters -1500000000 1500000000 0)
-                        :: planetEntities
+                    -- Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
+                    --     (Point3d.meters -1500000000 -1500000000 0)
+                    --     (Point3d.meters 1500000000 -1500000000 0)
+                    --     (Point3d.meters 1500000000 1500000000 0)
+                    --     (Point3d.meters -1500000000 1500000000 0)
+                    --     ::
+                    planetEntities
                         ++ starEntities
                 , camera = camera
                 , clipDepth = Length.meters 1
