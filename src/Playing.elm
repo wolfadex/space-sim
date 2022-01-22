@@ -212,7 +212,7 @@ update msg world =
                             -- 3 seconds
                             3000
 
-                        remaining : unknown
+                        remaining : Float
                         remaining =
                             world.remainingTimeForSystemUpdate + deltaMs
                     in
