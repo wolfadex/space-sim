@@ -11,7 +11,13 @@ import Ui.Button
 import Ui.Theme
 
 
-viewGalaxy : { onPressSolarSystem : EntityID -> msg, onPressCivilization : EntityID -> msg } -> World -> Element msg
+viewGalaxy :
+    { onPressSolarSystem : EntityID -> msg
+    , onPressCivilization : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
+    }
+    -> World
+    -> Element msg
 viewGalaxy onPress world =
     Set.toList world.solarSystems
         |> List.map (viewSolarSystemSimple onPress world)
@@ -23,8 +29,15 @@ viewGalaxy onPress world =
             ]
 
 
-viewSolarSystemSimple : { onPressSolarSystem : EntityID -> msg, onPressCivilization : EntityID -> msg } -> World -> EntityID -> Element msg
-viewSolarSystemSimple { onPressSolarSystem, onPressCivilization } world solarSystemId =
+viewSolarSystemSimple :
+    { onPressSolarSystem : EntityID -> msg
+    , onPressCivilization : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
+    }
+    -> World
+    -> EntityID
+    -> Element msg
+viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCivilization } world solarSystemId =
     let
         ( starCount, planetCount ) =
             Logic.Component.get solarSystemId world.children
@@ -75,7 +88,7 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization } world solarSys
                                                 |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
                                     in
                                     Just
-                                        (if civId == world.playerCiv then
+                                        (if Just civId == focusedCivilization then
                                             Ui.Button.primary
                                                 { label = text civName
                                                 , onPress = Just (onPressCivilization civId)
@@ -101,13 +114,14 @@ viewSolarSystem :
     { onPressStar : EntityID -> msg
     , onPressPlanet : EntityID -> msg
     , onPressCivilization : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
     }
     -> EntityID
     -> Set EntityID
     -> World
     -> Set EntityID
     -> Element msg
-viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization } solarSystemId stars world planets =
+viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivilization } solarSystemId stars world planets =
     column
         [ padding 8 ]
         [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
@@ -124,7 +138,7 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization } solarSystemI
                 |> Set.toList
                 |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
                 |> List.sortBy (\( _, orbit ) -> orbit)
-                |> List.map (Tuple.first >> viewPlanetSimple { onPressPlanet = onPressPlanet, onPressCivilization = onPressCivilization } world)
+                |> List.map (Tuple.first >> viewPlanetSimple { onPressPlanet = onPressPlanet, onPressCivilization = onPressCivilization, focusedCivilization = focusedCivilization } world)
                 |> column [ padding 8, spacing 4 ]
             ]
         ]
@@ -142,11 +156,12 @@ viewStarSimple onPress _ starId =
 viewPlanetSimple :
     { onPressPlanet : EntityID -> msg
     , onPressCivilization : EntityID -> msg
+    , focusedCivilization : Maybe EntityID
     }
     -> World
     -> EntityID
     -> Element msg
-viewPlanetSimple { onPressPlanet, onPressCivilization } world planetId =
+viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } world planetId =
     column
         [ spacing 8, width fill ]
         [ row
@@ -170,7 +185,7 @@ viewPlanetSimple { onPressPlanet, onPressCivilization } world planetId =
                                                 |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
                                     in
                                     Just
-                                        (if civId == world.playerCiv then
+                                        (if Just civId == focusedCivilization then
                                             Ui.Button.primary
                                                 { label = text civName
                                                 , onPress = Just (onPressCivilization civId)

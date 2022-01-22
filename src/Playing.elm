@@ -1141,6 +1141,13 @@ viewGalaxy world =
             Galaxy2d.viewGalaxy
                 { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 }
                 world
 
@@ -1173,6 +1180,13 @@ viewSolarSystemDetailed world solarSystemId =
                 { onPressPlanet = FPlanet >> SetSpaceFocus
                 , onPressStar = FStar >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 }
                 solarSystemId
                 stars
@@ -1292,12 +1306,7 @@ viewCivilizationSimple world civId =
             row
                 [ spacing 8
                 , width fill
-                , Background.color <|
-                    if civId == world.playerCiv then
-                        Ui.Theme.green
-
-                    else
-                        Ui.Theme.nearlyWhite
+                , Background.color Ui.Theme.nearlyWhite
                 ]
                 [ Ui.Button.inspect
                     (Just (SetCivilizationFocus (FOne civId)))
@@ -1317,12 +1326,7 @@ viewCivilizationDetailed world civId =
         , Border.solid
         , Border.width 2
         , Border.color Ui.Theme.darkGray
-        , Background.color <|
-            if civId == world.playerCiv then
-                Ui.Theme.green
-
-            else
-                Ui.Theme.nearlyWhite
+        , Background.color Ui.Theme.nearlyWhite
         ]
         (case getCivilizationDetails world civId of
             Nothing ->
