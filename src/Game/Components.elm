@@ -54,6 +54,9 @@ type alias World =
     , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
     , viewStyle : ViewStyle
+    , elapsedTime : Float
+    , remainingTimeForSystemUpdate : Float
+    , galaxyViewSize : { width : Float, height : Float }
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -70,7 +73,7 @@ type alias World =
     , planetTypes : Logic.Component.Set CelestialBodyForm
     , starForms : Logic.Component.Set StarSize
     , orbits : Logic.Component.Set Orbit
-    , waterContent : Logic.Component.Set Water
+    , waterContent : Logic.Component.Set (Percent Water)
     , planetSize : Logic.Component.Set Float
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
@@ -95,6 +98,9 @@ emptyWorld =
     , civilizationFocus = FAll
     , tickRate = Normal
     , viewStyle = ThreeD
+    , elapsedTime = 0
+    , remainingTimeForSystemUpdate = 0
+    , galaxyViewSize = { width = 800, height = 600 }
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -226,7 +232,7 @@ childrenSpec =
     Logic.Component.Spec .children (\comps world -> { world | children = comps })
 
 
-waterSpec : Spec Water { world | waterContent : Logic.Component.Set Water }
+waterSpec : Spec (Percent Water) { world | waterContent : Logic.Component.Set (Percent Water) }
 waterSpec =
     Logic.Component.Spec .waterContent (\comps world -> { world | waterContent = comps })
 
@@ -236,8 +242,8 @@ planetSizeSpec =
     Logic.Component.Spec .planetSize (\comps world -> { world | planetSize = comps })
 
 
-type alias Water =
-    Float
+type Water
+    = Water Never
 
 
 civilizationPopulationSpec : Spec (Dict EntityID Population) { world | civilizationPopulations : Logic.Component.Set (Dict EntityID Population) }

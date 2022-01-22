@@ -4,7 +4,7 @@ import elmPlugin from "vite-plugin-elm";
 export default defineConfig({
   devServer: {
     hot: false,
-    liveReload: true,
+    liveReload: false,
   },
   plugins: [
     elmPlugin({

@@ -3,7 +3,6 @@
   "author": "Wolfgang Schuster",
   "description": "A 4X space game",
   "version": "0.1.0",
-  "license": "MIT",
   "scripts": {
     "postinstall": "elm-tooling install",
     "dev": "vite",

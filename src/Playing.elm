@@ -7,6 +7,8 @@ module Playing exposing
     )
 
 import Array exposing (Array)
+import Browser.Dom exposing (Viewport)
+import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
@@ -30,7 +32,6 @@ import Game.Components
         , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
-        , Water
         , World
         , emptyWorld
         )
@@ -52,7 +53,7 @@ import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (Effect)
 import SubCmd exposing (SubCmd)
-import Time
+import Task
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -121,7 +122,7 @@ init flags =
         , seed = finalSeed
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
-    , SubCmd.none
+    , getGalaxyViewport
     )
 
 
@@ -163,48 +164,27 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 
 
 subscriptions : World -> Sub Msg
-subscriptions world =
-    case world.tickRate of
-        Paused ->
-            Sub.none
-
-        _ ->
-            Time.every (tickRateToMs world.tickRate) (\_ -> Tick)
-
-
-tickRateToMs : TickRate -> Float
-tickRateToMs tickRate =
-    let
-        baseTickTime : Float
-        baseTickTime =
-            -- 3 seconds
-            3000
-    in
-    case tickRate of
-        Paused ->
-            -- Infinity
-            1 / 0
-
-        HalfSpeed ->
-            baseTickTime * 2
-
-        Normal ->
-            baseTickTime
-
-        Fast ->
-            baseTickTime / 4
-
-        ExtraFast ->
-            baseTickTime / 8
+subscriptions _ =
+    Sub.batch
+        [ Browser.Events.onAnimationFrameDelta Tick
+        , Browser.Events.onResize (\_ _ -> WindowResized)
+        ]
 
 
 type Msg
     = DeleteGalaxy
     | SetSpaceFocus SpaceFocus
     | SetCivilizationFocus CivilizationFocus
-    | Tick
+    | Tick Float
     | SetTickRate TickRate
     | GotViewStyle ViewStyle
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+
+
+getGalaxyViewport : SubCmd Msg Effect
+getGalaxyViewport =
+    SubCmd.cmd (Task.attempt GotGalaxyViewport (Browser.Dom.getViewportOf "galaxy-view"))
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
@@ -212,6 +192,17 @@ update msg world =
     case msg of
         SetTickRate tickRate ->
             ( { world | tickRate = tickRate }, SubCmd.none )
+
+        WindowResized ->
+            ( world, getGalaxyViewport )
+
+        GotGalaxyViewport (Ok { viewport }) ->
+            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height } }
+            , SubCmd.none
+            )
+
+        GotGalaxyViewport (Err _) ->
+            ( world, SubCmd.none )
 
         DeleteGalaxy ->
             ( world
@@ -225,21 +216,77 @@ update msg world =
             ( { world | civilizationFocus = focus }, SubCmd.none )
 
         GotViewStyle viewStyle ->
-            ( { world | viewStyle = viewStyle }, SubCmd.none )
+            ( { world | viewStyle = viewStyle }, getGalaxyViewport )
 
-        Tick ->
-            ( { world | starDate = world.starDate + 1 }
-                |> happinessSystem
-                    Game.Components.civilizationReproductionRateSpec
-                    Game.Components.civilizationMortalityRateSpec
-                    Game.Components.civilizationHappinessSpec
-                |> birthAndDeathSystem
-                    Game.Components.civilizationReproductionRateSpec
-                    Game.Components.civilizationMortalityRateSpec
-                    Game.Components.civilizationPopulationSpec
-                |> discoverySystem Game.Components.knowledgeSpec
-                |> expansionSystem
-                |> civilUnrestSystem
+        Tick deltaMs ->
+            let
+                ( doTick, remainingTickTime, newStarDate ) =
+                    let
+                        baseTickTime : Float
+                        baseTickTime =
+                            -- 3 seconds
+                            3000
+
+                        remaining : Float
+                        remaining =
+                            world.remainingTimeForSystemUpdate + deltaMs
+                    in
+                    case world.tickRate of
+                        Paused ->
+                            ( False, remaining, world.starDate )
+
+                        HalfSpeed ->
+                            if remaining - baseTickTime * 2 >= 0 then
+                                ( True, remaining - baseTickTime * 2, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        Normal ->
+                            if remaining - baseTickTime >= 0 then
+                                ( True, remaining - baseTickTime, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        Fast ->
+                            if remaining - baseTickTime / 4 >= 0 then
+                                ( True, remaining - baseTickTime / 4, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                        ExtraFast ->
+                            if remaining - baseTickTime / 8 >= 0 then
+                                ( True, remaining - baseTickTime / 8, world.starDate + 1 )
+
+                            else
+                                ( False, remaining, world.starDate )
+
+                updatedWorld : World
+                updatedWorld =
+                    { world
+                        | starDate = newStarDate
+                        , elapsedTime = world.elapsedTime + deltaMs
+                        , remainingTimeForSystemUpdate = remainingTickTime
+                    }
+            in
+            ( if doTick then
+                updatedWorld
+                    |> happinessSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationMortalityRateSpec
+                        Game.Components.civilizationHappinessSpec
+                    |> birthAndDeathSystem
+                        Game.Components.civilizationReproductionRateSpec
+                        Game.Components.civilizationMortalityRateSpec
+                        Game.Components.civilizationPopulationSpec
+                    |> discoverySystem Game.Components.knowledgeSpec
+                    |> expansionSystem
+                    |> civilUnrestSystem
+
+              else
+                updatedWorld
             , SubCmd.none
             )
 
@@ -850,7 +897,7 @@ generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World 
 generatePlanet solarSystemId ( planetId, world ) =
     Random.map2 Tuple.pair
         (Random.uniform Rocky [ Gas ])
-        generatePlanetWaterPercent
+        (Percent.random 0.0 100.0)
         |> Random.andThen
             (\( planetType, waterPercent ) ->
                 Random.map3
@@ -935,13 +982,6 @@ generateCivilizationName world =
             )
 
 
-{-| Generate the amount of water on a planet. For a Gas planet this would be water vapor.
--}
-generatePlanetWaterPercent : Generator Water
-generatePlanetWaterPercent =
-    Random.float 0.0 100
-
-
 {-| Generate the radius of a planet based on its type.
 
 The `Rocky` radius is based on exaggerated Mercurey and Earth
@@ -1002,7 +1042,13 @@ viewPlaying world =
         , height fill
         ]
         [ viewControls world
-        , row
+        , (case world.viewStyle of
+            ThreeD ->
+                column
+
+            TwoD ->
+                row
+          )
             [ width fill
             , height fill
             , scrollbarY
@@ -1107,6 +1153,7 @@ viewSlice : Element Msg -> Element Msg
 viewSlice slice =
     column
         [ height fill
+        , width fill
         , padding 8
         ]
         [ Ui.Button.default
@@ -1135,12 +1182,29 @@ viewGalaxy : World -> Element Msg
 viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
-            Galaxy3d.viewGalaxy world (FSolarSystem >> SetSpaceFocus)
+            Galaxy3d.viewGalaxy
+                { onPress = FSolarSystem >> SetSpaceFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
+                }
+                world
 
         TwoD ->
             Galaxy2d.viewGalaxy
                 { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 }
                 world
 
@@ -1163,6 +1227,13 @@ viewSolarSystemDetailed world solarSystemId =
             Galaxy3d.viewSolarSystem
                 { onPressStar = FStar >> SetSpaceFocus
                 , onPressPlanet = FPlanet >> SetSpaceFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 , stars = stars
                 , planets = planets
                 }
@@ -1173,6 +1244,13 @@ viewSolarSystemDetailed world solarSystemId =
                 { onPressPlanet = FPlanet >> SetSpaceFocus
                 , onPressStar = FStar >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus
+                , focusedCivilization =
+                    case world.civilizationFocus of
+                        FAll ->
+                            Nothing
+
+                        FOne id ->
+                            Just id
                 }
                 solarSystemId
                 stars
@@ -1278,6 +1356,7 @@ viewCivilizations world =
             [ spacing 8
             , alignTop
             , width fill
+            , height fill
             , scrollbarY
             ]
 
@@ -1292,12 +1371,7 @@ viewCivilizationSimple world civId =
             row
                 [ spacing 8
                 , width fill
-                , Background.color <|
-                    if civId == world.playerCiv then
-                        Ui.Theme.green
-
-                    else
-                        Ui.Theme.nearlyWhite
+                , Background.color Ui.Theme.nearlyWhite
                 ]
                 [ Ui.Button.inspect
                     (Just (SetCivilizationFocus (FOne civId)))
@@ -1317,12 +1391,7 @@ viewCivilizationDetailed world civId =
         , Border.solid
         , Border.width 2
         , Border.color Ui.Theme.darkGray
-        , Background.color <|
-            if civId == world.playerCiv then
-                Ui.Theme.green
-
-            else
-                Ui.Theme.nearlyWhite
+        , Background.color Ui.Theme.nearlyWhite
         ]
         (case getCivilizationDetails world civId of
             Nothing ->
