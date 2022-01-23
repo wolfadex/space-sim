@@ -26,8 +26,8 @@ import Length exposing (Length, Meters)
 import LineSegment2d
 import Logic.Component
 import Logic.Entity exposing (EntityID)
-import Luminance exposing (Luminance)
-import LuminousFlux exposing (LuminousFlux)
+import Luminance
+import LuminousFlux
 import Percent
 import Pixels
 import Point2d
@@ -37,7 +37,7 @@ import Polyline3d
 import Quantity
 import Rectangle2d
 import Scene3d
-import Scene3d.Light exposing (Chromaticity)
+import Scene3d.Light
 import Scene3d.Material as Material
 import Scene3d.Mesh
 import Set exposing (Set)
