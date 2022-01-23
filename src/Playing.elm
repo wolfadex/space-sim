@@ -217,10 +217,6 @@ update msg world =
                     ( { world | zoom = world.zoom + delta }, SubCmd.none )
 
                 Err _ ->
-                    -- let
-                    --     _ =
-                    --         Debug.log "zoom decode error" err
-                    -- in
                     ( world, SubCmd.none )
 
         SetSpaceFocus focus ->
