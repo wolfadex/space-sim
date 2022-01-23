@@ -15,23 +15,28 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Font as Font
+import Element.Input as Input
 import Galaxy2d exposing (viewSolarSystem)
 import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationFocus(..)
+        , Enabled(..)
         , Happiness
         , LightYear
         , Log
         , Mortality
         , Orbit
         , Reproduction
+        , Settings
         , SpaceFocus(..)
         , StarDate
         , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
+        , Visible(..)
         , World
         , emptyWorld
         )
@@ -57,6 +62,7 @@ import Shared exposing (Effect)
 import SubCmd exposing (SubCmd)
 import Task
 import Ui.Button
+import Ui.Text
 import Ui.Theme
 import View exposing (View)
 
@@ -185,6 +191,12 @@ type Msg
     | GotZoom Value
     | GotZoomChange Float
     | GotRotationChange Float
+    | GotSettingsVisible Visible
+    | GotSettingsChange SettingsMessage
+
+
+type SettingsMessage
+    = GotLightingChange Bool
 
 
 getGalaxyViewport : SubCmd Msg Effect
@@ -203,6 +215,17 @@ update msg world =
 
         WindowResized ->
             ( world, getGalaxyViewport )
+
+        GotSettingsVisible visible ->
+            ( { world | settingsVisible = visible }, SubCmd.none )
+
+        GotSettingsChange settingsChange ->
+            let
+                updatedSettings : Settings
+                updatedSettings =
+                    updateSettings settingsChange world.settings
+            in
+            ( { world | settings = updatedSettings }, SubCmd.none )
 
         GotGalaxyViewport (Ok { viewport }) ->
             ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
@@ -311,6 +334,20 @@ update msg world =
                 updatedWorld
             , SubCmd.none
             )
+
+
+updateSettings : SettingsMessage -> Settings -> Settings
+updateSettings msg settings =
+    case msg of
+        GotLightingChange enabledBool ->
+            { settings
+                | realisticLighting =
+                    if enabledBool then
+                        Enabled
+
+                    else
+                        Disabled
+            }
 
 
 decodeZoomEvent : Json.Decode.Decoder Float
@@ -1054,6 +1091,13 @@ viewPlaying world =
     column
         [ width fill
         , height fill
+        , inFront <|
+            case world.settingsVisible of
+                Hidden ->
+                    none
+
+                Visible ->
+                    viewSettings world.settings
         ]
         [ viewControls world
         , (case world.viewStyle of
@@ -1112,11 +1156,52 @@ viewPlaying world =
         ]
 
 
+viewSettings : Settings -> Element Msg
+viewSettings settings =
+    el
+        [ alignRight
+        , moveDown 44
+        , padding 16
+        ]
+        (column
+            [ Background.color Ui.Theme.nearlyWhite
+            , padding 16
+            , Border.solid
+            , Border.color Ui.Theme.darkGray
+            , Border.width 3
+            , Border.rounded 8
+            , spacing 8
+            ]
+            [ el
+                [ Font.size 30
+                , Border.widthEach { top = 0, bottom = 1, left = 0, right = 0 }
+                , Border.solid
+                , width fill
+                ]
+                (text "Settings")
+            , Input.checkbox
+                []
+                { onChange = GotLightingChange >> GotSettingsChange
+                , icon = Input.defaultCheckbox
+                , label = Input.labelLeft [] (text "Realistic Lighting:")
+                , checked =
+                    case settings.realisticLighting of
+                        Enabled ->
+                            True
+
+                        Disabled ->
+                            False
+                }
+            ]
+        )
+
+
 viewControls : World -> Element Msg
 viewControls world =
     row
         [ padding 16
         , spacing 16
+        , width fill
         ]
         [ text "Game Speed:"
         , Ui.Button.toggle
@@ -1160,6 +1245,19 @@ viewControls world =
                     { label = text "View 3D Glaxy"
                     , onPress = Just (GotViewStyle ThreeD)
                     }
+        , el [ alignRight ]
+            (Ui.Button.default
+                { label = text "⚙"
+                , onPress =
+                    Just <|
+                        case world.settingsVisible of
+                            Visible ->
+                                GotSettingsVisible Hidden
+
+                            Hidden ->
+                                GotSettingsVisible Visible
+                }
+            )
         ]
 
 

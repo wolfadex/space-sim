@@ -2,17 +2,20 @@ module Game.Components exposing
     ( AstronomicalUnit
     , CelestialBodyForm(..)
     , CivilizationFocus(..)
+    , Enabled(..)
     , Happiness
     , LightYear
     , Log
     , Mortality
     , Orbit
     , Reproduction
+    , Settings
     , SpaceFocus(..)
     , StarDate
     , StarSize(..)
     , TickRate(..)
     , ViewStyle(..)
+    , Visible(..)
     , Water
     , World
     , childrenSpec
@@ -59,6 +62,8 @@ type alias World =
     , galaxyViewSize : { width : Float, height : Float }
     , zoom : Float
     , viewRotation : Float
+    , settingsVisible : Visible
+    , settings : Settings
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -93,6 +98,15 @@ type alias World =
     }
 
 
+type alias Settings =
+    { realisticLighting : Enabled }
+
+
+type Enabled
+    = Enabled
+    | Disabled
+
+
 emptyWorld : World
 emptyWorld =
     { seed = Random.initialSeed 0
@@ -105,6 +119,8 @@ emptyWorld =
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = 0
     , viewRotation = 0
+    , settingsVisible = Visible
+    , settings = { realisticLighting = Enabled }
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -133,6 +149,11 @@ emptyWorld =
     , starDate = 0
     , eventLog = []
     }
+
+
+type Visible
+    = Visible
+    | Hidden
 
 
 type ViewStyle
