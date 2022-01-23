@@ -13,7 +13,7 @@ import Cylinder3d
 import Dict
 import Direction2d
 import Direction3d
-import Element
+import Element exposing (..)
 import Element.Extra
 import Frame2d
 import Game.Components exposing (AstronomicalUnit, CelestialBodyForm(..), LightYear, StarSize(..), World)
@@ -45,17 +45,19 @@ import Sphere3d
 import Svg
 import Svg.Attributes
 import Svg.Events
+import Ui.Button
 import Viewpoint3d
 
 
 viewGalaxy :
     { onPressSolarSystem : EntityID -> msg
     , onZoom : Value -> msg
+    , onZoomPress : Float -> msg
     , focusedCivilization : Maybe EntityID
     }
     -> World
-    -> Element.Element msg
-viewGalaxy { onPressSolarSystem, onZoom, focusedCivilization } world =
+    -> Element msg
+viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, focusedCivilization } world =
     let
         solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
         solarSystemPoints =
@@ -235,20 +237,21 @@ viewGalaxy { onPressSolarSystem, onZoom, focusedCivilization } world =
                     )
                 }
     in
-    viewSpace onZoom galaxyLabels galaxyScene
+    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress } galaxyLabels galaxyScene
 
 
 viewSolarSystem :
     { onPressStar : EntityID -> msg
     , onPressPlanet : EntityID -> msg
     , onZoom : Value -> msg
+    , onZoomPress : Float -> msg
     , focusedCivilization : Maybe EntityID
     , stars : Set EntityID
     , planets : Set EntityID
     }
     -> World
-    -> Element.Element msg
-viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars, planets } world =
+    -> Element msg
+viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, focusedCivilization, stars, planets } world =
     let
         planetDetails : List PlanetRenderDetails
         planetDetails =
@@ -533,62 +536,94 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars
                 , antialiasing = Scene3d.noAntialiasing
                 }
     in
-    viewSpace onZoom solarSystemLabels solarSystemScene
+    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress } solarSystemLabels solarSystemScene
 
 
-viewSpace : (Value -> msg) -> Html msg -> Html msg -> Element.Element msg
-viewSpace onZoom labels scene =
-    Element.el
-        [ Element.inFront (Element.html (Html.node "style" [] [ Html.text """
+viewSpace : { onZoom : Value -> msg, onZoomPress : Float -> msg } -> Html msg -> Html msg -> Element msg
+viewSpace { onZoom, onZoomPress } labels scene =
+    el
+        [ spaceCss
+        , inFront (html labels)
+        , width fill
+        , height fill
+        , Element.Extra.id "galaxy-view"
+        , htmlAttribute
+            (Html.Events.preventDefaultOn "wheel"
+                (Json.Decode.map (\v -> ( onZoom v, True ))
+                    Json.Decode.value
+                )
+            )
+        , inFront
+            (row
+                [ alignRight, alignBottom, padding 16, spacing 8 ]
+                [ row
+                    [ alignBottom, spacing 8 ]
+                    [ Ui.Button.default
+                        { onPress = Nothing
+                        , label = text "<-"
+                        }
+                    , Ui.Button.default
+                        { onPress = Nothing
+                        , label = text "->"
+                        }
+                    ]
+                , column [ spacing 8 ]
+                    [ Ui.Button.default
+                        { onPress = Just (onZoomPress -10.0)
+                        , label = text "+"
+                        }
+                    , Ui.Button.default
+                        { onPress = Just (onZoomPress 10.0)
+                        , label = text "-"
+                        }
+                    ]
+                ]
+            )
+        ]
+        (html scene)
+
+
+spaceCss : Attribute msg
+spaceCss =
+    inFront (html (Html.node "style" [] [ Html.text """
 .galactic-label * {
-  opacity: 0;
-  cursor: pointer;
+opacity: 0;
+cursor: pointer;
 }
 
 .galactic-label:active *,
 .galactic-label:focus *,
 .galactic-label:focus-within *,
 .galactic-label:hover * {
-  opacity: 1;
+opacity: 1;
 }
 
 .galactic-label-focus-civ * {
-  visibility: hidden;
-  cursor: pointer;
+visibility: hidden;
+cursor: pointer;
 }
 
 .galactic-label-focus-civ circle {
-  visibility: visible;
+visibility: visible;
 }
 
 .galactic-label-focus-civ:active *,
 .galactic-label-focus-civ:focus *,
 .galactic-label-focus-civ:focus-within *,
 .galactic-label-focus-civ:hover * {
-    visibility: visible;
+visibility: visible;
 }
 
 .galactic-label-ignore {
-    pointer-events: none;
+pointer-events: none;
 }
 
 .galactic-label > .planet-orbit {
-  visibility: visible;
-  opacity: 1;
-  pointer-events: none;
+visibility: visible;
+opacity: 1;
+pointer-events: none;
 }
 """ ]))
-        , Element.inFront (Element.html labels)
-        , Element.width Element.fill
-        , Element.Extra.id "galaxy-view"
-        , Element.htmlAttribute
-            (Html.Events.preventDefaultOn "wheel"
-                (Json.Decode.map (\v -> ( onZoom v, True ))
-                    Json.Decode.value
-                )
-            )
-        ]
-        (Element.html scene)
 
 
 

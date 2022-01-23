@@ -44,6 +44,7 @@ import Logic.System exposing (System)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
+import Process
 import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
@@ -182,11 +183,15 @@ type Msg
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotZoom Value
+    | GotZoomChange Float
 
 
 getGalaxyViewport : SubCmd Msg Effect
 getGalaxyViewport =
-    SubCmd.cmd (Task.attempt GotGalaxyViewport (Browser.Dom.getViewportOf "galaxy-view"))
+    Process.sleep 100
+        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
+        |> Task.attempt GotGalaxyViewport
+        |> SubCmd.cmd
 
 
 update : Msg -> World -> ( World, SubCmd Msg Effect )
@@ -199,7 +204,7 @@ update msg world =
             ( world, getGalaxyViewport )
 
         GotGalaxyViewport (Ok { viewport }) ->
-            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height } }
+            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
             , SubCmd.none
             )
 
@@ -218,6 +223,9 @@ update msg world =
 
                 Err _ ->
                     ( world, SubCmd.none )
+
+        GotZoomChange change ->
+            ( { world | zoom = world.zoom + change }, SubCmd.none )
 
         SetSpaceFocus focus ->
             ( { world | spaceFocus = focus, zoom = 1 }, SubCmd.none )
@@ -828,7 +836,7 @@ happinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 30 40 model generateSolarSystem
+    generateManyEntities 3 4 model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -1187,6 +1195,7 @@ viewGalaxy world =
             Galaxy3d.viewGalaxy
                 { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
                 , onZoom = GotZoom
+                , onZoomPress = GotZoomChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1231,6 +1240,7 @@ viewSolarSystemDetailed world solarSystemId =
                 { onPressStar = FStar >> SetSpaceFocus
                 , onPressPlanet = FPlanet >> SetSpaceFocus
                 , onZoom = GotZoom
+                , onZoomPress = GotZoomChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
