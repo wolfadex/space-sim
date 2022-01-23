@@ -15,22 +15,18 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Font as Font
-import Element.Input as Input
 import Galaxy2d exposing (viewSolarSystem)
 import Galaxy3d
 import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , CivilizationFocus(..)
-        , Enabled(..)
         , Happiness
         , LightYear
         , Log
         , Mortality
         , Orbit
         , Reproduction
-        , Settings
         , SpaceFocus(..)
         , StarDate
         , StarSize(..)
@@ -58,11 +54,10 @@ import Rate exposing (Rate)
 import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (Effect)
+import Shared exposing (Effect(..), Settings, SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Task
 import Ui.Button
-import Ui.Text
 import Ui.Theme
 import View exposing (View)
 
@@ -71,8 +66,8 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : { name : CivilizationName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
-init flags =
+init : SharedModel -> { name : CivilizationName, homePlanetName : String } -> ( World, SubCmd Msg Effect )
+init sharedModel flags =
     let
         -- Filter out a civilization name if the player's chosen name matches
         worldWithPlayerDataFilteredOut : World
@@ -84,7 +79,7 @@ init flags =
             }
 
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) flags.seed
+            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -127,10 +122,12 @@ init flags =
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
-        , seed = finalSeed
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
-    , getGalaxyViewport
+    , SubCmd.batch
+        [ getGalaxyViewport
+        , SubCmd.effect (UpdateSeed finalSeed)
+        ]
     )
 
 
@@ -195,10 +192,6 @@ type Msg
     | GotSettingsChange SettingsMessage
 
 
-type SettingsMessage
-    = GotLightingChange Bool
-
-
 getGalaxyViewport : SubCmd Msg Effect
 getGalaxyViewport =
     Process.sleep 100
@@ -207,8 +200,8 @@ getGalaxyViewport =
         |> SubCmd.cmd
 
 
-update : Msg -> World -> ( World, SubCmd Msg Effect )
-update msg world =
+update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
+update sharedModel msg world =
     case msg of
         SetTickRate tickRate ->
             ( { world | tickRate = tickRate }, SubCmd.none )
@@ -220,12 +213,9 @@ update msg world =
             ( { world | settingsVisible = visible }, SubCmd.none )
 
         GotSettingsChange settingsChange ->
-            let
-                updatedSettings : Settings
-                updatedSettings =
-                    updateSettings settingsChange world.settings
-            in
-            ( { world | settings = updatedSettings }, SubCmd.none )
+            ( world
+            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            )
 
         GotGalaxyViewport (Ok { viewport }) ->
             ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
@@ -237,7 +227,7 @@ update msg world =
 
         DeleteGalaxy ->
             ( world
-            , SubCmd.effect (Shared.DeleteGame world.seed)
+            , SubCmd.effect Shared.DeleteGame
             )
 
         GotZoom zoomValue ->
@@ -316,7 +306,7 @@ update msg world =
                         , remainingTimeForSystemUpdate = remainingTickTime
                     }
             in
-            ( if doTick then
+            if doTick then
                 updatedWorld
                     |> happinessSystem
                         Game.Components.civilizationReproductionRateSpec
@@ -326,28 +316,16 @@ update msg world =
                         Game.Components.civilizationReproductionRateSpec
                         Game.Components.civilizationMortalityRateSpec
                         Game.Components.civilizationPopulationSpec
+                    |> (\w -> ( w, sharedModel.seed ))
                     |> discoverySystem Game.Components.knowledgeSpec
                     |> expansionSystem
                     |> civilUnrestSystem
+                    |> Tuple.mapSecond (UpdateSeed >> SubCmd.effect)
 
-              else
-                updatedWorld
-            , SubCmd.none
-            )
-
-
-updateSettings : SettingsMessage -> Settings -> Settings
-updateSettings msg settings =
-    case msg of
-        GotLightingChange enabledBool ->
-            { settings
-                | realisticLighting =
-                    if enabledBool then
-                        Enabled
-
-                    else
-                        Disabled
-            }
+            else
+                ( updatedWorld
+                , SubCmd.none
+                )
 
 
 decodeZoomEvent : Json.Decode.Decoder Float
@@ -355,8 +333,8 @@ decodeZoomEvent =
     Json.Decode.field "deltaY" Json.Decode.float
 
 
-expansionSystem : World -> World
-expansionSystem world =
+expansionSystem : ( World, Seed ) -> ( World, Seed )
+expansionSystem ( world, initialSeed ) =
     let
         planetsAndKnowledge : List { id : EntityID, knowledge : AnySet String Knowledge, populatedPlanets : List EntityID }
         planetsAndKnowledge =
@@ -370,7 +348,7 @@ expansionSystem world =
                     )
     in
     List.foldl
-        (\civ nextWorld ->
+        (\civ ( nextWorld, nextSeed ) ->
             let
                 totalPopulationSize : Population
                 totalPopulationSize =
@@ -380,7 +358,7 @@ expansionSystem world =
                         |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
             in
             if Quantity.lessThan Population.trillion totalPopulationSize then
-                nextWorld
+                ( nextWorld, nextSeed )
 
             else
                 let
@@ -459,16 +437,16 @@ expansionSystem world =
                 in
                 case possiblePlanetsToExpandInto of
                     [] ->
-                        nextWorld
+                        ( nextWorld, nextSeed )
 
                     _ ->
                         let
                             ( expandedWorld, seed ) =
-                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextWorld.seed
+                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextSeed
                         in
-                        { expandedWorld | seed = seed }
+                        ( expandedWorld, seed )
         )
-        world
+        ( world, initialSeed )
         planetsAndKnowledge
 
 
@@ -501,8 +479,8 @@ weightedChoose items =
             Random.map Just (Random.weighted first rest)
 
 
-civilUnrestSystem : World -> World
-civilUnrestSystem world =
+civilUnrestSystem : ( World, Seed ) -> ( World, Seed )
+civilUnrestSystem ( world, initialSeed ) =
     let
         revoltingCivs : List ( EntityID, EntityID )
         revoltingCivs =
@@ -526,9 +504,9 @@ civilUnrestSystem world =
                     )
 
         ( worldWithNewCivs, seed ) =
-            Random.step (generateRevoltingCivs revoltingCivs world) world.seed
+            Random.step (generateRevoltingCivs revoltingCivs world) initialSeed
     in
-    { worldWithNewCivs | seed = seed }
+    ( worldWithNewCivs, seed )
 
 
 generateRevoltingCivs : List ( EntityID, EntityID ) -> World -> Generator World
@@ -620,8 +598,8 @@ dropRandom anySetConfig percent set =
         (Random.List.shuffle setList)
 
 
-discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
-discoverySystem knowledge world =
+discoverySystem : Spec (AnySet String Knowledge) World -> ( World, Seed ) -> ( World, Seed )
+discoverySystem knowledge ( world, initialSeed ) =
     let
         initialUpdatedKnowledge : Array (Maybe (AnySet String Knowledge))
         initialUpdatedKnowledge =
@@ -641,18 +619,16 @@ discoverySystem knowledge world =
             Array.foldl possiblyGainKnowledge
                 { index = 0
                 , updatedKnowledge = initialUpdatedKnowledge
-                , seed = world.seed
+                , seed = initialSeed
                 , civNames = world.named
                 , starDate = world.starDate
                 , logs = []
                 }
                 (knowledge.get world)
     in
-    knowledge.set updates.updatedKnowledge
-        { world
-            | seed = updates.seed
-            , eventLog = updates.logs ++ world.eventLog
-        }
+    ( knowledge.set updates.updatedKnowledge { world | eventLog = updates.logs ++ world.eventLog }
+    , updates.seed
+    )
 
 
 possiblyGainKnowledge :
@@ -1079,15 +1055,15 @@ generateEntity world fn =
 ---- VIEW ----
 
 
-view : World -> View Msg
-view world =
+view : SharedModel -> World -> View Msg
+view sharedModel world =
     { title = "Hello Space!"
-    , body = viewPlaying world
+    , body = viewPlaying sharedModel world
     }
 
 
-viewPlaying : World -> Element Msg
-viewPlaying world =
+viewPlaying : SharedModel -> World -> Element Msg
+viewPlaying sharedModel world =
     column
         [ width fill
         , height fill
@@ -1097,7 +1073,7 @@ viewPlaying world =
                     none
 
                 Visible ->
-                    viewSettings world.settings
+                    map GotSettingsChange (Shared.viewSettings sharedModel.settings)
         ]
         [ viewControls world
         , (case world.viewStyle of
@@ -1127,7 +1103,7 @@ viewPlaying world =
 
                     FSolarSystem id ->
                         if Set.member id world.solarSystems then
-                            viewSlice (viewSolarSystemDetailed world id)
+                            viewSlice (viewSolarSystemDetailed sharedModel.settings world id)
 
                         else
                             text "Missing solar system"
@@ -1154,46 +1130,6 @@ viewPlaying world =
                     viewCivilizationDetailed world civId
             ]
         ]
-
-
-viewSettings : Settings -> Element Msg
-viewSettings settings =
-    el
-        [ alignRight
-        , moveDown 44
-        , padding 16
-        ]
-        (column
-            [ Background.color Ui.Theme.nearlyWhite
-            , padding 16
-            , Border.solid
-            , Border.color Ui.Theme.darkGray
-            , Border.width 3
-            , Border.rounded 8
-            , spacing 8
-            ]
-            [ el
-                [ Font.size 30
-                , Border.widthEach { top = 0, bottom = 1, left = 0, right = 0 }
-                , Border.solid
-                , width fill
-                ]
-                (text "Settings")
-            , Input.checkbox
-                []
-                { onChange = GotLightingChange >> GotSettingsChange
-                , icon = Input.defaultCheckbox
-                , label = Input.labelLeft [] (text "Realistic Lighting:")
-                , checked =
-                    case settings.realisticLighting of
-                        Enabled ->
-                            True
-
-                        Disabled ->
-                            False
-                }
-            ]
-        )
 
 
 viewControls : World -> Element Msg
@@ -1324,8 +1260,8 @@ viewGalaxy world =
                 world
 
 
-viewSolarSystemDetailed : World -> EntityID -> Element Msg
-viewSolarSystemDetailed world solarSystemId =
+viewSolarSystemDetailed : Settings -> World -> EntityID -> Element Msg
+viewSolarSystemDetailed settings world solarSystemId =
     let
         ( stars, planets ) =
             Logic.Component.get solarSystemId world.children
@@ -1355,6 +1291,7 @@ viewSolarSystemDetailed world solarSystemId =
                 , stars = stars
                 , planets = planets
                 }
+                settings
                 world
 
         TwoD ->

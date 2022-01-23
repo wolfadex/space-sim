@@ -7,8 +7,7 @@ import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
-import Random exposing (Seed)
-import Shared exposing (Effect)
+import Shared exposing (Effect, SharedModel)
 import SubCmd exposing (SubCmd)
 import Ui.Button
 import Ui.Text
@@ -21,16 +20,15 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : Seed -> ( Model, SubCmd Msg Effect )
-init seed =
-    ( { baseNewGameModel | seed = seed }
+init : ( Model, SubCmd Msg Effect )
+init =
+    ( baseNewGameModel
     , SubCmd.none
     )
 
 
 type alias Model =
-    { seed : Seed
-    , civilizationNameSingular : String
+    { civilizationNameSingular : String
     , civilizationNamePlural : String
     , hasUniquePluralName : Bool
     , civilizationNamePossessive : String
@@ -42,8 +40,7 @@ type alias Model =
 
 baseNewGameModel : Model
 baseNewGameModel =
-    { seed = Random.initialSeed 0
-    , civilizationNameSingular = ""
+    { civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
@@ -67,8 +64,8 @@ type Msg
     | SetHomePlanetName String
 
 
-update : Msg -> Model -> ( Model, SubCmd Msg Effect )
-update msg model =
+update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
+update _ msg model =
     case msg of
         SetNameSingular singular ->
             ( { model | civilizationNameSingular = singular }
@@ -108,7 +105,6 @@ update msg model =
                         (Shared.CreateGame
                             { name = validName
                             , homePlanetName = validHomeName
-                            , seed = model.seed
                             }
                         )
                     )
@@ -174,8 +170,8 @@ possessiveNameValidator model =
 ---- VIEW ----
 
 
-view : Model -> View Msg
-view model =
+view : SharedModel -> Model -> View Msg
+view _ model =
     { title = "Hello Space!"
     , body =
         column

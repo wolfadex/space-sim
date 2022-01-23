@@ -5,10 +5,18 @@ import Fuzz
 import NewGame
 import ProgramTest
 import Random
+import Shared exposing (SharedModel)
 import Test exposing (Test)
 import Test.Element.Query as Query
 import Test.Html.Selector as Html
 import View
+
+
+testSharedModel : SharedModel
+testSharedModel =
+    { seed = Random.initialSeed 0
+    , settings = Shared.defaultSettings
+    }
 
 
 suite : Test
@@ -16,7 +24,7 @@ suite =
     Test.describe "Renders the screen"
         [ Test.test "renders the title and start button" <|
             \() ->
-                NewGame.view NewGame.baseNewGameModel
+                NewGame.view testSharedModel NewGame.baseNewGameModel
                     |> .body
                     |> Query.fromElement
                     |> Query.has
@@ -26,9 +34,9 @@ suite =
         , Test.fuzz Fuzz.string "test singular name" <|
             \singularName ->
                 ProgramTest.createDocument
-                    { init = NewGame.init
-                    , update = NewGame.update
-                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
+                    { init = \_ -> NewGame.init
+                    , update = NewGame.update testSharedModel
+                    , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
                     }
                     |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
@@ -45,9 +53,9 @@ suite =
         , Test.fuzz2 Fuzz.string Fuzz.string "test plural name" <|
             \singularName pluralName ->
                 ProgramTest.createDocument
-                    { init = NewGame.init
-                    , update = NewGame.update
-                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
+                    { init = \_ -> NewGame.init
+                    , update = NewGame.update testSharedModel
+                    , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
                     }
                     |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
@@ -71,9 +79,9 @@ suite =
         , Test.fuzz2 Fuzz.string Fuzz.string "test possessive name" <|
             \singularName possessiveName ->
                 ProgramTest.createDocument
-                    { init = NewGame.init
-                    , update = NewGame.update
-                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
+                    { init = \_ -> NewGame.init
+                    , update = NewGame.update testSharedModel
+                    , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
                     }
                     |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView
@@ -97,9 +105,9 @@ suite =
         , Test.fuzz Fuzz.string "test home planet name" <|
             \planetName ->
                 ProgramTest.createDocument
-                    { init = NewGame.init
-                    , update = NewGame.update
-                    , view = View.viewToTestDocument (Element.layout []) NewGame.view
+                    { init = \_ -> NewGame.init
+                    , update = NewGame.update testSharedModel
+                    , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
                     }
                     |> ProgramTest.start (Random.initialSeed 0)
                     |> ProgramTest.ensureView

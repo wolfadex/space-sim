@@ -20,9 +20,7 @@ import Game.Components
     exposing
         ( AstronomicalUnit
         , CelestialBodyForm(..)
-        , Enabled(..)
         , LightYear
-        , Settings
         , StarSize(..)
         , World
         )
@@ -50,6 +48,11 @@ import Scene3d.Light
 import Scene3d.Material as Material
 import Scene3d.Mesh
 import Set exposing (Set)
+import Shared
+    exposing
+        ( Enabled(..)
+        , Settings
+        )
 import Sphere3d
 import Svg
 import Svg.Attributes
@@ -261,13 +264,14 @@ viewSolarSystem :
     , stars : Set EntityID
     , planets : Set EntityID
     }
+    -> Settings
     -> World
     -> Element msg
-viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPress, focusedCivilization, stars, planets } world =
+viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPress, focusedCivilization, stars, planets } settings world =
     let
         planetDetails : List PlanetRenderDetails
         planetDetails =
-            List.filterMap (getPlanetDetails world)
+            List.filterMap (getPlanetDetails settings world)
                 (Set.toList planets)
 
         starDetails : List StarRenderDetails
@@ -277,11 +281,11 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
 
         planetEntities : List (Scene3d.Entity ScaledViewPoint)
         planetEntities =
-            List.concatMap (renderPlanet world.settings) planetDetails
+            List.concatMap (renderPlanet settings) planetDetails
 
         starEntities : List (Scene3d.Entity ScaledViewPoint)
         starEntities =
-            List.map (renderStar world.settings) starDetails
+            List.map (renderStar settings) starDetails
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
@@ -493,7 +497,7 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
 
         solarSystemScene : Html msg
         solarSystemScene =
-            case world.settings.realisticLighting of
+            case settings.realisticLighting of
                 Disabled ->
                     Scene3d.unlit
                         { entities =
@@ -680,46 +684,56 @@ scalePointInLightYearsToOne point =
 
 renderPlanet : Settings -> PlanetRenderDetails -> List (Scene3d.Entity ScaledViewPoint)
 renderPlanet settings details =
-    [ case settings.realisticLighting of
-        Disabled ->
-            Scene3d.sphere
-                (Material.color details.color)
-                (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
+    let
+        planetEntity : Scene3d.Entity ScaledViewPoint
+        planetEntity =
+            case settings.realisticLighting of
+                Disabled ->
+                    Scene3d.sphere
+                        (Material.color details.color)
+                        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
 
+                Enabled ->
+                    Scene3d.sphereWithShadow
+                        (Material.matte details.color)
+                        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
+    in
+    case settings.showPlanetsOrbit of
         Enabled ->
-            Scene3d.sphereWithShadow
-                (Material.matte details.color)
-                (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
-    , let
-        segments : number
-        segments =
-            100
+            [ planetEntity
+            , let
+                segments : number
+                segments =
+                    100
 
-        radius : Float
-        radius =
-            Length.inMeters (Point3d.distanceFrom Point3d.origin details.position)
+                radius : Float
+                radius =
+                    Length.inMeters (Point3d.distanceFrom Point3d.origin details.position)
 
-        t : Int -> Float
-        t index =
-            2 * pi / segments * toFloat index
+                t : Int -> Float
+                t index =
+                    2 * pi / segments * toFloat index
 
-        verts : List (Point3d Meters ScaledViewPoint)
-        verts =
-            List.map
-                (\index ->
-                    scalePointInAstroUnitsToOne
-                        (Point3d.meters
-                            (radius * cos (t index))
-                            (radius * sin (t index))
-                            0
+                verts : List (Point3d Meters ScaledViewPoint)
+                verts =
+                    List.map
+                        (\index ->
+                            scalePointInAstroUnitsToOne
+                                (Point3d.meters
+                                    (radius * cos (t index))
+                                    (radius * sin (t index))
+                                    0
+                                )
                         )
-                )
-                (List.range 0 segments)
-      in
-      Scene3d.mesh
-        (Material.color Color.gray)
-        (Scene3d.Mesh.polyline (Polyline3d.fromVertices verts))
-    ]
+                        (List.range 0 segments)
+              in
+              Scene3d.mesh
+                (Material.color Color.gray)
+                (Scene3d.Mesh.polyline (Polyline3d.fromVertices verts))
+            ]
+
+        Disabled ->
+            [ planetEntity ]
 
 
 scalePointInAstroUnitsToOne : Point3d Meters AstronomicalUnit -> Point3d Meters ScaledViewPoint
@@ -739,18 +753,30 @@ type alias PlanetRenderDetails =
     }
 
 
-getPlanetDetails : World -> EntityID -> Maybe PlanetRenderDetails
-getPlanetDetails world planetId =
+getPlanetDetails : Settings -> World -> EntityID -> Maybe PlanetRenderDetails
+getPlanetDetails settings world planetId =
     Maybe.map3
         (\orbit planetType_ waterPercent ->
             { id = planetId
             , position =
-                Point3d.fromMeters
-                    { x = Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
-                    , y = 0
-                    , z = 0
-                    }
-                    |> Point3d.rotateAround Axis3d.z (Angle.degrees (world.elapsedTime / (100 + toFloat orbit)))
+                let
+                    initialPoint : Point3d Meters coordinates
+                    initialPoint =
+                        Point3d.fromMeters
+                            { x = 0
+                            , y = Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
+                            , z = 0
+                            }
+                in
+                case settings.planetsOrbit of
+                    Enabled ->
+                        Point3d.rotateAround
+                            Axis3d.z
+                            (Angle.degrees (world.elapsedTime / (100 + toFloat orbit)))
+                            initialPoint
+
+                    Disabled ->
+                        initialPoint
             , color =
                 case planetType_ of
                     Rocky ->

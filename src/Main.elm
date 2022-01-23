@@ -1,12 +1,12 @@
-module Main exposing (Model, Msg, main)
+port module Main exposing (Model, Msg, Page, main)
 
 import Browser exposing (Document)
 import Element exposing (..)
 import Game.Components
+import Json.Encode exposing (Value)
 import NewGame
 import Playing
-import Random
-import Shared exposing (Effect(..), Flags)
+import Shared exposing (Effect(..), Flags, Settings, SharedModel)
 import SubModule
 import View exposing (View)
 
@@ -21,7 +21,13 @@ main =
         }
 
 
-type Model
+type alias Model =
+    { shared : SharedModel
+    , page : Page
+    }
+
+
+type Page
     = NewGame NewGame.Model
     | Playing Game.Components.World
 
@@ -34,9 +40,11 @@ init flags =
                 { toMsg = GotNewGameMessage
                 , effectToMsg = GotSharedEffect
                 }
-                (NewGame.init (Random.initialSeed flags.seed0))
+                NewGame.init
     in
-    ( NewGame newGameModel
+    ( { shared = Shared.init flags
+      , page = NewGame newGameModel
+      }
     , Cmd.none
     )
         |> initializeNewGame
@@ -44,7 +52,7 @@ init flags =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model of
+    case model.page of
         NewGame _ ->
             Sub.none
 
@@ -60,22 +68,30 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case ( msg, model ) of
+    case ( msg, model.page ) of
         ( GotNewGameMessage message, NewGame newGameModel ) ->
-            NewGame.update message newGameModel
-                |> SubModule.updateWithEffect
-                    { toMsg = GotNewGameMessage
-                    , effectToMsg = GotSharedEffect
-                    , toModel = NewGame
-                    }
+            let
+                ( pageModel, cmd ) =
+                    SubModule.updateWithEffect
+                        { toMsg = GotNewGameMessage
+                        , effectToMsg = GotSharedEffect
+                        , toModel = NewGame
+                        }
+                        (NewGame.update model.shared message newGameModel)
+            in
+            ( { model | page = pageModel }, cmd )
 
         ( GotPlayingMessage message, Playing world ) ->
-            Playing.update message world
-                |> SubModule.updateWithEffect
-                    { toMsg = GotPlayingMessage
-                    , effectToMsg = GotSharedEffect
-                    , toModel = Playing
-                    }
+            let
+                ( pageModel, cmd ) =
+                    SubModule.updateWithEffect
+                        { toMsg = GotPlayingMessage
+                        , effectToMsg = GotSharedEffect
+                        , toModel = Playing
+                        }
+                        (Playing.update model.shared message world)
+            in
+            ( { model | page = pageModel }, cmd )
 
         ( GotSharedEffect effect, _ ) ->
             case effect of
@@ -86,29 +102,52 @@ update msg model =
                                 { toMsg = GotPlayingMessage
                                 , effectToMsg = GotSharedEffect
                                 }
-                                (Playing.init newGameDetails)
+                                (Playing.init model.shared newGameDetails)
                     in
-                    ( Playing playingModel
+                    ( { model | page = Playing playingModel }
                     , Cmd.none
                     )
                         |> initializePlaying
 
-                DeleteGame seed ->
+                DeleteGame ->
                     let
                         ( newGameModel, initializeNewGame ) =
                             SubModule.initWithEffect
                                 { toMsg = GotNewGameMessage
                                 , effectToMsg = GotSharedEffect
                                 }
-                                (NewGame.init seed)
+                                NewGame.init
                     in
-                    ( NewGame newGameModel
+                    ( { model | page = NewGame newGameModel }
                     , Cmd.none
                     )
                         |> initializeNewGame
 
+                GotSharedSettingsChange change ->
+                    let
+                        updatedSettings : Settings
+                        updatedSettings =
+                            Shared.updateSettings change model.shared.settings
+
+                        shared : SharedModel
+                        shared =
+                            model.shared
+                    in
+                    ( { model | shared = { shared | settings = updatedSettings } }, saveSettings (Shared.encodeSettings updatedSettings) )
+
+                UpdateSeed seed ->
+                    let
+                        shared : SharedModel
+                        shared =
+                            model.shared
+                    in
+                    ( { model | shared = { shared | seed = seed } }, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
+
+
+port saveSettings : Value -> Cmd msg
 
 
 view : Model -> Document Msg
@@ -116,12 +155,12 @@ view model =
     let
         content : View Msg
         content =
-            case model of
+            case model.page of
                 NewGame m ->
-                    View.map GotNewGameMessage (NewGame.view m)
+                    View.map GotNewGameMessage (NewGame.view model.shared m)
 
                 Playing m ->
-                    View.map GotPlayingMessage (Playing.view m)
+                    View.map GotPlayingMessage (Playing.view model.shared m)
     in
     { title = content.title
     , body = [ layout [ width fill, height fill ] content.body ]

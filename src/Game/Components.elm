@@ -2,14 +2,12 @@ module Game.Components exposing
     ( AstronomicalUnit
     , CelestialBodyForm(..)
     , CivilizationFocus(..)
-    , Enabled(..)
     , Happiness
     , LightYear
     , Log
     , Mortality
     , Orbit
     , Reproduction
-    , Settings
     , SpaceFocus(..)
     , StarDate
     , StarSize(..)
@@ -45,15 +43,13 @@ import Logic.Entity.Extra
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
-import Random exposing (Seed)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 
 
 type alias World =
-    { seed : Seed
-    , spaceFocus : SpaceFocus
+    { spaceFocus : SpaceFocus
     , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
     , viewStyle : ViewStyle
@@ -63,7 +59,6 @@ type alias World =
     , zoom : Float
     , viewRotation : Float
     , settingsVisible : Visible
-    , settings : Settings
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -98,19 +93,9 @@ type alias World =
     }
 
 
-type alias Settings =
-    { realisticLighting : Enabled }
-
-
-type Enabled
-    = Enabled
-    | Disabled
-
-
 emptyWorld : World
 emptyWorld =
-    { seed = Random.initialSeed 0
-    , spaceFocus = FGalaxy
+    { spaceFocus = FGalaxy
     , civilizationFocus = FAll
     , tickRate = Normal
     , viewStyle = ThreeD
@@ -120,7 +105,6 @@ emptyWorld =
     , zoom = 0
     , viewRotation = 0
     , settingsVisible = Visible
-    , settings = { realisticLighting = Enabled }
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
