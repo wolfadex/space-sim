@@ -853,7 +853,7 @@ happinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 3 4 model generateSolarSystem
+    generateManyEntities 30 40 model generateSolarSystem
         |> Random.map Tuple.second
 
 
