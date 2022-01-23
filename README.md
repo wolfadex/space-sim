@@ -1,12 +1,10 @@
-# Space Sim
+# Play [Space Sim](https://space-sim.netlify.app/)
 
-![pr status](https://github.com/wolfadex/space-sim/actions/workflows/test-pr.yml/badge.svg)
+## ⚠️ WIP ⚠️
 
-⚠️ WIP ⚠️
+[![Netlify Status](https://api.netlify.com/api/v1/badges/cb086d27-2785-46ec-b180-a4ce21231f58/deploy-status)](https://app.netlify.com/sites/space-sim/deploys)
 
-Playable at https://space-sim.netlify.app/
-
-A 4X space game inspired by Dwarf Fortress.
+A space game inspired by Dwarf Fortress.
 
 <img src="./Screenshot 2022-01-23_galaxy-view.png" />
 <img src="./Screenshot 2022-01-23_solar-view.png" />
@@ -30,9 +28,7 @@ A 4X space game inspired by Dwarf Fortress.
   - 2D (data first) or 3D (beauty first) view of the galaxy
   - 3D settings
 
-## Get Started
-
-### Development
+## Development
 
 ```bash
 npm install
@@ -47,11 +43,7 @@ npm run review-watch
 npm run test-watch
 ```
 
-### Production
+<br />
+<br />
 
-```bash
-npm ci
-npm run build
-```
-
-To learn more about Elm, check out [Elm's official homepage](https://elm-lang.org/).
+Built with ♥ using <a href="https://elm-lang.org/"><img alt="Elm" src="./elm-favicon.ico" width=20></a>
