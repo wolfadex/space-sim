@@ -26,6 +26,8 @@ import Length exposing (Length, Meters)
 import LineSegment2d
 import Logic.Component
 import Logic.Entity exposing (EntityID)
+import Luminance exposing (Luminance)
+import LuminousFlux exposing (LuminousFlux)
 import Percent
 import Pixels
 import Point2d
@@ -35,6 +37,7 @@ import Polyline3d
 import Quantity
 import Rectangle2d
 import Scene3d
+import Scene3d.Light exposing (Chromaticity)
 import Scene3d.Material as Material
 import Scene3d.Mesh
 import Set exposing (Set)
@@ -271,7 +274,7 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars
             --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
             --     |> Point3d.rotateAround Axis3d.z (Angle.degrees 60)
             Point3d.meters 5 2 3
-                |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000)
+                |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000000)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
@@ -476,7 +479,25 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars
 
         solarSystemScene : Html msg
         solarSystemScene =
-            Scene3d.unlit
+            -- Scene3d.unlit
+            --     { entities =
+            --         -- Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
+            --         --     (Point3d.meters -1500000000 -1500000000 0)
+            --         --     (Point3d.meters 1500000000 -1500000000 0)
+            --         --     (Point3d.meters 1500000000 1500000000 0)
+            --         --     (Point3d.meters -1500000000 1500000000 0)
+            --         --     ::
+            --         planetEntities
+            --             ++ starEntities
+            --     , camera = camera
+            --     , clipDepth = Length.meters 1
+            --     , background = Scene3d.backgroundColor Color.black
+            --     , dimensions =
+            --         ( Pixels.pixels (floor world.galaxyViewSize.width)
+            --         , Pixels.pixels (floor world.galaxyViewSize.height)
+            --         )
+            --     }
+            Scene3d.custom
                 { entities =
                     -- Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
                     --     (Point3d.meters -1500000000 -1500000000 0)
@@ -493,6 +514,23 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, focusedCivilization, stars
                     ( Pixels.pixels (floor world.galaxyViewSize.width)
                     , Pixels.pixels (floor world.galaxyViewSize.height)
                     )
+                , lights =
+                    Scene3d.oneLight
+                        (Scene3d.Light.point
+                            (Scene3d.Light.castsShadows True)
+                            { chromaticity = Scene3d.Light.color Color.yellow
+
+                            -- Have to break these numbers up so that they don't wrap negatively by elm-format
+                            , intensity = LuminousFlux.lumens (16240000000000 * 2200000000 * 100000000)
+                            , position = Point3d.origin
+                            }
+                        )
+                , exposure = Scene3d.maxLuminance (Luminance.nits 100000)
+                , toneMapping = Scene3d.noToneMapping
+
+                -- This should somehow use the colors of the stars in the scene
+                , whiteBalance = Scene3d.Light.color Color.yellow
+                , antialiasing = Scene3d.noAntialiasing
                 }
     in
     viewSpace onZoom solarSystemLabels solarSystemScene
@@ -585,8 +623,11 @@ scalePointInLightYearsToOne point =
 
 renderPlanet : PlanetRenderDetails -> List (Scene3d.Entity ScaledViewPoint)
 renderPlanet details =
-    [ Scene3d.sphere
-        (Material.color details.color)
+    [ -- Scene3d.sphere
+      -- (Material.color details.color)
+      -- (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
+      Scene3d.sphereWithShadow
+        (Material.matte details.color)
         (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
     , let
         segments : number
@@ -681,7 +722,8 @@ getPlanetDetails world planetId =
 renderStar : StarRenderDetails -> Scene3d.Entity ScaledViewPoint
 renderStar details =
     Scene3d.sphere
-        (Material.color details.color)
+        -- (Material.color details.color)
+        (Material.emissive (Scene3d.Light.color details.color) (Luminance.nits 100000))
         (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 500 details.size))
 
 
