@@ -184,6 +184,7 @@ type Msg
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotZoom Value
     | GotZoomChange Float
+    | GotRotationChange Float
 
 
 getGalaxyViewport : SubCmd Msg Effect
@@ -227,11 +228,14 @@ update msg world =
         GotZoomChange change ->
             ( { world | zoom = world.zoom + change }, SubCmd.none )
 
+        GotRotationChange change ->
+            ( { world | viewRotation = toFloat (remainderBy 360 (floor (world.viewRotation + change))) }, SubCmd.none )
+
         SetSpaceFocus focus ->
-            ( { world | spaceFocus = focus, zoom = 1 }, SubCmd.none )
+            ( { world | spaceFocus = focus, zoom = 1, viewRotation = 0 }, SubCmd.none )
 
         SetCivilizationFocus focus ->
-            ( { world | civilizationFocus = focus, zoom = 1 }, SubCmd.none )
+            ( { world | civilizationFocus = focus }, SubCmd.none )
 
         GotViewStyle viewStyle ->
             ( { world | viewStyle = viewStyle }, getGalaxyViewport )
@@ -1196,6 +1200,7 @@ viewGalaxy world =
                 { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
                 , onZoom = GotZoom
                 , onZoomPress = GotZoomChange
+                , onRotationPress = GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1241,6 +1246,7 @@ viewSolarSystemDetailed world solarSystemId =
                 , onPressPlanet = FPlanet >> SetSpaceFocus
                 , onZoom = GotZoom
                 , onZoomPress = GotZoomChange
+                , onRotationPress = GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->

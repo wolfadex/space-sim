@@ -58,6 +58,7 @@ type alias World =
     , remainingTimeForSystemUpdate : Float
     , galaxyViewSize : { width : Float, height : Float }
     , zoom : Float
+    , viewRotation : Float
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -103,6 +104,7 @@ emptyWorld =
     , remainingTimeForSystemUpdate = 0
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = 0
+    , viewRotation = 0
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals

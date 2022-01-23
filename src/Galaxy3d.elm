@@ -53,11 +53,12 @@ viewGalaxy :
     { onPressSolarSystem : EntityID -> msg
     , onZoom : Value -> msg
     , onZoomPress : Float -> msg
+    , onRotationPress : Float -> msg
     , focusedCivilization : Maybe EntityID
     }
     -> World
     -> Element msg
-viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, focusedCivilization } world =
+viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCivilization } world =
     let
         solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
         solarSystemPoints =
@@ -76,6 +77,7 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, focusedCivilization } worl
             Point3d.meters 5 2 3
                 -- One light year, 9460730000000000
                 |> Point3d.scaleAbout Point3d.origin ((25000 + (world.zoom + 1) * 100) * 9460730000000000)
+                |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
@@ -237,7 +239,7 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, focusedCivilization } worl
                     )
                 }
     in
-    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress } galaxyLabels galaxyScene
+    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress, onRotationPress = onRotationPress } galaxyLabels galaxyScene
 
 
 viewSolarSystem :
@@ -245,13 +247,14 @@ viewSolarSystem :
     , onPressPlanet : EntityID -> msg
     , onZoom : Value -> msg
     , onZoomPress : Float -> msg
+    , onRotationPress : Float -> msg
     , focusedCivilization : Maybe EntityID
     , stars : Set EntityID
     , planets : Set EntityID
     }
     -> World
     -> Element msg
-viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, focusedCivilization, stars, planets } world =
+viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPress, focusedCivilization, stars, planets } world =
     let
         planetDetails : List PlanetRenderDetails
         planetDetails =
@@ -273,11 +276,10 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, focusedCivili
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            -- Point3d.meters 4 0 0
             --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
-            --     |> Point3d.rotateAround Axis3d.z (Angle.degrees 60)
             Point3d.meters 5 2 3
                 |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000000)
+                |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
@@ -536,11 +538,18 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, focusedCivili
                 , antialiasing = Scene3d.noAntialiasing
                 }
     in
-    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress } solarSystemLabels solarSystemScene
+    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress, onRotationPress = onRotationPress } solarSystemLabels solarSystemScene
 
 
-viewSpace : { onZoom : Value -> msg, onZoomPress : Float -> msg } -> Html msg -> Html msg -> Element msg
-viewSpace { onZoom, onZoomPress } labels scene =
+viewSpace :
+    { onZoom : Value -> msg
+    , onZoomPress : Float -> msg
+    , onRotationPress : Float -> msg
+    }
+    -> Html msg
+    -> Html msg
+    -> Element msg
+viewSpace { onZoom, onZoomPress, onRotationPress } labels scene =
     el
         [ spaceCss
         , inFront (html labels)
@@ -559,11 +568,11 @@ viewSpace { onZoom, onZoomPress } labels scene =
                 [ row
                     [ alignBottom, spacing 8 ]
                     [ Ui.Button.default
-                        { onPress = Nothing
+                        { onPress = Just (onRotationPress -5)
                         , label = text "<-"
                         }
                     , Ui.Button.default
-                        { onPress = Nothing
+                        { onPress = Just (onRotationPress 5)
                         , label = text "->"
                         }
                     ]
