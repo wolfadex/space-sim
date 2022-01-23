@@ -11,6 +11,7 @@ import Game.Components exposing (Visible(..))
 import Shared exposing (Effect(..), SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Ui.Button
+import Ui.Slider
 import Ui.Text
 import Ui.Theme
 import Validator exposing (Validator)
@@ -29,27 +30,31 @@ init =
 
 
 type alias Model =
-    { civilizationNameSingular : String
+    { settingsVisible : Visible
+    , civilizationNameSingular : String
     , civilizationNamePlural : String
     , hasUniquePluralName : Bool
     , civilizationNamePossessive : String
     , hasUniquePossessiveName : Bool
     , homePlanetName : String
     , errors : List String
-    , settingsVisible : Visible
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
     }
 
 
 baseNewGameModel : Model
 baseNewGameModel =
-    { civilizationNameSingular = ""
+    { settingsVisible = Hidden
+    , civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
-    , settingsVisible = Hidden
+    , minSolarSystemsToGenerate = 100
+    , maxSolarSystemsToGenerate = 300
     }
 
 
@@ -67,6 +72,8 @@ type Msg
     | SetHomePlanetName String
     | GotSettingsVisible Visible
     | GotSettingsChange SettingsMessage
+    | GotMinSolarSystemCount Int
+    | GotMaxSolarSystemCount Int
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -99,6 +106,22 @@ update _ msg model =
 
         SetHomePlanetName name ->
             ( { model | homePlanetName = name }
+            , SubCmd.none
+            )
+
+        GotMinSolarSystemCount minCount ->
+            ( { model
+                | minSolarSystemsToGenerate = minCount
+                , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
+              }
+            , SubCmd.none
+            )
+
+        GotMaxSolarSystemCount maxCount ->
+            ( { model
+                | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
+                , maxSolarSystemsToGenerate = maxCount
+              }
             , SubCmd.none
             )
 
@@ -289,6 +312,29 @@ viewPlayerCivForm model =
             { onChange = SetHomePlanetName
             , text = model.homePlanetName
             , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
+            }
+        , Ui.Slider.int
+            { onChange = GotMinSolarSystemCount
+            , label = Input.labelAbove [] (text ("Min Solar System Count: " ++ String.fromInt model.minSolarSystemsToGenerate))
+            , min = 10
+            , max = 10000
+            , value = model.minSolarSystemsToGenerate
+            , step = Just 10
+            }
+        , Ui.Slider.int
+            { onChange = GotMaxSolarSystemCount
+            , label =
+                Input.labelAbove []
+                    (column []
+                        [ text ("Max Solar System Count: " ++ String.fromInt model.maxSolarSystemsToGenerate)
+                        , el [ Font.size 12 ] (text "🛈 The Milky Way has over 3200 solar systems")
+                        , el [ Font.size 12 ] (text "🛈 Higher amounts will require a more powerful computer")
+                        ]
+                    )
+            , min = 10
+            , max = 10000
+            , value = model.maxSolarSystemsToGenerate
+            , step = Just 10
             }
         , model.errors
             |> List.map viewError
