@@ -8,7 +8,6 @@ import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
 import Game.Components exposing (Visible(..))
-import Playing exposing (Msg(..))
 import Shared exposing (Effect(..), SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Ui.Button
