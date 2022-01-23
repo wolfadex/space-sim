@@ -32,10 +32,12 @@ import Game.Components
         , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
+        , Visible(..)
         , World
         , emptyWorld
         )
-import Length exposing (Length, Meters)
+import Json.Decode exposing (Value)
+import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -43,6 +45,7 @@ import Logic.System exposing (System)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
+import Process
 import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
@@ -51,7 +54,7 @@ import Rate exposing (Rate)
 import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (Effect)
+import Shared exposing (Effect(..), Settings, SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Task
 import Ui.Button
@@ -63,8 +66,8 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : { name : CivilizationName, homePlanetName : String, seed : Seed } -> ( World, SubCmd Msg Effect )
-init flags =
+init : SharedModel -> { name : CivilizationName, homePlanetName : String } -> ( World, SubCmd Msg Effect )
+init sharedModel flags =
     let
         -- Filter out a civilization name if the player's chosen name matches
         worldWithPlayerDataFilteredOut : World
@@ -76,7 +79,7 @@ init flags =
             }
 
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) flags.seed
+            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -119,10 +122,12 @@ init flags =
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
-        , seed = finalSeed
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
-    , getGalaxyViewport
+    , SubCmd.batch
+        [ getGalaxyViewport
+        , SubCmd.effect (UpdateSeed finalSeed)
+        ]
     )
 
 
@@ -180,15 +185,23 @@ type Msg
     | GotViewStyle ViewStyle
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+    | GotZoom Value
+    | GotZoomChange Float
+    | GotRotationChange Float
+    | GotSettingsVisible Visible
+    | GotSettingsChange SettingsMessage
 
 
 getGalaxyViewport : SubCmd Msg Effect
 getGalaxyViewport =
-    SubCmd.cmd (Task.attempt GotGalaxyViewport (Browser.Dom.getViewportOf "galaxy-view"))
+    Process.sleep 100
+        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
+        |> Task.attempt GotGalaxyViewport
+        |> SubCmd.cmd
 
 
-update : Msg -> World -> ( World, SubCmd Msg Effect )
-update msg world =
+update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
+update sharedModel msg world =
     case msg of
         SetTickRate tickRate ->
             ( { world | tickRate = tickRate }, SubCmd.none )
@@ -196,8 +209,16 @@ update msg world =
         WindowResized ->
             ( world, getGalaxyViewport )
 
+        GotSettingsVisible visible ->
+            ( { world | settingsVisible = visible }, SubCmd.none )
+
+        GotSettingsChange settingsChange ->
+            ( world
+            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            )
+
         GotGalaxyViewport (Ok { viewport }) ->
-            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height } }
+            ( { world | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
             , SubCmd.none
             )
 
@@ -206,11 +227,25 @@ update msg world =
 
         DeleteGalaxy ->
             ( world
-            , SubCmd.effect (Shared.DeleteGame world.seed)
+            , SubCmd.effect Shared.DeleteGame
             )
 
+        GotZoom zoomValue ->
+            case Json.Decode.decodeValue decodeZoomEvent zoomValue of
+                Ok delta ->
+                    ( { world | zoom = world.zoom + delta }, SubCmd.none )
+
+                Err _ ->
+                    ( world, SubCmd.none )
+
+        GotZoomChange change ->
+            ( { world | zoom = world.zoom + change }, SubCmd.none )
+
+        GotRotationChange change ->
+            ( { world | viewRotation = toFloat (remainderBy 360 (floor (world.viewRotation + change))) }, SubCmd.none )
+
         SetSpaceFocus focus ->
-            ( { world | spaceFocus = focus }, SubCmd.none )
+            ( { world | spaceFocus = focus, zoom = 1, viewRotation = 0 }, SubCmd.none )
 
         SetCivilizationFocus focus ->
             ( { world | civilizationFocus = focus }, SubCmd.none )
@@ -271,7 +306,7 @@ update msg world =
                         , remainingTimeForSystemUpdate = remainingTickTime
                     }
             in
-            ( if doTick then
+            if doTick then
                 updatedWorld
                     |> happinessSystem
                         Game.Components.civilizationReproductionRateSpec
@@ -281,18 +316,25 @@ update msg world =
                         Game.Components.civilizationReproductionRateSpec
                         Game.Components.civilizationMortalityRateSpec
                         Game.Components.civilizationPopulationSpec
+                    |> (\w -> ( w, sharedModel.seed ))
                     |> discoverySystem Game.Components.knowledgeSpec
                     |> expansionSystem
                     |> civilUnrestSystem
+                    |> Tuple.mapSecond (UpdateSeed >> SubCmd.effect)
 
-              else
-                updatedWorld
-            , SubCmd.none
-            )
+            else
+                ( updatedWorld
+                , SubCmd.none
+                )
 
 
-expansionSystem : World -> World
-expansionSystem world =
+decodeZoomEvent : Json.Decode.Decoder Float
+decodeZoomEvent =
+    Json.Decode.field "deltaY" Json.Decode.float
+
+
+expansionSystem : ( World, Seed ) -> ( World, Seed )
+expansionSystem ( world, initialSeed ) =
     let
         planetsAndKnowledge : List { id : EntityID, knowledge : AnySet String Knowledge, populatedPlanets : List EntityID }
         planetsAndKnowledge =
@@ -306,7 +348,7 @@ expansionSystem world =
                     )
     in
     List.foldl
-        (\civ nextWorld ->
+        (\civ ( nextWorld, nextSeed ) ->
             let
                 totalPopulationSize : Population
                 totalPopulationSize =
@@ -316,7 +358,7 @@ expansionSystem world =
                         |> List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0)
             in
             if Quantity.lessThan Population.trillion totalPopulationSize then
-                nextWorld
+                ( nextWorld, nextSeed )
 
             else
                 let
@@ -395,16 +437,16 @@ expansionSystem world =
                 in
                 case possiblePlanetsToExpandInto of
                     [] ->
-                        nextWorld
+                        ( nextWorld, nextSeed )
 
                     _ ->
                         let
                             ( expandedWorld, seed ) =
-                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextWorld.seed
+                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextSeed
                         in
-                        { expandedWorld | seed = seed }
+                        ( expandedWorld, seed )
         )
-        world
+        ( world, initialSeed )
         planetsAndKnowledge
 
 
@@ -437,8 +479,8 @@ weightedChoose items =
             Random.map Just (Random.weighted first rest)
 
 
-civilUnrestSystem : World -> World
-civilUnrestSystem world =
+civilUnrestSystem : ( World, Seed ) -> ( World, Seed )
+civilUnrestSystem ( world, initialSeed ) =
     let
         revoltingCivs : List ( EntityID, EntityID )
         revoltingCivs =
@@ -462,9 +504,9 @@ civilUnrestSystem world =
                     )
 
         ( worldWithNewCivs, seed ) =
-            Random.step (generateRevoltingCivs revoltingCivs world) world.seed
+            Random.step (generateRevoltingCivs revoltingCivs world) initialSeed
     in
-    { worldWithNewCivs | seed = seed }
+    ( worldWithNewCivs, seed )
 
 
 generateRevoltingCivs : List ( EntityID, EntityID ) -> World -> Generator World
@@ -556,8 +598,8 @@ dropRandom anySetConfig percent set =
         (Random.List.shuffle setList)
 
 
-discoverySystem : Spec (AnySet String Knowledge) World -> World -> World
-discoverySystem knowledge world =
+discoverySystem : Spec (AnySet String Knowledge) World -> ( World, Seed ) -> ( World, Seed )
+discoverySystem knowledge ( world, initialSeed ) =
     let
         initialUpdatedKnowledge : Array (Maybe (AnySet String Knowledge))
         initialUpdatedKnowledge =
@@ -577,18 +619,16 @@ discoverySystem knowledge world =
             Array.foldl possiblyGainKnowledge
                 { index = 0
                 , updatedKnowledge = initialUpdatedKnowledge
-                , seed = world.seed
+                , seed = initialSeed
                 , civNames = world.named
                 , starDate = world.starDate
                 , logs = []
                 }
                 (knowledge.get world)
     in
-    knowledge.set updates.updatedKnowledge
-        { world
-            | seed = updates.seed
-            , eventLog = updates.logs ++ world.eventLog
-        }
+    ( knowledge.set updates.updatedKnowledge { world | eventLog = updates.logs ++ world.eventLog }
+    , updates.seed
+    )
 
 
 possiblyGainKnowledge :
@@ -813,7 +853,7 @@ happinessSystem =
 
 generateGalaxy : World -> Generator World
 generateGalaxy model =
-    generateManyEntities 100 200 model generateSolarSystem
+    generateManyEntities 30 40 model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -837,40 +877,27 @@ generateSolarSystem ( solarSystemId, world ) =
 
 generateGalacticPosition : Generator (Point3d Meters LightYear)
 generateGalacticPosition =
-    Random.map3
-        (\randT randU1 randU2 ->
+    Random.map2
+        (\rand1 rand2 ->
             let
-                t : Float
-                t =
-                    2 * pi * randT
+                radius : Float
+                radius =
+                    Length.inMeters (Length.lightYears 50000)
 
-                u : Float
-                u =
-                    randU1 + randU2
+                u2 : Float
+                u2 =
+                    radius * rand2
 
-                r : Float
-                r =
-                    if u > 1 then
-                        2 - u
-
-                    else
-                        u
-
-                x : Length
-                x =
-                    Length.lightYears ((r * cos t) * 5000)
-
-                y : Length
-                y =
-                    Length.lightYears ((r * sin t) * 5000)
+                u1 : Float
+                u1 =
+                    2 * pi * rand1
             in
             Point3d.fromMeters
-                { x = Length.inMeters x
-                , y = Length.inMeters y
+                { x = u2 * cos u1
+                , y = u2 * sin u1
                 , z = 0
                 }
         )
-        (Random.float 0.0 1.0)
         (Random.float 0.0 1.0)
         (Random.float 0.0 1.0)
 
@@ -1028,18 +1055,25 @@ generateEntity world fn =
 ---- VIEW ----
 
 
-view : World -> View Msg
-view world =
+view : SharedModel -> World -> View Msg
+view sharedModel world =
     { title = "Hello Space!"
-    , body = viewPlaying world
+    , body = viewPlaying sharedModel world
     }
 
 
-viewPlaying : World -> Element Msg
-viewPlaying world =
+viewPlaying : SharedModel -> World -> Element Msg
+viewPlaying sharedModel world =
     column
         [ width fill
         , height fill
+        , inFront <|
+            case world.settingsVisible of
+                Hidden ->
+                    none
+
+                Visible ->
+                    map GotSettingsChange (Shared.viewSettings sharedModel.settings)
         ]
         [ viewControls world
         , (case world.viewStyle of
@@ -1069,7 +1103,7 @@ viewPlaying world =
 
                     FSolarSystem id ->
                         if Set.member id world.solarSystems then
-                            viewSlice (viewSolarSystemDetailed world id)
+                            viewSlice (viewSolarSystemDetailed sharedModel.settings world id)
 
                         else
                             text "Missing solar system"
@@ -1103,6 +1137,7 @@ viewControls world =
     row
         [ padding 16
         , spacing 16
+        , width fill
         ]
         [ text "Game Speed:"
         , Ui.Button.toggle
@@ -1146,6 +1181,19 @@ viewControls world =
                     { label = text "View 3D Glaxy"
                     , onPress = Just (GotViewStyle ThreeD)
                     }
+        , el [ alignRight ]
+            (Ui.Button.default
+                { label = text "⚙"
+                , onPress =
+                    Just <|
+                        case world.settingsVisible of
+                            Visible ->
+                                GotSettingsVisible Hidden
+
+                            Hidden ->
+                                GotSettingsVisible Visible
+                }
+            )
         ]
 
 
@@ -1183,7 +1231,10 @@ viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewGalaxy
-                { onPress = FSolarSystem >> SetSpaceFocus
+                { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
+                , onZoom = GotZoom
+                , onZoomPress = GotZoomChange
+                , onRotationPress = GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1209,8 +1260,8 @@ viewGalaxy world =
                 world
 
 
-viewSolarSystemDetailed : World -> EntityID -> Element Msg
-viewSolarSystemDetailed world solarSystemId =
+viewSolarSystemDetailed : Settings -> World -> EntityID -> Element Msg
+viewSolarSystemDetailed settings world solarSystemId =
     let
         ( stars, planets ) =
             Logic.Component.get solarSystemId world.children
@@ -1227,6 +1278,9 @@ viewSolarSystemDetailed world solarSystemId =
             Galaxy3d.viewSolarSystem
                 { onPressStar = FStar >> SetSpaceFocus
                 , onPressPlanet = FPlanet >> SetSpaceFocus
+                , onZoom = GotZoom
+                , onZoomPress = GotZoomChange
+                , onRotationPress = GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1237,6 +1291,7 @@ viewSolarSystemDetailed world solarSystemId =
                 , stars = stars
                 , planets = planets
                 }
+                settings
                 world
 
         TwoD ->

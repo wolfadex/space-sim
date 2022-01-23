@@ -13,6 +13,7 @@ module Game.Components exposing
     , StarSize(..)
     , TickRate(..)
     , ViewStyle(..)
+    , Visible(..)
     , Water
     , World
     , childrenSpec
@@ -42,21 +43,22 @@ import Logic.Entity.Extra
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
-import Random exposing (Seed)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 
 
 type alias World =
-    { seed : Seed
-    , spaceFocus : SpaceFocus
+    { spaceFocus : SpaceFocus
     , civilizationFocus : CivilizationFocus
     , tickRate : TickRate
     , viewStyle : ViewStyle
     , elapsedTime : Float
     , remainingTimeForSystemUpdate : Float
     , galaxyViewSize : { width : Float, height : Float }
+    , zoom : Float
+    , viewRotation : Float
+    , settingsVisible : Visible
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -93,14 +95,16 @@ type alias World =
 
 emptyWorld : World
 emptyWorld =
-    { seed = Random.initialSeed 0
-    , spaceFocus = FGalaxy
+    { spaceFocus = FGalaxy
     , civilizationFocus = FAll
     , tickRate = Normal
     , viewStyle = ThreeD
     , elapsedTime = 0
     , remainingTimeForSystemUpdate = 0
     , galaxyViewSize = { width = 800, height = 600 }
+    , zoom = 0
+    , viewRotation = 0
+    , settingsVisible = Hidden
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -129,6 +133,11 @@ emptyWorld =
     , starDate = 0
     , eventLog = []
     }
+
+
+type Visible
+    = Visible
+    | Hidden
 
 
 type ViewStyle

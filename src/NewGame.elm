@@ -7,8 +7,8 @@ import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
-import Random exposing (Seed)
-import Shared exposing (Effect)
+import Game.Components exposing (Visible(..))
+import Shared exposing (Effect(..), SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Ui.Button
 import Ui.Text
@@ -21,35 +21,35 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : Seed -> ( Model, SubCmd Msg Effect )
-init seed =
-    ( { baseNewGameModel | seed = seed }
+init : ( Model, SubCmd Msg Effect )
+init =
+    ( baseNewGameModel
     , SubCmd.none
     )
 
 
 type alias Model =
-    { seed : Seed
-    , civilizationNameSingular : String
+    { civilizationNameSingular : String
     , civilizationNamePlural : String
     , hasUniquePluralName : Bool
     , civilizationNamePossessive : String
     , hasUniquePossessiveName : Bool
     , homePlanetName : String
     , errors : List String
+    , settingsVisible : Visible
     }
 
 
 baseNewGameModel : Model
 baseNewGameModel =
-    { seed = Random.initialSeed 0
-    , civilizationNameSingular = ""
+    { civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
+    , settingsVisible = Hidden
     }
 
 
@@ -65,10 +65,12 @@ type Msg
     | ToggleNamePossessive Bool
     | StartGame
     | SetHomePlanetName String
+    | GotSettingsVisible Visible
+    | GotSettingsChange SettingsMessage
 
 
-update : Msg -> Model -> ( Model, SubCmd Msg Effect )
-update msg model =
+update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
+update _ msg model =
     case msg of
         SetNameSingular singular ->
             ( { model | civilizationNameSingular = singular }
@@ -108,13 +110,20 @@ update msg model =
                         (Shared.CreateGame
                             { name = validName
                             , homePlanetName = validHomeName
-                            , seed = model.seed
                             }
                         )
                     )
 
                 Err errs ->
                     ( { model | errors = errs }, SubCmd.none )
+
+        GotSettingsVisible visible ->
+            ( { model | settingsVisible = visible }, SubCmd.none )
+
+        GotSettingsChange settingsChange ->
+            ( model
+            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            )
 
 
 createGameValidator : Validator Model String ( CivilizationName, String )
@@ -174,29 +183,60 @@ possessiveNameValidator model =
 ---- VIEW ----
 
 
-view : Model -> View Msg
-view model =
+view : SharedModel -> Model -> View Msg
+view sharedModel model =
     { title = "Hello Space!"
     , body =
-        column
-            [ centerX
-            , centerY
-            , spacing 64
-            , padding 16
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            , inFront
+                (el
+                    [ alignRight
+                    , alignTop
+                    , padding 16
+                    , inFront <|
+                        case model.settingsVisible of
+                            Hidden ->
+                                none
+
+                            Visible ->
+                                map GotSettingsChange (Shared.viewSettings sharedModel.settings)
+                    ]
+                    (Ui.Button.default
+                        { label = text "⚙"
+                        , onPress =
+                            Just <|
+                                case model.settingsVisible of
+                                    Visible ->
+                                        GotSettingsVisible Hidden
+
+                                    Hidden ->
+                                        GotSettingsVisible Visible
+                        }
+                    )
+                )
             ]
-            [ text "Space Sim!"
-                |> el [ centerX, Font.size 64 ]
-            , wrappedRow
+            (column
                 [ centerX
                 , centerY
-                , spacing 16
-                , padding 16
-                , width shrink
+                , spacing 64
                 ]
-                [ viewPlayerCivForm model
-                , viewExample model
+                [ text "Space Sim!"
+                    |> el [ centerX, Font.size 64 ]
+                , wrappedRow
+                    [ centerX
+                    , centerY
+                    , spacing 16
+                    , padding 16
+                    , width shrink
+                    ]
+                    [ viewPlayerCivForm model
+                    , viewExample model
+                    ]
                 ]
-            ]
+            )
     }
 
 
