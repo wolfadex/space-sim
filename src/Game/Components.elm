@@ -104,7 +104,7 @@ emptyWorld =
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = 0
     , viewRotation = 0
-    , settingsVisible = Visible
+    , settingsVisible = Hidden
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals

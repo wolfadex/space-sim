@@ -7,7 +7,9 @@ import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
-import Shared exposing (Effect, SharedModel)
+import Game.Components exposing (Visible(..))
+import Playing exposing (Msg(..))
+import Shared exposing (Effect(..), SettingsMessage, SharedModel)
 import SubCmd exposing (SubCmd)
 import Ui.Button
 import Ui.Text
@@ -35,6 +37,7 @@ type alias Model =
     , hasUniquePossessiveName : Bool
     , homePlanetName : String
     , errors : List String
+    , settingsVisible : Visible
     }
 
 
@@ -47,6 +50,7 @@ baseNewGameModel =
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
+    , settingsVisible = Hidden
     }
 
 
@@ -62,6 +66,8 @@ type Msg
     | ToggleNamePossessive Bool
     | StartGame
     | SetHomePlanetName String
+    | GotSettingsVisible Visible
+    | GotSettingsChange SettingsMessage
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -111,6 +117,14 @@ update _ msg model =
 
                 Err errs ->
                     ( { model | errors = errs }, SubCmd.none )
+
+        GotSettingsVisible visible ->
+            ( { model | settingsVisible = visible }, SubCmd.none )
+
+        GotSettingsChange settingsChange ->
+            ( model
+            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            )
 
 
 createGameValidator : Validator Model String ( CivilizationName, String )
@@ -171,28 +185,59 @@ possessiveNameValidator model =
 
 
 view : SharedModel -> Model -> View Msg
-view _ model =
+view sharedModel model =
     { title = "Hello Space!"
     , body =
-        column
-            [ centerX
-            , centerY
-            , spacing 64
-            , padding 16
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            , inFront
+                (el
+                    [ alignRight
+                    , alignTop
+                    , padding 16
+                    , inFront <|
+                        case model.settingsVisible of
+                            Hidden ->
+                                none
+
+                            Visible ->
+                                map GotSettingsChange (Shared.viewSettings sharedModel.settings)
+                    ]
+                    (Ui.Button.default
+                        { label = text "⚙"
+                        , onPress =
+                            Just <|
+                                case model.settingsVisible of
+                                    Visible ->
+                                        GotSettingsVisible Hidden
+
+                                    Hidden ->
+                                        GotSettingsVisible Visible
+                        }
+                    )
+                )
             ]
-            [ text "Space Sim!"
-                |> el [ centerX, Font.size 64 ]
-            , wrappedRow
+            (column
                 [ centerX
                 , centerY
-                , spacing 16
-                , padding 16
-                , width shrink
+                , spacing 64
                 ]
-                [ viewPlayerCivForm model
-                , viewExample model
+                [ text "Space Sim!"
+                    |> el [ centerX, Font.size 64 ]
+                , wrappedRow
+                    [ centerX
+                    , centerY
+                    , spacing 16
+                    , padding 16
+                    , width shrink
+                    ]
+                    [ viewPlayerCivForm model
+                    , viewExample model
+                    ]
                 ]
-            ]
+            )
     }
 
 
