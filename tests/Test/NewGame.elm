@@ -24,7 +24,7 @@ suite =
     Test.describe "Renders the screen"
         [ Test.test "renders the title and start button" <|
             \() ->
-                NewGame.view testSharedModel (MainMenu {})
+                NewGame.view testSharedModel (MainMenu NewGame.baseMainModel)
                     |> .body
                     |> Query.fromElement
                     |> Query.has

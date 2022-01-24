@@ -4,19 +4,32 @@ module NewGame exposing
     , Msg
     , ObserveModel
     , ParticipateModel
+    , baseMainModel
     , init
+    , subscriptions
     , update
     , view
     )
 
+import Browser.Dom exposing (Viewport)
+import Browser.Events
 import Data.Names exposing (CivilizationName)
+import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
-import Game.Components exposing (Visible(..))
+import Galaxy3d
+import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, StarSize(..), Visible(..), Water)
+import Length exposing (Meters)
+import Logic.Component
+import Logic.Entity exposing (EntityID)
+import Percent exposing (Percent)
+import Point3d exposing (Point3d)
+import Population exposing (Population)
+import Set exposing (Set)
 import Shared
     exposing
         ( Effect(..)
@@ -39,8 +52,49 @@ import View exposing (View)
 
 init : ( Model, SubCmd Msg Effect )
 init =
-    ( MainMenu {}
-    , SubCmd.none
+    let
+        ( _, m0 ) =
+            Logic.Entity.create 0 baseMainModel
+                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million )
+                |> Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 })
+
+        ( _, m1 ) =
+            Logic.Entity.create 1 m0
+                |> Logic.Entity.with ( Game.Components.starFormSpec, Yellow )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+                |> Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 })
+
+        ( _, m2 ) =
+            Logic.Entity.create 2 m1
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                |> Logic.Entity.with ( Game.Components.orbitSpec, 6 )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 75 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+
+        ( _, m3 ) =
+            Logic.Entity.create 3 m2
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                |> Logic.Entity.with ( Game.Components.orbitSpec, 8 )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 15 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+
+        ( _, m4 ) =
+            Logic.Entity.create 4 m3
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
+                |> Logic.Entity.with ( Game.Components.orbitSpec, 4 )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 80 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+
+        ( _, m5 ) =
+            Logic.Entity.create 5 m4
+                |> Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
+                |> Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 })
+    in
+    ( MainMenu { m5 | planets = Set.fromList [ 2, 3, 4 ] }
+    , Galaxy3d.getGalaxyViewport (GotGalaxyViewport >> MainMenuMessage)
     )
 
 
@@ -51,7 +105,44 @@ type Model
 
 
 type alias MainMenuModel =
-    {}
+    { elapsedTime : Float
+    , galaxyViewSize : { width : Float, height : Float }
+    , zoom : Float
+    , viewRotation : Float
+    , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
+    , planetTypes : Logic.Component.Set CelestialBodyForm
+    , starForms : Logic.Component.Set StarSize
+    , orbits : Logic.Component.Set Orbit
+    , waterContent : Logic.Component.Set (Percent Water)
+    , planetSize : Logic.Component.Set Float
+    , parents : Logic.Component.Set EntityID
+    , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+    , planets : Set EntityID
+    , stars : Set EntityID
+    , solarSystems : Set EntityID
+    , civilizations : Set EntityID
+    }
+
+
+baseMainModel : MainMenuModel
+baseMainModel =
+    { elapsedTime = 1234345
+    , galaxyViewSize = { width = 800, height = 600 }
+    , zoom = 1
+    , viewRotation = 0
+    , civilizationPopulations = Logic.Component.empty -- (Dict EntityID Population)
+    , planetTypes = Logic.Component.empty -- CelestialBodyForm
+    , starForms = Logic.Component.empty -- StarSize
+    , orbits = Logic.Component.empty -- Orbit
+    , waterContent = Logic.Component.empty -- (Percent Water)
+    , planetSize = Logic.Component.empty -- Float
+    , parents = Logic.Component.empty -- EntityID
+    , galaxyPositions = Logic.Component.empty -- (Point3d Meters LightYear)
+    , planets = Set.empty
+    , stars = Set.empty
+    , solarSystems = Set.empty
+    , civilizations = Set.empty
+    }
 
 
 type alias ParticipateModel =
@@ -100,6 +191,21 @@ baseObserveModel =
 ---- UPDATE ----
 
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model of
+        MainMenu _ ->
+            Sub.map MainMenuMessage
+                (Sub.batch
+                    [ Browser.Events.onAnimationFrameDelta Tick
+                    , Browser.Events.onResize (\_ _ -> WindowResized)
+                    ]
+                )
+
+        _ ->
+            Sub.none
+
+
 type Msg
     = MainMenuMessage MainMenuMsg
     | ParticipateMessage ParticipateMsg
@@ -109,6 +215,9 @@ type Msg
 type MainMenuMsg
     = ViewParticipate
     | ViewObserve
+    | Tick Float
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
 
 
 type ParticipateMsg
@@ -150,7 +259,7 @@ update _ msg model =
 
 
 updateMainMenu : MainMenuMsg -> MainMenuModel -> ( Model, SubCmd Msg Effect )
-updateMainMenu msg _ =
+updateMainMenu msg model =
     case msg of
         ViewParticipate ->
             ( Participate baseParticipateModel, SubCmd.none )
@@ -158,12 +267,26 @@ updateMainMenu msg _ =
         ViewObserve ->
             ( Observe baseObserveModel, SubCmd.none )
 
+        Tick deltaMs ->
+            ( MainMenu { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
+
+        WindowResized ->
+            ( MainMenu model, Galaxy3d.getGalaxyViewport (GotGalaxyViewport >> MainMenuMessage) )
+
+        GotGalaxyViewport (Ok { viewport }) ->
+            ( MainMenu { model | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
+            , SubCmd.none
+            )
+
+        GotGalaxyViewport (Err _) ->
+            ( MainMenu model, SubCmd.none )
+
 
 updateParticipate : ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Effect )
 updateParticipate msg model =
     case msg of
         ViewMainFromParticipate ->
-            ( MainMenu {}, SubCmd.none )
+            ( MainMenu baseMainModel, SubCmd.none )
 
         SetNameSingular singular ->
             ( Participate { model | civilizationNameSingular = singular }
@@ -245,7 +368,7 @@ updateObserve : ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
 updateObserve msg model =
     case msg of
         ViewMainFromObserve ->
-            ( MainMenu {}, SubCmd.none )
+            ( MainMenu baseMainModel, SubCmd.none )
 
         OGotMinSolarSystemCount minCount ->
             ( Observe
@@ -339,7 +462,7 @@ view : SharedModel -> Model -> View Msg
 view sharedModel model =
     case model of
         MainMenu m ->
-            viewMain m
+            viewMainMenu sharedModel m
 
         Participate m ->
             viewParticipate sharedModel m
@@ -348,8 +471,8 @@ view sharedModel model =
             viewObserve sharedModel m
 
 
-viewMain : MainMenuModel -> View Msg
-viewMain _ =
+viewMainMenu : SharedModel -> MainMenuModel -> View Msg
+viewMainMenu sharedModel model =
     { title = "Hello Space!"
     , body =
         map MainMenuMessage <|
@@ -357,14 +480,34 @@ viewMain _ =
                 [ padding 16
                 , width fill
                 , height fill
+                , behindContent <|
+                    Galaxy3d.viewSolarSystem
+                        { onPressStar = Nothing
+                        , onPressPlanet = Nothing
+                        , onZoom = Nothing
+                        , onZoomPress = Nothing
+                        , onRotationPress = Nothing
+                        , focusedCivilization = Nothing
+                        , stars = model.stars
+                        , planets = model.planets
+                        }
+                        sharedModel.settings
+                        model
                 ]
                 (column
                     [ centerX
                     , centerY
                     , spacing 64
                     ]
-                    [ text "Space Sim!"
-                        |> el [ centerX, Font.size 64 ]
+                    [ el
+                        [ centerX
+                        , Font.size 64
+                        , Font.color Ui.Theme.nearlyWhite
+                        , Background.color (rgba 0 0 0 0.4)
+                        , padding 4
+                        , Border.rounded 8
+                        ]
+                        (text "Space Sim!")
                     , column
                         [ centerX, spacing 16 ]
                         [ Ui.Button.default

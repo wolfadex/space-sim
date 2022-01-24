@@ -15,7 +15,7 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
-import Galaxy2d exposing (viewSolarSystem)
+import Galaxy2d
 import Galaxy3d
 import Game.Components
     exposing
@@ -45,7 +45,6 @@ import Logic.System exposing (System)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
-import Process
 import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
@@ -59,11 +58,10 @@ import Shared
         ( Effect(..)
         , PlayType(..)
         , Settings
-        , SharedMsg
         , SharedModel
+        , SharedMsg
         )
 import SubCmd exposing (SubCmd)
-import Task
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -154,7 +152,7 @@ init sharedModel playType =
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
     , SubCmd.batch
-        [ getGalaxyViewport
+        [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
         , SubCmd.effect (UpdateSeed finalSeed)
         ]
     )
@@ -221,14 +219,6 @@ type Msg
     | GotLocalSharedMessage SharedMsg
 
 
-getGalaxyViewport : SubCmd Msg Effect
-getGalaxyViewport =
-    Process.sleep 100
-        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
-        |> Task.attempt GotGalaxyViewport
-        |> SubCmd.cmd
-
-
 update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
 update sharedModel msg world =
     case msg of
@@ -236,7 +226,7 @@ update sharedModel msg world =
             ( { world | tickRate = tickRate }, SubCmd.none )
 
         WindowResized ->
-            ( world, getGalaxyViewport )
+            ( world, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
         GotSettingsVisible visible ->
             ( { world | settingsVisible = visible }, SubCmd.none )
@@ -280,7 +270,7 @@ update sharedModel msg world =
             ( { world | civilizationFocus = focus }, SubCmd.none )
 
         GotViewStyle viewStyle ->
-            ( { world | viewStyle = viewStyle }, getGalaxyViewport )
+            ( { world | viewStyle = viewStyle }, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
         Tick deltaMs ->
             let
@@ -1305,11 +1295,11 @@ viewSolarSystemDetailed settings world solarSystemId =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewSolarSystem
-                { onPressStar = FStar >> SetSpaceFocus
-                , onPressPlanet = FPlanet >> SetSpaceFocus
-                , onZoom = GotZoom
-                , onZoomPress = GotZoomChange
-                , onRotationPress = GotRotationChange
+                { onPressStar = Just (FStar >> SetSpaceFocus)
+                , onPressPlanet = Just (FPlanet >> SetSpaceFocus)
+                , onZoom = Just GotZoom
+                , onZoomPress = Just GotZoomChange
+                , onRotationPress = Just GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1324,7 +1314,7 @@ viewSolarSystemDetailed settings world solarSystemId =
                 world
 
         TwoD ->
-            viewSolarSystem
+            Galaxy2d.viewSolarSystem
                 { onPressPlanet = FPlanet >> SetSpaceFocus
                 , onPressStar = FStar >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus
