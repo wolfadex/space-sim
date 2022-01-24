@@ -59,7 +59,7 @@ import Shared
         ( Effect(..)
         , PlayType(..)
         , Settings
-        , SettingsMessage
+        , SharedMsg
         , SharedModel
         )
 import SubCmd exposing (SubCmd)
@@ -218,7 +218,7 @@ type Msg
     | GotZoomChange Float
     | GotRotationChange Float
     | GotSettingsVisible Visible
-    | GotSettingsChange SettingsMessage
+    | GotLocalSharedMessage SharedMsg
 
 
 getGalaxyViewport : SubCmd Msg Effect
@@ -241,9 +241,9 @@ update sharedModel msg world =
         GotSettingsVisible visible ->
             ( { world | settingsVisible = visible }, SubCmd.none )
 
-        GotSettingsChange settingsChange ->
+        GotLocalSharedMessage settingsChange ->
             ( world
-            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            , SubCmd.effect (GotSharedMessage settingsChange)
             )
 
         GotGalaxyViewport (Ok { viewport }) ->
@@ -1102,7 +1102,7 @@ viewPlaying sharedModel world =
                     none
 
                 Visible ->
-                    map GotSettingsChange (Shared.viewSettings sharedModel.settings)
+                    map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
         ]
         [ viewControls world
         , (case world.viewStyle of

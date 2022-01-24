@@ -123,17 +123,13 @@ update msg model =
                     )
                         |> initializeNewGame
 
-                GotSharedSettingsChange change ->
+                GotSharedMessage change ->
                     let
-                        updatedSettings : Settings
-                        updatedSettings =
-                            Shared.updateSettings change model.shared.settings
-
                         shared : SharedModel
                         shared =
-                            model.shared
+                            Shared.update change model.shared
                     in
-                    ( { model | shared = { shared | settings = updatedSettings } }, saveSettings (Shared.encodeSettings updatedSettings) )
+                    ( { model | shared = shared }, saveSettings (Shared.encodeSettings shared.settings) )
 
                 UpdateSeed seed ->
                     let

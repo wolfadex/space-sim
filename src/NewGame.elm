@@ -21,7 +21,7 @@ import Shared
     exposing
         ( Effect(..)
         , PlayType(..)
-        , SettingsMessage
+        , SharedMsg
         , SharedModel
         )
 import SubCmd exposing (SubCmd)
@@ -120,7 +120,7 @@ type ParticipateMsg
     | StartGame
     | SetHomePlanetName String
     | GotSettingsVisible Visible
-    | GotSettingsChange SettingsMessage
+    | GotLocalSharedMessage SharedMsg
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
     | ViewMainFromParticipate
@@ -235,9 +235,9 @@ updateParticipate msg model =
         GotSettingsVisible visible ->
             ( Participate { model | settingsVisible = visible }, SubCmd.none )
 
-        GotSettingsChange settingsChange ->
+        GotLocalSharedMessage settingsChange ->
             ( Participate model
-            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            , SubCmd.effect (GotSharedMessage settingsChange)
             )
 
 
@@ -408,7 +408,7 @@ viewParticipate sharedModel model =
                                     none
 
                                 Visible ->
-                                    map GotSettingsChange (Shared.viewSettings sharedModel.settings)
+                                    map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
                         ]
                         (Ui.Button.default
                             { label = text "⚙"

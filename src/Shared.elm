@@ -4,12 +4,12 @@ module Shared exposing
     , Flags
     , PlayType(..)
     , Settings
-    , SettingsMessage(..)
     , SharedModel
+    , SharedMsg(..)
     , defaultSettings
     , encodeSettings
     , init
-    , updateSettings
+    , update
     , viewSettings
     )
 
@@ -67,10 +67,10 @@ type Effect
     = CreateGame PlayType
     | DeleteGame
     | UpdateSeed Seed
-    | GotSharedSettingsChange SettingsMessage
+    | GotSharedMessage SharedMsg
 
 
-type SettingsMessage
+type SharedMsg
     = GotLightingChange Bool
     | GotPlanetOrbitChange Bool
     | GotShowPlanetOrbitChange Bool
@@ -80,37 +80,46 @@ type SettingsMessage
 ---- SETTINGS ----
 
 
-updateSettings : SettingsMessage -> Settings -> Settings
-updateSettings msg settings =
+update : SharedMsg -> SharedModel -> SharedModel
+update msg ({ settings } as model) =
     case msg of
         GotLightingChange enabledBool ->
-            { settings
-                | realisticLighting =
-                    if enabledBool then
-                        Enabled
+            { model
+                | settings =
+                    { settings
+                        | realisticLighting =
+                            if enabledBool then
+                                Enabled
 
-                    else
-                        Disabled
+                            else
+                                Disabled
+                    }
             }
 
         GotPlanetOrbitChange enabledBool ->
-            { settings
-                | planetsOrbit =
-                    if enabledBool then
-                        Enabled
+            { model
+                | settings =
+                    { settings
+                        | planetsOrbit =
+                            if enabledBool then
+                                Enabled
 
-                    else
-                        Disabled
+                            else
+                                Disabled
+                    }
             }
 
         GotShowPlanetOrbitChange enabledBool ->
-            { settings
-                | showPlanetsOrbit =
-                    if enabledBool then
-                        Enabled
+            { model
+                | settings =
+                    { settings
+                        | showPlanetsOrbit =
+                            if enabledBool then
+                                Enabled
 
-                    else
-                        Disabled
+                            else
+                                Disabled
+                    }
             }
 
 
@@ -211,7 +220,7 @@ decodeEnabled =
         Json.Decode.bool
 
 
-viewSettings : Settings -> Element SettingsMessage
+viewSettings : Settings -> Element SharedMsg
 viewSettings settings =
     el
         [ alignRight
