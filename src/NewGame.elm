@@ -329,8 +329,8 @@ viewPlayerCivForm model =
                 Input.labelAbove []
                     (column []
                         [ text ("Max Solar System Count: " ++ String.fromInt model.maxSolarSystemsToGenerate)
-                        , el [ Font.size 12 ] (text "🛈 The Milky Way has over 3200 solar systems")
-                        , el [ Font.size 12 ] (text "🛈 Higher amounts will require a more powerful computer")
+                        , el [ Font.size 12 ] (text "ℹ️ The Milky Way has over 3200 solar systems")
+                        , el [ Font.size 12 ] (text "ℹ️ Higher amounts will require a more powerful computer")
                         ]
                     )
             , min = 10
