@@ -133,6 +133,8 @@ update _ msg model =
                         (Shared.CreateGame
                             { name = validName
                             , homePlanetName = validHomeName
+                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
                             }
                         )
                     )

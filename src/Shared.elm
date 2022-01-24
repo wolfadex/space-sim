@@ -50,7 +50,7 @@ type alias SharedModel =
 
 
 type Effect
-    = CreateGame { name : CivilizationName, homePlanetName : String }
+    = CreateGame { name : CivilizationName, homePlanetName : String, minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int }
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedSettingsChange SettingsMessage

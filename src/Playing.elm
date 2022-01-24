@@ -66,7 +66,15 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : SharedModel -> { name : CivilizationName, homePlanetName : String } -> ( World, SubCmd Msg Effect )
+init :
+    SharedModel
+    ->
+        { name : CivilizationName
+        , homePlanetName : String
+        , minSolarSystemsToGenerate : Int
+        , maxSolarSystemsToGenerate : Int
+        }
+    -> ( World, SubCmd Msg Effect )
 init sharedModel flags =
     let
         -- Filter out a civilization name if the player's chosen name matches
@@ -79,7 +87,7 @@ init sharedModel flags =
             }
 
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) sharedModel.seed
+            Random.step (generateGalaxy flags worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -851,9 +859,9 @@ happinessSystem =
         )
 
 
-generateGalaxy : World -> Generator World
-generateGalaxy model =
-    generateManyEntities 30 40 model generateSolarSystem
+generateGalaxy : { r | minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int } -> World -> Generator World
+generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
+    generateManyEntities minSolarSystemsToGenerate maxSolarSystemsToGenerate model generateSolarSystem
         |> Random.map Tuple.second
 
 
