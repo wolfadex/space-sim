@@ -21,8 +21,8 @@ import Shared
     exposing
         ( Effect(..)
         , PlayType(..)
-        , SharedMsg
         , SharedModel
+        , SharedMsg
         )
 import SubCmd exposing (SubCmd)
 import Ui.Button
@@ -507,7 +507,13 @@ viewPlayerCivForm model =
             }
         , Ui.Slider.int
             { onChange = GotMinSolarSystemCount
-            , label = Input.labelAbove [] (text ("Min Solar System Count: " ++ String.fromInt model.minSolarSystemsToGenerate))
+            , label =
+                Input.labelAbove []
+                    (paragraph []
+                        [ text "Min Solar System Count: "
+                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                        ]
+                    )
             , min = 10
             , max = 10000
             , value = model.minSolarSystemsToGenerate
@@ -517,10 +523,9 @@ viewPlayerCivForm model =
             { onChange = GotMaxSolarSystemCount
             , label =
                 Input.labelAbove []
-                    (column []
-                        [ text ("Max Solar System Count: " ++ String.fromInt model.maxSolarSystemsToGenerate)
-                        , el [ Font.size 12 ] (text "ℹ️ The Milky Way has over 3200 solar systems")
-                        , el [ Font.size 12 ] (text "ℹ️ Higher amounts will require a more powerful computer")
+                    (paragraph []
+                        [ text "Max Solar System Count: "
+                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
             , min = 10
@@ -531,7 +536,7 @@ viewPlayerCivForm model =
         , model.errors
             |> List.map viewError
             |> wrappedRow [ spacing 8 ]
-        , Ui.Button.primary
+        , Ui.Button.default
             { label = text "Start Game"
             , onPress = Just StartGame
             }
@@ -565,44 +570,35 @@ viewExample model =
             []
             [ text
                 "As the battle rages on between the "
-            , el
-                [ Font.color (rgb 1 0 1)
-                , Element.Extra.id "plural-name-example"
-                ]
-                (text <|
-                    if model.hasUniquePluralName then
-                        model.civilizationNamePlural
+            , displayGameValue "plural-name-example" <|
+                if model.hasUniquePluralName then
+                    model.civilizationNamePlural
 
-                    else
-                        model.civilizationNameSingular
-                )
+                else
+                    model.civilizationNameSingular
             , text " and the Federation, the "
-            , el
-                [ Font.color (rgb 1 0 1)
-                , Element.Extra.id "singular-name-example"
-                ]
-                (text model.civilizationNameSingular)
+            , displayGameValue "singular-name-example" model.civilizationNameSingular
             , text " people begin to question the morality of continuing the war. But the "
-            , el
-                [ Font.color (rgb 1 0 1)
-                , Element.Extra.id "possessive-name-example"
-                ]
-                (text <|
-                    if model.hasUniquePossessiveName then
-                        model.civilizationNamePossessive
+            , displayGameValue "possessive-name-example" <|
+                if model.hasUniquePossessiveName then
+                    model.civilizationNamePossessive
 
-                    else
-                        model.civilizationNameSingular
-                )
+                else
+                    model.civilizationNameSingular
             , text " home planet, "
-            , el
-                [ Font.color (rgb 1 0 1)
-                , Element.Extra.id "home-planet-name-example"
-                ]
-                (text model.homePlanetName)
+            , displayGameValue "home-planet-name-example" model.homePlanetName
             , text ", hangs in the balance."
             ]
         ]
+
+
+displayGameValue : String -> String -> Element msg
+displayGameValue id value =
+    el
+        [ Font.color (rgb 1 0 1)
+        , Element.Extra.id id
+        ]
+        (text value)
 
 
 viewObserve : SharedModel -> ObserveModel -> View Msg
@@ -653,7 +649,13 @@ viewObserveForm model =
         ]
         [ Ui.Slider.int
             { onChange = OGotMinSolarSystemCount
-            , label = Input.labelAbove [] (text ("Min Solar System Count: " ++ String.fromInt model.minSolarSystemsToGenerate))
+            , label =
+                Input.labelAbove []
+                    (paragraph []
+                        [ text "Min Solar System Count: "
+                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                        ]
+                    )
             , min = 10
             , max = 10000
             , value = model.minSolarSystemsToGenerate
@@ -663,10 +665,9 @@ viewObserveForm model =
             { onChange = OGotMaxSolarSystemCount
             , label =
                 Input.labelAbove []
-                    (column []
-                        [ text ("Max Solar System Count: " ++ String.fromInt model.maxSolarSystemsToGenerate)
-                        , el [ Font.size 12 ] (text "ℹ️ The Milky Way has over 3200 solar systems")
-                        , el [ Font.size 12 ] (text "ℹ️ Higher amounts will require a more powerful computer")
+                    (paragraph []
+                        [ text "Max Solar System Count: "
+                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
             , min = 10
@@ -678,7 +679,7 @@ viewObserveForm model =
         -- , model.errors
         --     |> List.map viewError
         --     |> wrappedRow [ spacing 8 ]
-        , Ui.Button.primary
+        , Ui.Button.default
             { label = text "Begin Simulation"
             , onPress = Just BeginSimulation
             }
