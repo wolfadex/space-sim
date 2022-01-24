@@ -286,7 +286,7 @@ updateParticipate : ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Ef
 updateParticipate msg model =
     case msg of
         ViewMainFromParticipate ->
-            ( MainMenu baseMainModel, SubCmd.none )
+            init
 
         SetNameSingular singular ->
             ( Participate { model | civilizationNameSingular = singular }
@@ -368,7 +368,7 @@ updateObserve : ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
 updateObserve msg model =
     case msg of
         ViewMainFromObserve ->
-            ( MainMenu baseMainModel, SubCmd.none )
+            init
 
         OGotMinSolarSystemCount minCount ->
             ( Observe
