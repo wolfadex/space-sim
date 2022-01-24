@@ -54,7 +54,14 @@ import Rate exposing (Rate)
 import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (Effect(..), Settings, SettingsMessage, SharedModel)
+import Shared
+    exposing
+        ( Effect(..)
+        , PlayType(..)
+        , Settings
+        , SettingsMessage
+        , SharedModel
+        )
 import SubCmd exposing (SubCmd)
 import Task
 import Ui.Button
@@ -66,28 +73,37 @@ import View exposing (View)
 ---- INIT ----
 
 
-init :
-    SharedModel
-    ->
-        { name : CivilizationName
-        , homePlanetName : String
-        , minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
-    -> ( World, SubCmd Msg Effect )
-init sharedModel flags =
+init : SharedModel -> PlayType -> ( World, SubCmd Msg Effect )
+init sharedModel playType =
     let
-        -- Filter out a civilization name if the player's chosen name matches
-        worldWithPlayerDataFilteredOut : World
-        worldWithPlayerDataFilteredOut =
-            { emptyWorld
-                | availableCivilizationNames =
-                    List.filter (\name -> String.toLower name.singular /= String.toLower flags.name.singular)
-                        emptyWorld.availableCivilizationNames
-            }
-
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy flags worldWithPlayerDataFilteredOut) sharedModel.seed
+            let
+                generationArguments : { minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int }
+                generationArguments =
+                    case playType of
+                        Participation r ->
+                            { minSolarSystemsToGenerate = r.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = r.maxSolarSystemsToGenerate
+                            }
+
+                        Observation r ->
+                            r
+
+                -- Filter out a civilization name if the player's chosen name matches
+                worldWithPlayerDataFilteredOut : World
+                worldWithPlayerDataFilteredOut =
+                    case playType of
+                        Participation r ->
+                            { emptyWorld
+                                | availableCivilizationNames =
+                                    List.filter (\name -> String.toLower name.singular /= String.toLower r.name.singular)
+                                        emptyWorld.availableCivilizationNames
+                            }
+
+                        Observation _ ->
+                            emptyWorld
+            in
+            Random.step (generateGalaxy generationArguments worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -117,16 +133,21 @@ init sharedModel flags =
                     )
 
         ( playerCiv, worldWithPlayerCiv ) =
-            Logic.Entity.Extra.create generatedWorld
-                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
-                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
-                |> Logic.Entity.with
-                    ( Game.Components.civilizationHappinessSpec
-                    , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
-                    )
-                |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+            case playType of
+                Participation r ->
+                    Logic.Entity.Extra.create generatedWorld
+                        |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, r.name )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationHappinessSpec
+                            , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                            )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+
+                Observation _ ->
+                    ( -1, generatedWorld )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
