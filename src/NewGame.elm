@@ -533,17 +533,18 @@ view sharedModel model =
                             )
                 )
             ]
-            (el
-                [ Font.color Ui.Theme.nearlyWhite
-                , Background.color (rgba 0 0 0 0.4)
-                , padding 4
-                , Border.rounded 8
-                , width fill
-                , height fill
-                ]
-                options.body
-            )
+            options.body
     }
+
+
+contrastingBackground : Element msg -> Element msg
+contrastingBackground =
+    el
+        [ Font.color Ui.Theme.nearlyWhite
+        , Background.color (rgba 0 0 0 0.4)
+        , padding 8
+        , Border.rounded 8
+        ]
 
 
 viewMainMenu : View Msg
@@ -561,7 +562,7 @@ viewMainMenu =
                     , centerY
                     , spacing 64
                     ]
-                    [ el [ centerX, Font.size 64 ] (text "Space Sim!")
+                    [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
                     , column
                         [ centerX, spacing 16 ]
                         [ Ui.Button.default
@@ -596,6 +597,7 @@ viewParticipate model =
                 , spacing 64
                 ]
                 [ text "Participate in the Simulation"
+                    |> contrastingBackground
                     |> el [ centerX, Font.size 64, Font.underline ]
                 , wrappedRow
                     [ centerX
@@ -621,29 +623,30 @@ viewPlayerCivForm model =
             []
             { onChange = SetNameSingular
             , text = model.civilizationNameSingular
-            , label = Input.labelLeft [ width fill ] (text "Civilization Name Singular:")
+            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Singular:"))
             }
         , Ui.Text.default
             []
             { onChange = SetNamePlural
             , text = model.civilizationNamePlural
-            , label = Input.labelLeft [ width fill ] (text "Civilization Name Plural:")
+            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Plural:"))
             }
         , Ui.Button.default
             { label =
-                text <|
-                    if model.hasUniquePluralName then
+                text
+                    (if model.hasUniquePluralName then
                         "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
 
-                    else
+                     else
                         "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
+                    )
             , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
             }
         , Ui.Text.default
             []
             { onChange = SetNamePossessive
             , text = model.civilizationNamePossessive
-            , label = Input.labelLeft [ width fill ] (text "Civilization Name Possessive:")
+            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Possessive:"))
             }
         , Ui.Button.default
             { label =
@@ -659,14 +662,14 @@ viewPlayerCivForm model =
             []
             { onChange = SetHomePlanetName
             , text = model.homePlanetName
-            , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
+            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Home Planet Name:"))
             }
         , Ui.Slider.int
             { onChange = GotMinSolarSystemCount
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ text "Min Solar System Count: "
+                        [ contrastingBackground (text "Min Solar System Count: ")
                         , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
                         ]
                     )
@@ -680,7 +683,7 @@ viewPlayerCivForm model =
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ text "Max Solar System Count: "
+                        [ contrastingBackground (text "Max Solar System Count: ")
                         , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
@@ -715,7 +718,6 @@ viewExample : ParticipateModel -> Element ParticipateMsg
 viewExample model =
     column
         [ spacing 8
-        , alignTop
         , fill
             |> minimum 400
             |> maximum 600
@@ -746,6 +748,8 @@ viewExample model =
             , text ", hangs in the balance."
             ]
         ]
+        |> contrastingBackground
+        |> el [ alignTop ]
 
 
 displayGameValue : String -> String -> Element msg
@@ -774,6 +778,7 @@ viewObserve model =
                     ]
                     [ text "Observe the Simulation"
                         |> el [ centerX, Font.size 64, Font.underline ]
+                        |> contrastingBackground
                     , wrappedRow
                         [ centerX
                         , centerY
@@ -799,7 +804,7 @@ viewObserveForm model =
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ text "Min Solar System Count: "
+                        [ contrastingBackground (text "Min Solar System Count: ")
                         , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
                         ]
                     )
@@ -813,7 +818,7 @@ viewObserveForm model =
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ text "Max Solar System Count: "
+                        [ contrastingBackground (text "Max Solar System Count: ")
                         , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
