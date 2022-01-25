@@ -6,7 +6,7 @@ import Game.Components
 import Json.Encode exposing (Value)
 import NewGame
 import Playing
-import Shared exposing (Effect(..), Flags, Settings, SharedModel)
+import Shared exposing (Effect(..), Flags, SharedModel)
 import SubModule
 import View exposing (View)
 
@@ -53,8 +53,8 @@ init flags =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model.page of
-        NewGame _ ->
-            Sub.none
+        NewGame m ->
+            Sub.map GotNewGameMessage (NewGame.subscriptions m)
 
         Playing world ->
             Sub.map GotPlayingMessage (Playing.subscriptions world)
@@ -123,17 +123,13 @@ update msg model =
                     )
                         |> initializeNewGame
 
-                GotSharedSettingsChange change ->
+                GotSharedMessage change ->
                     let
-                        updatedSettings : Settings
-                        updatedSettings =
-                            Shared.updateSettings change model.shared.settings
-
                         shared : SharedModel
                         shared =
-                            model.shared
+                            Shared.update change model.shared
                     in
-                    ( { model | shared = { shared | settings = updatedSettings } }, saveSettings (Shared.encodeSettings updatedSettings) )
+                    ( { model | shared = shared }, saveSettings (Shared.encodeSettings shared.settings) )
 
                 UpdateSeed seed ->
                     let

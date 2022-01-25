@@ -15,7 +15,7 @@ import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
-import Galaxy2d exposing (viewSolarSystem)
+import Galaxy2d
 import Galaxy3d
 import Game.Components
     exposing
@@ -45,7 +45,6 @@ import Logic.System exposing (System)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
-import Process
 import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
@@ -54,9 +53,15 @@ import Rate exposing (Rate)
 import Round
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (Effect(..), Settings, SettingsMessage, SharedModel)
+import Shared
+    exposing
+        ( Effect(..)
+        , PlayType(..)
+        , Settings
+        , SharedModel
+        , SharedMsg
+        )
 import SubCmd exposing (SubCmd)
-import Task
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -66,20 +71,37 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : SharedModel -> { name : CivilizationName, homePlanetName : String } -> ( World, SubCmd Msg Effect )
-init sharedModel flags =
+init : SharedModel -> PlayType -> ( World, SubCmd Msg Effect )
+init sharedModel playType =
     let
-        -- Filter out a civilization name if the player's chosen name matches
-        worldWithPlayerDataFilteredOut : World
-        worldWithPlayerDataFilteredOut =
-            { emptyWorld
-                | availableCivilizationNames =
-                    List.filter (\name -> String.toLower name.singular /= String.toLower flags.name.singular)
-                        emptyWorld.availableCivilizationNames
-            }
-
         ( generatedWorld, seed ) =
-            Random.step (generateGalaxy worldWithPlayerDataFilteredOut) sharedModel.seed
+            let
+                generationArguments : { minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int }
+                generationArguments =
+                    case playType of
+                        Participation r ->
+                            { minSolarSystemsToGenerate = r.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = r.maxSolarSystemsToGenerate
+                            }
+
+                        Observation r ->
+                            r
+
+                -- Filter out a civilization name if the player's chosen name matches
+                worldWithPlayerDataFilteredOut : World
+                worldWithPlayerDataFilteredOut =
+                    case playType of
+                        Participation r ->
+                            { emptyWorld
+                                | availableCivilizationNames =
+                                    List.filter (\name -> String.toLower name.singular /= String.toLower r.name.singular)
+                                        emptyWorld.availableCivilizationNames
+                            }
+
+                        Observation _ ->
+                            emptyWorld
+            in
+            Random.step (generateGalaxy generationArguments worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -109,23 +131,28 @@ init sharedModel flags =
                     )
 
         ( playerCiv, worldWithPlayerCiv ) =
-            Logic.Entity.Extra.create generatedWorld
-                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                |> Logic.Entity.with ( Game.Components.namedSpec, flags.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
-                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
-                |> Logic.Entity.with
-                    ( Game.Components.civilizationHappinessSpec
-                    , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
-                    )
-                |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+            case playType of
+                Participation r ->
+                    Logic.Entity.Extra.create generatedWorld
+                        |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, r.name )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationHappinessSpec
+                            , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                            )
+                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+
+                Observation _ ->
+                    ( -1, generatedWorld )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
       }
     , SubCmd.batch
-        [ getGalaxyViewport
+        [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
         , SubCmd.effect (UpdateSeed finalSeed)
         ]
     )
@@ -189,15 +216,7 @@ type Msg
     | GotZoomChange Float
     | GotRotationChange Float
     | GotSettingsVisible Visible
-    | GotSettingsChange SettingsMessage
-
-
-getGalaxyViewport : SubCmd Msg Effect
-getGalaxyViewport =
-    Process.sleep 100
-        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
-        |> Task.attempt GotGalaxyViewport
-        |> SubCmd.cmd
+    | GotLocalSharedMessage SharedMsg
 
 
 update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
@@ -207,14 +226,14 @@ update sharedModel msg world =
             ( { world | tickRate = tickRate }, SubCmd.none )
 
         WindowResized ->
-            ( world, getGalaxyViewport )
+            ( world, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
         GotSettingsVisible visible ->
             ( { world | settingsVisible = visible }, SubCmd.none )
 
-        GotSettingsChange settingsChange ->
+        GotLocalSharedMessage settingsChange ->
             ( world
-            , SubCmd.effect (GotSharedSettingsChange settingsChange)
+            , SubCmd.effect (GotSharedMessage settingsChange)
             )
 
         GotGalaxyViewport (Ok { viewport }) ->
@@ -251,7 +270,7 @@ update sharedModel msg world =
             ( { world | civilizationFocus = focus }, SubCmd.none )
 
         GotViewStyle viewStyle ->
-            ( { world | viewStyle = viewStyle }, getGalaxyViewport )
+            ( { world | viewStyle = viewStyle }, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
         Tick deltaMs ->
             let
@@ -851,9 +870,9 @@ happinessSystem =
         )
 
 
-generateGalaxy : World -> Generator World
-generateGalaxy model =
-    generateManyEntities 30 40 model generateSolarSystem
+generateGalaxy : { r | minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int } -> World -> Generator World
+generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
+    generateManyEntities minSolarSystemsToGenerate maxSolarSystemsToGenerate model generateSolarSystem
         |> Random.map Tuple.second
 
 
@@ -1073,7 +1092,7 @@ viewPlaying sharedModel world =
                     none
 
                 Visible ->
-                    map GotSettingsChange (Shared.viewSettings sharedModel.settings)
+                    map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
         ]
         [ viewControls world
         , (case world.viewStyle of
@@ -1276,11 +1295,11 @@ viewSolarSystemDetailed settings world solarSystemId =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewSolarSystem
-                { onPressStar = FStar >> SetSpaceFocus
-                , onPressPlanet = FPlanet >> SetSpaceFocus
-                , onZoom = GotZoom
-                , onZoomPress = GotZoomChange
-                , onRotationPress = GotRotationChange
+                { onPressStar = Just (FStar >> SetSpaceFocus)
+                , onPressPlanet = Just (FPlanet >> SetSpaceFocus)
+                , onZoom = Just GotZoom
+                , onZoomPress = Just GotZoomChange
+                , onRotationPress = Just GotRotationChange
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1295,7 +1314,7 @@ viewSolarSystemDetailed settings world solarSystemId =
                 world
 
         TwoD ->
-            viewSolarSystem
+            Galaxy2d.viewSolarSystem
                 { onPressPlanet = FPlanet >> SetSpaceFocus
                 , onPressStar = FStar >> SetSpaceFocus
                 , onPressCivilization = FOne >> SetCivilizationFocus

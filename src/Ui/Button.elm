@@ -62,6 +62,10 @@ default =
         , Background.color Ui.Theme.darkGray
         , Font.color Ui.Theme.nearlyWhite
         , Border.color Ui.Theme.darkGray
+        , focused
+            [ Font.color Ui.Theme.green
+            , Border.color Ui.Theme.green
+            ]
         ]
 
 

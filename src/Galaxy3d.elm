@@ -1,16 +1,19 @@
 module Galaxy3d exposing
-    ( viewGalaxy
+    ( MinRenderableWorld
+    , getGalaxyViewport
+    , viewGalaxy
     , viewSolarSystem
     )
 
 import Angle
 import Axis2d
 import Axis3d
+import Browser.Dom exposing (Viewport)
 import Camera3d
 import Circle2d
 import Color
 import Cylinder3d
-import Dict
+import Dict exposing (Dict)
 import Direction2d
 import Direction3d
 import Element exposing (..)
@@ -21,8 +24,9 @@ import Game.Components
         ( AstronomicalUnit
         , CelestialBodyForm(..)
         , LightYear
+        , Orbit
         , StarSize(..)
-        , World
+        , Water
         )
 import Geometry.Svg
 import Html exposing (Html)
@@ -35,12 +39,14 @@ import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Luminance
 import LuminousFlux
-import Percent
+import Percent exposing (Percent)
 import Pixels
 import Point2d
 import Point3d exposing (Point3d)
 import Point3d.Projection
 import Polyline3d
+import Population exposing (Population)
+import Process
 import Quantity
 import Rectangle2d
 import Scene3d
@@ -54,11 +60,34 @@ import Shared
         , Settings
         )
 import Sphere3d
+import SubCmd exposing (SubCmd)
 import Svg
 import Svg.Attributes
 import Svg.Events
+import Task
 import Ui.Button
 import Viewpoint3d
+
+
+type alias MinRenderableWorld r =
+    { r
+        | elapsedTime : Float
+        , galaxyViewSize : { width : Float, height : Float }
+        , zoom : Float
+        , viewRotation : Float
+        , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
+        , planetTypes : Logic.Component.Set CelestialBodyForm
+        , starForms : Logic.Component.Set StarSize
+        , orbits : Logic.Component.Set Orbit
+        , waterContent : Logic.Component.Set (Percent Water)
+        , planetSize : Logic.Component.Set Float
+        , parents : Logic.Component.Set EntityID
+        , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+        , planets : Set EntityID
+        , stars : Set EntityID
+        , solarSystems : Set EntityID
+        , civilizations : Set EntityID
+    }
 
 
 viewGalaxy :
@@ -68,7 +97,7 @@ viewGalaxy :
     , onRotationPress : Float -> msg
     , focusedCivilization : Maybe EntityID
     }
-    -> World
+    -> MinRenderableWorld r
     -> Element msg
 viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCivilization } world =
     let
@@ -251,33 +280,33 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
                     )
                 }
     in
-    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress, onRotationPress = onRotationPress } galaxyLabels galaxyScene
+    viewSpace { onZoom = Just onZoom, onZoomPress = Just onZoomPress, onRotationPress = Just onRotationPress } galaxyLabels galaxyScene
 
 
 viewSolarSystem :
-    { onPressStar : EntityID -> msg
-    , onPressPlanet : EntityID -> msg
-    , onZoom : Value -> msg
-    , onZoomPress : Float -> msg
-    , onRotationPress : Float -> msg
+    { onPressStar : Maybe (EntityID -> msg)
+    , onPressPlanet : Maybe (EntityID -> msg)
+    , onZoom : Maybe (Value -> msg)
+    , onZoomPress : Maybe (Float -> msg)
+    , onRotationPress : Maybe (Float -> msg)
     , focusedCivilization : Maybe EntityID
     , stars : Set EntityID
     , planets : Set EntityID
     }
     -> Settings
-    -> World
+    -> MinRenderableWorld r
     -> Element msg
-viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPress, focusedCivilization, stars, planets } settings world =
+viewSolarSystem options settings world =
     let
         planetDetails : List PlanetRenderDetails
         planetDetails =
             List.filterMap (getPlanetDetails settings world)
-                (Set.toList planets)
+                (Set.toList options.planets)
 
         starDetails : List StarRenderDetails
         starDetails =
             List.filterMap (getStarDetails world)
-                (Set.toList stars)
+                (Set.toList options.stars)
 
         planetEntities : List (Scene3d.Entity ScaledViewPoint)
         planetEntities =
@@ -350,7 +379,7 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
                                         Logic.Component.get civId world.civilizationPopulations
                                             |> Maybe.map
                                                 (\dictPlanetPopulatiopns ->
-                                                    Dict.member planetId dictPlanetPopulatiopns && Just civId == focusedCivilization
+                                                    Dict.member planetId dictPlanetPopulatiopns && Just civId == options.focusedCivilization
                                                 )
                                             |> Maybe.withDefault False
                                     )
@@ -359,6 +388,9 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
                         [ Svg.Attributes.class <|
                             if highlightPlanet then
                                 "galactic-label-focus-civ"
+
+                            else if options.onPressPlanet == Nothing then
+                                "galactic-label-no-show"
 
                             else
                                 "galactic-label"
@@ -375,7 +407,12 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
                                     "rgb(255, 255, 0)"
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
-                            , Svg.Events.onClick (onPressPlanet planetId)
+                            , case options.onPressPlanet of
+                                Nothing ->
+                                    Svg.Attributes.style ""
+
+                                Just onPressPlanet ->
+                                    Svg.Events.onClick (onPressPlanet planetId)
 
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
@@ -440,7 +477,12 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
                             [ Svg.Attributes.stroke "rgb(255, 255, 0)"
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
-                            , Svg.Events.onClick (onPressStar starId)
+                            , case options.onPressStar of
+                                Nothing ->
+                                    Svg.Attributes.style ""
+
+                                Just onPressStar ->
+                                    Svg.Events.onClick (onPressStar starId)
 
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
@@ -555,18 +597,19 @@ viewSolarSystem { onPressStar, onPressPlanet, onZoom, onZoomPress, onRotationPre
                         , antialiasing = Scene3d.noAntialiasing
                         }
     in
-    viewSpace { onZoom = onZoom, onZoomPress = onZoomPress, onRotationPress = onRotationPress } solarSystemLabels solarSystemScene
+    viewSpace options solarSystemLabels solarSystemScene
 
 
 viewSpace :
-    { onZoom : Value -> msg
-    , onZoomPress : Float -> msg
-    , onRotationPress : Float -> msg
+    { r
+        | onZoom : Maybe (Value -> msg)
+        , onZoomPress : Maybe (Float -> msg)
+        , onRotationPress : Maybe (Float -> msg)
     }
     -> Html msg
     -> Html msg
     -> Element msg
-viewSpace { onZoom, onZoomPress, onRotationPress } labels scene =
+viewSpace options labels scene =
     el
         [ spaceCss
         , inFront (html labels)
@@ -574,34 +617,59 @@ viewSpace { onZoom, onZoomPress, onRotationPress } labels scene =
         , height fill
         , Element.Extra.id "galaxy-view"
         , htmlAttribute
-            (Html.Events.preventDefaultOn "wheel"
-                (Json.Decode.map (\v -> ( onZoom v, True ))
-                    Json.Decode.value
-                )
+            (case options.onZoom of
+                Nothing ->
+                    Html.Attributes.style "" ""
+
+                Just onZoom ->
+                    Html.Events.preventDefaultOn "wheel"
+                        (Json.Decode.map (\v -> ( onZoom v, True ))
+                            Json.Decode.value
+                        )
             )
         , inFront
             (row
                 [ alignRight, alignBottom, padding 16, spacing 8 ]
                 [ row
                     [ alignBottom, spacing 8 ]
-                    [ Ui.Button.default
-                        { onPress = Just (onRotationPress -5)
-                        , label = text "<-"
-                        }
-                    , Ui.Button.default
-                        { onPress = Just (onRotationPress 5)
-                        , label = text "->"
-                        }
+                    [ case options.onRotationPress of
+                        Nothing ->
+                            none
+
+                        Just onRotationPress ->
+                            Ui.Button.default
+                                { onPress = Just (onRotationPress -5)
+                                , label = text "<-"
+                                }
+                    , case options.onRotationPress of
+                        Nothing ->
+                            none
+
+                        Just onRotationPress ->
+                            Ui.Button.default
+                                { onPress = Just (onRotationPress 5)
+                                , label = text "->"
+                                }
                     ]
                 , column [ spacing 8 ]
-                    [ Ui.Button.default
-                        { onPress = Just (onZoomPress -10.0)
-                        , label = text "+"
-                        }
-                    , Ui.Button.default
-                        { onPress = Just (onZoomPress 10.0)
-                        , label = text "-"
-                        }
+                    [ case options.onZoomPress of
+                        Nothing ->
+                            none
+
+                        Just onZoomPress ->
+                            Ui.Button.default
+                                { onPress = Just (onZoomPress -10.0)
+                                , label = text "+"
+                                }
+                    , case options.onZoomPress of
+                        Nothing ->
+                            none
+
+                        Just onZoomPress ->
+                            Ui.Button.default
+                                { onPress = Just (onZoomPress 10.0)
+                                , label = text "-"
+                                }
                     ]
                 ]
             )
@@ -649,6 +717,10 @@ visibility: visible;
 opacity: 1;
 pointer-events: none;
 }
+
+.galactic-label-no-show {
+    display: none;
+}
 """ ]))
 
 
@@ -663,7 +735,7 @@ renderSolarSystem position =
         (Sphere3d.atPoint (scalePointInLightYearsToOne position) (Length.lightYears 300))
 
 
-solarSystemPoint : World -> EntityID -> Maybe ( EntityID, Point3d Meters LightYear )
+solarSystemPoint : MinRenderableWorld r -> EntityID -> Maybe ( EntityID, Point3d Meters LightYear )
 solarSystemPoint world solarSystemId =
     Maybe.map (Tuple.pair solarSystemId)
         (Logic.Component.get solarSystemId world.galaxyPositions)
@@ -753,7 +825,7 @@ type alias PlanetRenderDetails =
     }
 
 
-getPlanetDetails : Settings -> World -> EntityID -> Maybe PlanetRenderDetails
+getPlanetDetails : Settings -> MinRenderableWorld r -> EntityID -> Maybe PlanetRenderDetails
 getPlanetDetails settings world planetId =
     Maybe.map3
         (\orbit planetType_ waterPercent ->
@@ -827,7 +899,7 @@ type alias StarRenderDetails =
     }
 
 
-getStarDetails : World -> EntityID -> Maybe StarRenderDetails
+getStarDetails : MinRenderableWorld r -> EntityID -> Maybe StarRenderDetails
 getStarDetails world starId =
     Maybe.map
         (\size ->
@@ -874,3 +946,11 @@ getStarDetails world starId =
             }
         )
         (Logic.Component.get starId world.starForms)
+
+
+getGalaxyViewport : (Result Browser.Dom.Error Viewport -> msg) -> SubCmd msg effect
+getGalaxyViewport gotViewport =
+    Process.sleep 100
+        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
+        |> Task.attempt gotViewport
+        |> SubCmd.cmd

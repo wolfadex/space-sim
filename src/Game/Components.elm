@@ -99,7 +99,7 @@ emptyWorld =
     , civilizationFocus = FAll
     , tickRate = Normal
     , viewStyle = ThreeD
-    , elapsedTime = 0
+    , elapsedTime = 982374
     , remainingTimeForSystemUpdate = 0
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = 0
