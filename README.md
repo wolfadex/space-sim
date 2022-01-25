@@ -6,7 +6,7 @@
 
 A space game inspired by Dwarf Fortress.
 
-<img src="./Screenshot 2022-01-24.png" />
+<img src="./Screenshot 2022-01-25.png" />
 
 ## Features
 
