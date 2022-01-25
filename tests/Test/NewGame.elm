@@ -127,5 +127,45 @@ suite =
                                 >> Query.has
                                     [ Html.text planetName ]
                             )
+            , Test.fuzz2 Fuzz.int Fuzz.int "test solar system count" <|
+                \_ _ ->
+                    ProgramTest.createDocument
+                        { init = \_ -> NewGame.init
+                        , update = NewGame.update testSharedModel
+                        , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
+                        }
+                        |> ProgramTest.start (Random.initialSeed 0)
+                        |> ProgramTest.clickButton "Observe"
+                        |> ProgramTest.ensureView
+                            (Query.find [ Html.id "min-solar-system-count" ]
+                                >> Query.has
+                                    [ Html.text "100" ]
+                            )
+                        |> ProgramTest.expectView
+                            (Query.find [ Html.id "max-solar-system-count" ]
+                                >> Query.has
+                                    [ Html.text "300" ]
+                            )
+            ]
+        , Test.describe "Observation view"
+            [ Test.fuzz2 Fuzz.int Fuzz.int "test  solar system count" <|
+                \_ _ ->
+                    ProgramTest.createDocument
+                        { init = \_ -> NewGame.init
+                        , update = NewGame.update testSharedModel
+                        , view = View.viewToTestDocument (Element.layout []) (NewGame.view testSharedModel)
+                        }
+                        |> ProgramTest.start (Random.initialSeed 0)
+                        |> ProgramTest.clickButton "Observe"
+                        |> ProgramTest.ensureView
+                            (Query.find [ Html.id "min-solar-system-count" ]
+                                >> Query.has
+                                    [ Html.text "100" ]
+                            )
+                        |> ProgramTest.expectView
+                            (Query.find [ Html.id "max-solar-system-count" ]
+                                >> Query.has
+                                    [ Html.text "300" ]
+                            )
             ]
         ]
