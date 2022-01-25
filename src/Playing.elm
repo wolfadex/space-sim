@@ -285,13 +285,13 @@ update sharedModel msg world =
         GotZoom zoomValue ->
             case Json.Decode.decodeValue decodeZoomEvent zoomValue of
                 Ok delta ->
-                    ( { world | zoom = world.zoom + delta * zoomMultiplier world.spaceFocus }, SubCmd.none )
+                    setZoom world (delta * zoomMultiplier world.spaceFocus)
 
                 Err _ ->
                     ( world, SubCmd.none )
 
         GotZoomChange change ->
-            ( { world | zoom = world.zoom + change * zoomMultiplier world.spaceFocus }, SubCmd.none )
+            setZoom world (change * zoomMultiplier world.spaceFocus)
 
         GotRotationChange change ->
             ( { world | viewRotation = toFloat (remainderBy 360 (floor (world.viewRotation + change))) }, SubCmd.none )
@@ -474,6 +474,11 @@ update sharedModel msg world =
                 ( updatedWorld
                 , SubCmd.none
                 )
+
+
+setZoom : World -> Float -> ( World, SubCmd Msg Effect )
+setZoom world delta =
+    ( { world | zoom = max 5000000 (world.zoom + delta) }, SubCmd.none )
 
 
 decodeZoomEvent : Json.Decode.Decoder Float
