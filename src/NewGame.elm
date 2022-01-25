@@ -1,10 +1,10 @@
 module NewGame exposing
-    ( MainMenuModel
-    , Model(..)
+    ( InnerPage(..)
+    , Model
     , Msg
     , ObserveModel
     , ParticipateModel
-    , baseMainModel
+    , baseModel
     , init
     , subscriptions
     , update
@@ -54,7 +54,7 @@ init : ( Model, SubCmd Msg Effect )
 init =
     let
         ( _, m0 ) =
-            Logic.Entity.create 0 baseMainModel
+            Logic.Entity.create 0 baseModel
                 |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million )
                 |> Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 })
 
@@ -93,19 +93,15 @@ init =
                 |> Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
                 |> Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 })
     in
-    ( MainMenu { m5 | planets = Set.fromList [ 2, 3, 4 ] }
-    , Galaxy3d.getGalaxyViewport (GotGalaxyViewport >> MainMenuMessage)
+    ( { m5 | planets = Set.fromList [ 2, 3, 4 ] }
+    , Galaxy3d.getGalaxyViewport GotGalaxyViewport
     )
 
 
-type Model
-    = MainMenu MainMenuModel
-    | Participate ParticipateModel
-    | Observe ObserveModel
-
-
-type alias MainMenuModel =
-    { elapsedTime : Float
+type alias Model =
+    { page : InnerPage
+    , settingsVisible : Visible
+    , elapsedTime : Float
     , galaxyViewSize : { width : Float, height : Float }
     , zoom : Float
     , viewRotation : Float
@@ -124,11 +120,19 @@ type alias MainMenuModel =
     }
 
 
-baseMainModel : MainMenuModel
-baseMainModel =
-    { elapsedTime = 1234345
+type InnerPage
+    = MainMenu
+    | Participate ParticipateModel
+    | Observe ObserveModel
+
+
+baseModel : Model
+baseModel =
+    { page = MainMenu
+    , settingsVisible = Hidden
+    , elapsedTime = 1234345
     , galaxyViewSize = { width = 800, height = 600 }
-    , zoom = 1
+    , zoom = -40
     , viewRotation = 0
     , civilizationPopulations = Logic.Component.empty -- (Dict EntityID Population)
     , planetTypes = Logic.Component.empty -- CelestialBodyForm
@@ -146,8 +150,7 @@ baseMainModel =
 
 
 type alias ParticipateModel =
-    { settingsVisible : Visible
-    , civilizationNameSingular : String
+    { civilizationNameSingular : String
     , civilizationNamePlural : String
     , hasUniquePluralName : Bool
     , civilizationNamePossessive : String
@@ -161,8 +164,7 @@ type alias ParticipateModel =
 
 baseParticipateModel : ParticipateModel
 baseParticipateModel =
-    { settingsVisible = Hidden
-    , civilizationNameSingular = ""
+    { civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
@@ -192,32 +194,28 @@ baseObserveModel =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model of
-        MainMenu _ ->
-            Sub.map MainMenuMessage
-                (Sub.batch
-                    [ Browser.Events.onAnimationFrameDelta Tick
-                    , Browser.Events.onResize (\_ _ -> WindowResized)
-                    ]
-                )
-
-        _ ->
-            Sub.none
+subscriptions _ =
+    Sub.batch
+        [ Browser.Events.onAnimationFrameDelta Tick
+        , Browser.Events.onResize (\_ _ -> WindowResized)
+        ]
 
 
 type Msg
     = MainMenuMessage MainMenuMsg
     | ParticipateMessage ParticipateMsg
     | ObserveMessage ObserveMsg
+    | Tick Float
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+    | GotSettingsVisible Visible
+    | GotLocalSharedMessage SharedMsg
+    | ViewMain
 
 
 type MainMenuMsg
     = ViewParticipate
     | ViewObserve
-    | Tick Float
-    | WindowResized
-    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
 
 
 type ParticipateMsg
@@ -228,118 +226,126 @@ type ParticipateMsg
     | ToggleNamePossessive Bool
     | StartGame
     | SetHomePlanetName String
-    | GotSettingsVisible Visible
-    | GotLocalSharedMessage SharedMsg
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
-    | ViewMainFromParticipate
 
 
 type ObserveMsg
     = OGotMinSolarSystemCount Int
     | OGotMaxSolarSystemCount Int
     | BeginSimulation
-    | ViewMainFromObserve
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
 update _ msg model =
-    case ( msg, model ) of
-        ( MainMenuMessage message, MainMenu mod ) ->
-            updateMainMenu message mod
+    case ( msg, model.page ) of
+        ( MainMenuMessage message, MainMenu ) ->
+            updateMainMenu model message
 
         ( ParticipateMessage message, Participate mod ) ->
-            updateParticipate message mod
+            updateParticipate model message mod
 
         ( ObserveMessage message, Observe mod ) ->
-            updateObserve message mod
+            updateObserve model message mod
+
+        ( Tick deltaMs, _ ) ->
+            ( { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
+
+        ( WindowResized, _ ) ->
+            ( model, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
+
+        ( GotGalaxyViewport (Ok { viewport }), _ ) ->
+            ( { model | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
+            , SubCmd.none
+            )
+
+        ( GotGalaxyViewport (Err _), _ ) ->
+            ( model, SubCmd.none )
+
+        ( GotSettingsVisible visible, _ ) ->
+            ( { model | settingsVisible = visible }, SubCmd.none )
+
+        ( GotLocalSharedMessage settingsChange, _ ) ->
+            ( model, SubCmd.effect (GotSharedMessage settingsChange) )
+
+        ( ViewMain, _ ) ->
+            ( { model | page = MainMenu }, SubCmd.none )
 
         _ ->
             ( model, SubCmd.none )
 
 
-updateMainMenu : MainMenuMsg -> MainMenuModel -> ( Model, SubCmd Msg Effect )
-updateMainMenu msg model =
+updateMainMenu : Model -> MainMenuMsg -> ( Model, SubCmd Msg Effect )
+updateMainMenu mainModel msg =
     case msg of
         ViewParticipate ->
-            ( Participate baseParticipateModel, SubCmd.none )
+            ( { mainModel | page = Participate baseParticipateModel }, SubCmd.none )
 
         ViewObserve ->
-            ( Observe baseObserveModel, SubCmd.none )
-
-        Tick deltaMs ->
-            ( MainMenu { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
-
-        WindowResized ->
-            ( MainMenu model, Galaxy3d.getGalaxyViewport (GotGalaxyViewport >> MainMenuMessage) )
-
-        GotGalaxyViewport (Ok { viewport }) ->
-            ( MainMenu { model | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
-            , SubCmd.none
-            )
-
-        GotGalaxyViewport (Err _) ->
-            ( MainMenu model, SubCmd.none )
+            ( { mainModel | page = Observe baseObserveModel }, SubCmd.none )
 
 
-updateParticipate : ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Effect )
-updateParticipate msg model =
+updateParticipate : Model -> ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Effect )
+updateParticipate mainModel msg model =
     case msg of
-        ViewMainFromParticipate ->
-            init
-
         SetNameSingular singular ->
-            ( Participate { model | civilizationNameSingular = singular }
+            ( { mainModel | page = Participate { model | civilizationNameSingular = singular } }
             , SubCmd.none
             )
 
         SetNamePlural plural ->
-            ( Participate { model | civilizationNamePlural = plural }
+            ( { mainModel | page = Participate { model | civilizationNamePlural = plural } }
             , SubCmd.none
             )
 
         ToggleNamePlural enabled ->
-            ( Participate { model | hasUniquePluralName = enabled }
+            ( { mainModel | page = Participate { model | hasUniquePluralName = enabled } }
             , SubCmd.none
             )
 
         SetNamePossessive possessive ->
-            ( Participate { model | civilizationNamePossessive = possessive }
+            ( { mainModel | page = Participate { model | civilizationNamePossessive = possessive } }
             , SubCmd.none
             )
 
         ToggleNamePossessive enabled ->
-            ( Participate { model | hasUniquePossessiveName = enabled }
+            ( { mainModel | page = Participate { model | hasUniquePossessiveName = enabled } }
             , SubCmd.none
             )
 
         SetHomePlanetName name ->
-            ( Participate { model | homePlanetName = name }
+            ( { mainModel | page = Participate { model | homePlanetName = name } }
             , SubCmd.none
             )
 
         GotMinSolarSystemCount minCount ->
-            ( Participate
-                { model
-                    | minSolarSystemsToGenerate = minCount
-                    , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                }
+            ( { mainModel
+                | page =
+                    Participate
+                        { model
+                            | minSolarSystemsToGenerate = minCount
+                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
+                        }
+              }
             , SubCmd.none
             )
 
         GotMaxSolarSystemCount maxCount ->
-            ( Participate
-                { model
-                    | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                    , maxSolarSystemsToGenerate = maxCount
-                }
+            ( { mainModel
+                | page =
+                    Participate
+                        { model
+                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
+                            , maxSolarSystemsToGenerate = maxCount
+                        }
+              }
             , SubCmd.none
             )
 
         StartGame ->
             case Validator.run createGameValidator model of
                 Ok ( validName, validHomeName ) ->
-                    ( Participate model
+                    ( mainModel
                     , SubCmd.effect
                         (Shared.CreateGame
                             (Participation
@@ -353,43 +359,38 @@ updateParticipate msg model =
                     )
 
                 Err errs ->
-                    ( Participate { model | errors = errs }, SubCmd.none )
-
-        GotSettingsVisible visible ->
-            ( Participate { model | settingsVisible = visible }, SubCmd.none )
-
-        GotLocalSharedMessage settingsChange ->
-            ( Participate model
-            , SubCmd.effect (GotSharedMessage settingsChange)
-            )
+                    ( { mainModel | page = Participate { model | errors = errs } }, SubCmd.none )
 
 
-updateObserve : ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
-updateObserve msg model =
+updateObserve : Model -> ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
+updateObserve mainModel msg model =
     case msg of
-        ViewMainFromObserve ->
-            init
-
         OGotMinSolarSystemCount minCount ->
-            ( Observe
-                { model
-                    | minSolarSystemsToGenerate = minCount
-                    , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                }
+            ( { mainModel
+                | page =
+                    Observe
+                        { model
+                            | minSolarSystemsToGenerate = minCount
+                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
+                        }
+              }
             , SubCmd.none
             )
 
         OGotMaxSolarSystemCount maxCount ->
-            ( Observe
-                { model
-                    | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                    , maxSolarSystemsToGenerate = maxCount
-                }
+            ( { mainModel
+                | page =
+                    Observe
+                        { model
+                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
+                            , maxSolarSystemsToGenerate = maxCount
+                        }
+              }
             , SubCmd.none
             )
 
         BeginSimulation ->
-            ( Observe model
+            ( mainModel
             , SubCmd.effect
                 (Shared.CreateGame
                     (Observation
@@ -460,19 +461,93 @@ possessiveNameValidator model =
 
 view : SharedModel -> Model -> View Msg
 view sharedModel model =
-    case model of
-        MainMenu m ->
-            viewMainMenu sharedModel m
+    let
+        options : View Msg
+        options =
+            case model.page of
+                MainMenu ->
+                    viewMainMenu
 
-        Participate m ->
-            viewParticipate sharedModel m
+                Participate m ->
+                    viewParticipate m
 
-        Observe m ->
-            viewObserve sharedModel m
+                Observe m ->
+                    viewObserve m
+    in
+    { title = options.title
+    , body =
+        el
+            [ width fill
+            , height fill
+            , behindContent <|
+                Galaxy3d.viewSolarSystem
+                    { onPressStar = Nothing
+                    , onPressPlanet = Nothing
+                    , onZoom = Nothing
+                    , onZoomPress = Nothing
+                    , onRotationPress = Nothing
+                    , focusedCivilization = Nothing
+                    , stars = model.stars
+                    , planets = model.planets
+                    }
+                    sharedModel.settings
+                    model
+            , inFront
+                (el
+                    [ alignRight
+                    , alignTop
+                    , padding 16
+                    , inFront <|
+                        case model.settingsVisible of
+                            Hidden ->
+                                none
+
+                            Visible ->
+                                map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
+                    ]
+                    (Ui.Button.default
+                        { label = text "⚙"
+                        , onPress =
+                            Just <|
+                                case model.settingsVisible of
+                                    Visible ->
+                                        GotSettingsVisible Hidden
+
+                                    Hidden ->
+                                        GotSettingsVisible Visible
+                        }
+                    )
+                )
+            , inFront
+                (case model.page of
+                    MainMenu ->
+                        none
+
+                    _ ->
+                        el
+                            [ padding 16 ]
+                            (Ui.Button.default
+                                { label = text "Main Menu"
+                                , onPress = Just ViewMain
+                                }
+                            )
+                )
+            ]
+            (el
+                [ Font.color Ui.Theme.nearlyWhite
+                , Background.color (rgba 0 0 0 0.4)
+                , padding 4
+                , Border.rounded 8
+                , width fill
+                , height fill
+                ]
+                options.body
+            )
+    }
 
 
-viewMainMenu : SharedModel -> MainMenuModel -> View Msg
-viewMainMenu sharedModel model =
+viewMainMenu : View Msg
+viewMainMenu =
     { title = "Hello Space!"
     , body =
         map MainMenuMessage <|
@@ -480,34 +555,13 @@ viewMainMenu sharedModel model =
                 [ padding 16
                 , width fill
                 , height fill
-                , behindContent <|
-                    Galaxy3d.viewSolarSystem
-                        { onPressStar = Nothing
-                        , onPressPlanet = Nothing
-                        , onZoom = Nothing
-                        , onZoomPress = Nothing
-                        , onRotationPress = Nothing
-                        , focusedCivilization = Nothing
-                        , stars = model.stars
-                        , planets = model.planets
-                        }
-                        sharedModel.settings
-                        model
                 ]
                 (column
                     [ centerX
                     , centerY
                     , spacing 64
                     ]
-                    [ el
-                        [ centerX
-                        , Font.size 64
-                        , Font.color Ui.Theme.nearlyWhite
-                        , Background.color (rgba 0 0 0 0.4)
-                        , padding 4
-                        , Border.rounded 8
-                        ]
-                        (text "Space Sim!")
+                    [ el [ centerX, Font.size 64 ] (text "Space Sim!")
                     , column
                         [ centerX, spacing 16 ]
                         [ Ui.Button.default
@@ -531,70 +585,29 @@ viewMainMenu sharedModel model =
     }
 
 
-viewParticipate : SharedModel -> ParticipateModel -> View Msg
-viewParticipate sharedModel model =
+viewParticipate : ParticipateModel -> View Msg
+viewParticipate model =
     { title = "Hello Space! - Participate"
     , body =
         map ParticipateMessage <|
-            el
-                [ padding 16
-                , width fill
-                , height fill
-                , inFront
-                    (el
-                        [ alignRight
-                        , alignTop
-                        , padding 16
-                        , inFront <|
-                            case model.settingsVisible of
-                                Hidden ->
-                                    none
-
-                                Visible ->
-                                    map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-                        ]
-                        (Ui.Button.default
-                            { label = text "⚙"
-                            , onPress =
-                                Just <|
-                                    case model.settingsVisible of
-                                        Visible ->
-                                            GotSettingsVisible Hidden
-
-                                        Hidden ->
-                                            GotSettingsVisible Visible
-                            }
-                        )
-                    )
-                , inFront
-                    (el
-                        [ padding 16 ]
-                        (Ui.Button.default
-                            { label = text "Main Menu"
-                            , onPress = Just ViewMainFromParticipate
-                            }
-                        )
-                    )
+            column
+                [ centerX
+                , centerY
+                , spacing 64
                 ]
-                (column
+                [ text "Participate in the Simulation"
+                    |> el [ centerX, Font.size 64, Font.underline ]
+                , wrappedRow
                     [ centerX
                     , centerY
-                    , spacing 64
+                    , spacing 16
+                    , padding 16
+                    , width shrink
                     ]
-                    [ text "Participate in the Simulation"
-                        |> el [ centerX, Font.size 64, Font.underline ]
-                    , wrappedRow
-                        [ centerX
-                        , centerY
-                        , spacing 16
-                        , padding 16
-                        , width shrink
-                        ]
-                        [ viewPlayerCivForm model
-                        , viewExample model
-                        ]
+                    [ viewPlayerCivForm model
+                    , viewExample model
                     ]
-                )
+                ]
     }
 
 
@@ -744,8 +757,8 @@ displayGameValue id value =
         (text value)
 
 
-viewObserve : SharedModel -> ObserveModel -> View Msg
-viewObserve _ model =
+viewObserve : ObserveModel -> View Msg
+viewObserve model =
     { title = "Hello Space! - Observe"
     , body =
         map ObserveMessage <|
@@ -753,15 +766,6 @@ viewObserve _ model =
                 [ padding 16
                 , width fill
                 , height fill
-                , inFront
-                    (el
-                        [ padding 16 ]
-                        (Ui.Button.default
-                            { label = text "Main Menu"
-                            , onPress = Just ViewMainFromObserve
-                            }
-                        )
-                    )
                 ]
                 (column
                     [ centerX

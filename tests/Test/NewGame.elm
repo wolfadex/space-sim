@@ -2,7 +2,7 @@ module Test.NewGame exposing (..)
 
 import Element
 import Fuzz
-import NewGame exposing (Model(..))
+import NewGame
 import ProgramTest
 import Random
 import Shared exposing (SharedModel)
@@ -24,7 +24,7 @@ suite =
     Test.describe "Renders the screen"
         [ Test.test "renders the title and start button" <|
             \() ->
-                NewGame.view testSharedModel (MainMenu NewGame.baseMainModel)
+                NewGame.view testSharedModel NewGame.baseModel
                     |> .body
                     |> Query.fromElement
                     |> Query.has
