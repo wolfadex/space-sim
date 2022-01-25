@@ -14,6 +14,7 @@ module NewGame exposing
 import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Names exposing (CivilizationName)
+import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -22,7 +23,7 @@ import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
 import Galaxy3d
-import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, StarSize(..), Visible(..), Water)
+import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Visible(..), Water)
 import Length exposing (Meters)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
@@ -38,6 +39,7 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Temperature exposing (Temperature)
 import Ui.Button
 import Ui.Slider
 import Ui.Text
@@ -60,7 +62,7 @@ init =
 
         ( _, m1 ) =
             Logic.Entity.create 1 m0
-                |> Logic.Entity.with ( Game.Components.starFormSpec, Yellow )
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, Temperature.kelvins 3700 )
                 |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
                 |> Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 })
 
@@ -107,7 +109,7 @@ type alias Model =
     , viewRotation : Float
     , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , planetTypes : Logic.Component.Set CelestialBodyForm
-    , starForms : Logic.Component.Set StarSize
+    , starTemperature : Logic.Component.Set Temperature
     , orbits : Logic.Component.Set Orbit
     , waterContent : Logic.Component.Set (Percent Water)
     , planetSize : Logic.Component.Set Float
@@ -134,14 +136,14 @@ baseModel =
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = -40
     , viewRotation = 0
-    , civilizationPopulations = Logic.Component.empty -- (Dict EntityID Population)
-    , planetTypes = Logic.Component.empty -- CelestialBodyForm
-    , starForms = Logic.Component.empty -- StarSize
-    , orbits = Logic.Component.empty -- Orbit
-    , waterContent = Logic.Component.empty -- (Percent Water)
-    , planetSize = Logic.Component.empty -- Float
-    , parents = Logic.Component.empty -- EntityID
-    , galaxyPositions = Logic.Component.empty -- (Point3d Meters LightYear)
+    , civilizationPopulations = Logic.Component.empty
+    , planetTypes = Logic.Component.empty
+    , starTemperature = Logic.Component.empty
+    , orbits = Logic.Component.empty
+    , waterContent = Logic.Component.empty
+    , planetSize = Logic.Component.empty
+    , parents = Logic.Component.empty
+    , galaxyPositions = Logic.Component.empty
     , planets = Set.empty
     , stars = Set.empty
     , solarSystems = Set.empty

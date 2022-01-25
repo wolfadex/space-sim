@@ -11,6 +11,7 @@ import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
+import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -29,7 +30,6 @@ import Game.Components
         , Reproduction
         , SpaceFocus(..)
         , StarDate
-        , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
         , Visible(..)
@@ -62,6 +62,7 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Temperature
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -924,19 +925,13 @@ generateGalacticPosition =
 generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generateStar solarSystemId ( starId, world ) =
     Random.map
-        (\size ->
+        (\starTemperature ->
             ( starId, world )
-                |> Logic.Entity.with ( Game.Components.starFormSpec, size )
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemperature )
                 |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
                 |> Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars })
         )
-        (Random.uniform Yellow
-            [ RedGiant
-            , BlueGiant
-            , WhiteDwarf
-            , BlackDwarf
-            ]
-        )
+        Data.Star.random
 
 
 generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
@@ -1334,34 +1329,15 @@ viewSolarSystemDetailed settings world solarSystemId =
 
 viewStarDetailed : World -> EntityID -> Element Msg
 viewStarDetailed model starId =
-    case Logic.Component.get starId model.starForms of
+    case Logic.Component.get starId model.starTemperature of
         Nothing ->
             text "Your star is missing!"
 
-        Just size ->
-            let
-                sizeStr : String
-                sizeStr =
-                    case size of
-                        Yellow ->
-                            "Yellow"
-
-                        RedGiant ->
-                            "Red Giant"
-
-                        BlueGiant ->
-                            "Blue Giant"
-
-                        WhiteDwarf ->
-                            "White Dwarf"
-
-                        BlackDwarf ->
-                            "Black Dwarf"
-            in
+        Just temp ->
             column
                 [ spacing 8 ]
                 [ text ("Name: S_" ++ String.fromInt starId)
-                , text ("Size: " ++ sizeStr)
+                , text ("Size: " ++ String.fromFloat (Temperature.inKelvins temp) ++ "K")
                 ]
 
 
