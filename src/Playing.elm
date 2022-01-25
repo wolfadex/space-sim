@@ -151,6 +151,21 @@ init sharedModel playType =
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
+        , zoom =
+            Set.toList worldWithPlayerCiv.solarSystems
+                |> List.filterMap
+                    (\solarSystemId ->
+                        Maybe.map
+                            (\galacticPosition ->
+                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
+                            )
+                            (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
+                    )
+                |> List.sort
+                |> List.reverse
+                |> List.head
+                |> Maybe.map (\m -> m / 2)
+                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
       }
     , SubCmd.batch
         [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
@@ -220,6 +235,23 @@ type Msg
     | GotLocalSharedMessage SharedMsg
 
 
+zoomMultiplier : SpaceFocus -> Float
+zoomMultiplier focus =
+    case focus of
+        FGalaxy ->
+            -- One light year is 9460730000000000, this is about 10 light years
+            94607300000000000
+
+        FSolarSystem _ ->
+            10000000000
+
+        FStar _ ->
+            10000000000
+
+        FPlanet _ ->
+            1
+
+
 update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
 update sharedModel msg world =
     case msg of
@@ -253,19 +285,115 @@ update sharedModel msg world =
         GotZoom zoomValue ->
             case Json.Decode.decodeValue decodeZoomEvent zoomValue of
                 Ok delta ->
-                    ( { world | zoom = world.zoom + delta }, SubCmd.none )
+                    ( { world | zoom = world.zoom + delta * zoomMultiplier world.spaceFocus }, SubCmd.none )
 
                 Err _ ->
                     ( world, SubCmd.none )
 
         GotZoomChange change ->
-            ( { world | zoom = world.zoom + change }, SubCmd.none )
+            ( { world | zoom = world.zoom + change * zoomMultiplier world.spaceFocus }, SubCmd.none )
 
         GotRotationChange change ->
             ( { world | viewRotation = toFloat (remainderBy 360 (floor (world.viewRotation + change))) }, SubCmd.none )
 
         SetSpaceFocus focus ->
-            ( { world | spaceFocus = focus, zoom = 1, viewRotation = 0 }, SubCmd.none )
+            let
+                zoomDist : Float
+                zoomDist =
+                    case focus of
+                        FGalaxy ->
+                            Set.toList world.solarSystems
+                                |> List.filterMap
+                                    (\solarSystemId ->
+                                        Maybe.map
+                                            (\galacticPosition ->
+                                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
+                                            )
+                                            (Logic.Component.get solarSystemId world.galaxyPositions)
+                                    )
+                                |> List.sort
+                                |> List.reverse
+                                |> List.head
+                                |> Maybe.map (\m -> m / 2)
+                                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
+
+                        FSolarSystem solarSystemId ->
+                            Maybe.map
+                                (\children ->
+                                    let
+                                        largestStarRadius : Float
+                                        largestStarRadius =
+                                            Set.intersect children world.stars
+                                                |> Set.toList
+                                                |> List.filterMap
+                                                    (\starId ->
+                                                        Maybe.map
+                                                            (\starTemp ->
+                                                                Point3d.distanceFrom Point3d.origin
+                                                                    (Point3d.fromMeters
+                                                                        { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                                                        , y = 0
+                                                                        , z = 0
+                                                                        }
+                                                                    )
+                                                                    |> Length.inMeters
+                                                            )
+                                                            (Logic.Component.get starId world.starTemperature)
+                                                    )
+                                                |> List.sort
+                                                |> List.reverse
+                                                |> List.head
+                                                |> Maybe.withDefault 0
+
+                                        largestPlanetOrbit : Float
+                                        largestPlanetOrbit =
+                                            Set.intersect children world.planets
+                                                |> Set.toList
+                                                |> List.filterMap
+                                                    (\planetId ->
+                                                        Maybe.map
+                                                            (\orbit ->
+                                                                Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
+                                                            )
+                                                            (Logic.Component.get planetId world.orbits)
+                                                    )
+                                                |> List.sort
+                                                |> List.reverse
+                                                |> List.head
+                                                |> Maybe.withDefault 0
+                                    in
+                                    max largestStarRadius largestPlanetOrbit
+                                )
+                                (Logic.Component.get solarSystemId world.children)
+                                -- a good number
+                                |> Maybe.withDefault 1196782965600
+
+                        FStar starId ->
+                            Maybe.map
+                                (\starTemp ->
+                                    Point3d.distanceFrom Point3d.origin
+                                        (Point3d.fromMeters
+                                            { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                            , y = 0
+                                            , z = 0
+                                            }
+                                        )
+                                        |> Length.inMeters
+                                )
+                                (Logic.Component.get starId world.starTemperature)
+                                -- a good number
+                                |> Maybe.withDefault 1196782965600
+
+                        FPlanet _ ->
+                            1
+            in
+            ( { world
+                | spaceFocus = focus
+                , zoom = zoomDist
+                , viewRotation = 0
+              }
+            , SubCmd.none
+            )
 
         SetCivilizationFocus focus ->
             ( { world | civilizationFocus = focus }, SubCmd.none )

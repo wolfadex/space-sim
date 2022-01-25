@@ -113,12 +113,10 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            -- Point3d.meters 4 0 0
-            --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
-            --     |> Point3d.rotateAround Axis3d.z (Angle.degrees 60)
             Point3d.meters 5 2 3
                 -- One light year, 9460730000000000
-                |> Point3d.scaleAbout Point3d.origin ((25000 + (world.zoom + 1) * 100) * 9460730000000000)
+                |> Point3d.scaleAbout Point3d.origin world.zoom
+                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
                 |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
@@ -319,9 +317,9 @@ viewSolarSystem options settings world =
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
             Point3d.meters 5 2 3
-                |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000000)
+                |> Point3d.scaleAbout Point3d.origin world.zoom
+                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
                 |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates

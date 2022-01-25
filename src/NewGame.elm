@@ -30,6 +30,7 @@ import Logic.Entity exposing (EntityID)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
+import Quantity
 import Set exposing (Set)
 import Shared
     exposing
@@ -60,9 +61,13 @@ init =
                 |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million )
                 |> Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 })
 
+        starTemp : Temperature
+        starTemp =
+            Temperature.kelvins 3700
+
         ( _, m1 ) =
             Logic.Entity.create 1 m0
-                |> Logic.Entity.with ( Data.Star.temperatureSpec, Temperature.kelvins 3700 )
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemp )
                 |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
                 |> Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 })
 
@@ -94,8 +99,15 @@ init =
             Logic.Entity.create 5 m4
                 |> Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
                 |> Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 })
+
+        zoomDist : Float
+        zoomDist =
+            Length.inMeters (Quantity.multiplyBy (toFloat 8) Length.astronomicalUnit)
     in
-    ( { m5 | planets = Set.fromList [ 2, 3, 4 ] }
+    ( { m5
+        | planets = Set.fromList [ 2, 3, 4 ]
+        , zoom = zoomDist / 2
+      }
     , Galaxy3d.getGalaxyViewport GotGalaxyViewport
     )
 
