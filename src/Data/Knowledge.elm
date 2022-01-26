@@ -5,6 +5,7 @@ module Data.Knowledge exposing
     , knows
     )
 
+import Logic.Entity exposing (EntityID)
 import Set.Any exposing (AnySet)
 
 
@@ -21,6 +22,9 @@ type
       -- Basics of civilization
     | BasicAgriculture
     | BasicMetalWorking
+    | Optics
+      -- Things in the universe
+    | KnowsOf EntityID
 
 
 knows : AnySet String Knowledge -> Knowledge -> Bool
@@ -64,6 +68,12 @@ comparableConfig =
 
                 BasicMetalWorking ->
                     "BasicMetalWorking"
+
+                Optics ->
+                    "Optics"
+
+                KnowsOf id ->
+                    "KnowsOf__" ++ String.fromInt id
     , fromComparable =
         \str ->
             case str of
@@ -94,6 +104,18 @@ comparableConfig =
                 "BasicMetalWorking" ->
                     BasicMetalWorking
 
-                _ ->
-                    BasicAgriculture
+                "Optics" ->
+                    Optics
+
+                other ->
+                    if String.startsWith "KnowsOf__" other then
+                        case String.toInt (String.dropLeft 9 other) of
+                            Just id ->
+                                KnowsOf id
+
+                            Nothing ->
+                                BasicAgriculture
+
+                    else
+                        BasicAgriculture
     }
