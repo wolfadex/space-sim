@@ -853,68 +853,37 @@ gainRandomKnowledge :
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
 gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed starDate civName =
     Random.step
-        (Random.map2
-            (\gainsKnowledge personName ->
+        (Random.andThen
+            (\gainsKnowledge ->
                 if gainsKnowledge then
                     let
-                        doesntKnow : Knowledge -> Bool
-                        doesntKnow =
-                            Data.Knowledge.doesntKnow civKnowledge
-
-                        giveKnowledge : Knowledge -> (String -> String) -> ( Array (Maybe (AnySet String Knowledge)), Maybe Log )
-                        giveKnowledge learns description =
-                            ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig learns civKnowledge)) allCivsKnowledge
-                            , Just
-                                { time = starDate
-                                , description = description (Data.Names.enhancedEventDescription civName personName)
-                                , civilizationId = index
-                                }
-                            )
+                        canBeLearned : List Knowledge
+                        canBeLearned =
+                            Data.Knowledge.canBeLearned civKnowledge
+                                |> Set.Any.toList Data.Knowledge.comparableConfig
                     in
-                    if doesntKnow BasicAgriculture then
-                        giveKnowledge BasicAgriculture (\name -> "After much trial and error, eating the wrong foods, " ++ name ++ " manages to figure out rudimentary agriculture.")
+                    case canBeLearned of
+                        [] ->
+                            Random.constant ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
 
-                    else if doesntKnow BasicMetalWorking then
-                        giveKnowledge BasicMetalWorking (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
-
-                    else if doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invented boating.")
-
-                    else
-                        let
-                            knows : Knowledge -> Bool
-                            knows =
-                                Data.Knowledge.knows civKnowledge
-                        in
-                        if knows UnderwaterTravel && doesntKnow WaterSurfaceTravel then
-                            giveKnowledge WaterSurfaceTravel (\name -> name ++ " learns to build boats.")
-
-                        else if (knows WaterSurfaceTravel || knows LandTravel) && doesntKnow Flight then
-                            giveKnowledge Flight (\name -> name ++ " learns the art of flying.")
-
-                        else if knows Flight && doesntKnow PlanetarySpaceTravel then
-                            giveKnowledge PlanetarySpaceTravel (\name -> name ++ " takes a leap of faith into space.")
-
-                        else if knows PlanetarySpaceTravel && doesntKnow InterplanetarySpaceTravel then
-                            giveKnowledge InterplanetarySpaceTravel (\name -> name ++ " begins their solar voyage.")
-
-                        else if knows InterplanetarySpaceTravel && doesntKnow UnderwaterTravel then
-                            giveKnowledge UnderwaterTravel (\name -> name ++ " thinks it's a good idea to build underwater vessels.")
-
-                        else if knows InterplanetarySpaceTravel && doesntKnow LandTravel then
-                            giveKnowledge LandTravel (\name -> name ++ " thinks it's a good idea to put wheels on a boat.")
-
-                        else if knows InterplanetarySpaceTravel && doesntKnow FTLSpaceTravel then
-                            giveKnowledge FTLSpaceTravel (\name -> name ++ " makes the faster than light leap.")
-
-                        else
-                            ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
+                        first :: rest ->
+                            Random.map2
+                                (\personName knowledgeGained ->
+                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
+                                    , Just
+                                        { time = starDate
+                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                        , civilizationId = index
+                                        }
+                                    )
+                                )
+                                Data.Names.randomPerson
+                                (Random.uniform first rest)
 
                 else
-                    ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
+                    Random.constant ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
             )
             (Random.Extra.oneIn 100)
-            Data.Names.randomPerson
         )
         seed
 
