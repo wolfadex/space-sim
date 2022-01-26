@@ -1012,7 +1012,8 @@ generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
 
 generateSolarSystem : ( EntityID, World ) -> Generator ( EntityID, World )
 generateSolarSystem ( solarSystemId, world ) =
-    generateManyEntities 1 3 world (generateStar solarSystemId)
+    Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
+        |> Random.andThen (\starCount -> generateManyEntities starCount starCount world (generateStar solarSystemId))
         |> Random.andThen
             (\( starIds, starWorld ) ->
                 Random.map2
@@ -1250,21 +1251,51 @@ viewPlaying sharedModel world =
 
                     FSolarSystem id ->
                         if Set.member id world.solarSystems then
-                            viewSlice (viewSolarSystemDetailed sharedModel.settings world id)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                ]
+                                (viewSolarSystemDetailed sharedModel.settings world id)
 
                         else
                             text "Missing solar system"
 
                     FStar starId ->
                         if Set.member starId world.stars then
-                            viewSlice (viewBody world viewStarDetailed starId)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                , Ui.Button.default
+                                    { label = text "View System"
+                                    , onPress =
+                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                            (Logic.Component.get starId world.parents)
+                                    }
+                                ]
+                                (viewStarDetailed world starId)
 
                         else
                             text "Missing star"
 
                     FPlanet planetId ->
                         if Set.member planetId world.planets then
-                            viewSlice (viewBody world viewPlanetDetailed planetId)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                , Ui.Button.default
+                                    { label = text "View System"
+                                    , onPress =
+                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                            (Logic.Component.get planetId world.parents)
+                                    }
+                                ]
+                                (viewPlanetDetailed world planetId)
 
                         else
                             text "Missing planet"
@@ -1344,33 +1375,15 @@ viewControls world =
         ]
 
 
-viewSlice : Element Msg -> Element Msg
-viewSlice slice =
-    column
+viewSlice : List (Element Msg) -> Element Msg -> Element Msg
+viewSlice menuItems slice =
+    el
         [ height fill
         , width fill
-        , padding 8
+        , inFront <|
+            row [ padding 8, spacing 8 ] menuItems
         ]
-        [ Ui.Button.default
-            { label = text "View Galaxy"
-            , onPress = Just (SetSpaceFocus FGalaxy)
-            }
-        , slice
-        ]
-
-
-viewBody : World -> (World -> EntityID -> Element Msg) -> EntityID -> Element Msg
-viewBody model bodyFn id =
-    column
-        [ spacing 8, height fill, padding 8 ]
-        [ Ui.Button.default
-            { label = text "View System"
-            , onPress =
-                Maybe.map (FSolarSystem >> SetSpaceFocus)
-                    (Logic.Component.get id model.parents)
-            }
-        , bodyFn model id
-        ]
+        slice
 
 
 viewGalaxy : World -> Element Msg

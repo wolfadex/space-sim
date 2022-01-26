@@ -605,6 +605,15 @@ getLightsFromStars starDetails =
                 , intensity = Data.Star.temperatureToLuminosity star.temperature
                 , position = Point3d.origin
                 }
+
+        lightFromExtraStar : { a | temperature : Temperature } -> Scene3d.Light.Light coordinates Never
+        lightFromExtraStar star =
+            Scene3d.Light.point
+                Scene3d.Light.neverCastsShadows
+                { chromaticity = Scene3d.Light.color (Data.Star.tempuratureToColor star.temperature)
+                , intensity = Data.Star.temperatureToLuminosity star.temperature
+                , position = Point3d.origin
+                }
     in
     case starDetails of
         [ starA ] ->
@@ -627,6 +636,33 @@ getLightsFromStars starDetails =
                 (lightFromStar starB)
                 (lightFromStar starC)
                 (lightFromStar starD)
+
+        [ starA, starB, starC, starD, starE ] ->
+            Scene3d.fiveLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+
+        [ starA, starB, starC, starD, starE, starF ] ->
+            Scene3d.sixLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+                (lightFromExtraStar starF)
+
+        [ starA, starB, starC, starD, starE, starF, starG ] ->
+            Scene3d.sevenLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+                (lightFromExtraStar starF)
+                (lightFromExtraStar starG)
 
         _ ->
             Scene3d.oneLight
