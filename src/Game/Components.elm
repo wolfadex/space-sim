@@ -10,7 +10,6 @@ module Game.Components exposing
     , Reproduction
     , SpaceFocus(..)
     , StarDate
-    , StarSize(..)
     , TickRate(..)
     , ViewStyle(..)
     , Visible(..)
@@ -29,7 +28,6 @@ module Game.Components exposing
     , planetSizeSpec
     , planetTypeSpec
     , positionSpec
-    , starFormSpec
     , waterSpec
     )
 
@@ -46,6 +44,7 @@ import Population exposing (Population)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
+import Temperature exposing (Temperature)
 
 
 type alias World =
@@ -73,7 +72,7 @@ type alias World =
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
-    , starForms : Logic.Component.Set StarSize
+    , starTemperature : Logic.Component.Set Temperature
     , orbits : Logic.Component.Set Orbit
     , waterContent : Logic.Component.Set (Percent Water)
     , planetSize : Logic.Component.Set Float
@@ -112,7 +111,7 @@ emptyWorld =
     , civilizationReproductionRates = Logic.Component.empty
     , civilizationMortalityRates = Logic.Component.empty
     , planetTypes = Logic.Component.empty
-    , starForms = Logic.Component.empty
+    , starTemperature = Logic.Component.empty
     , parents = Logic.Component.empty
     , children = Logic.Component.empty
     , orbits = Logic.Component.empty
@@ -216,19 +215,6 @@ orbitSpec =
 
 type alias Orbit =
     Int
-
-
-starFormSpec : Spec StarSize { world | starForms : Logic.Component.Set StarSize }
-starFormSpec =
-    Logic.Component.Spec .starForms (\comps world -> { world | starForms = comps })
-
-
-type StarSize
-    = Yellow
-    | RedGiant
-    | BlueGiant
-    | WhiteDwarf
-    | BlackDwarf
 
 
 parentSpec : Spec EntityID { world | parents : Logic.Component.Set EntityID }

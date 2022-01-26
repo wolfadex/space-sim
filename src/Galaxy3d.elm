@@ -13,6 +13,7 @@ import Camera3d
 import Circle2d
 import Color
 import Cylinder3d
+import Data.Star
 import Dict exposing (Dict)
 import Direction2d
 import Direction3d
@@ -25,7 +26,6 @@ import Game.Components
         , CelestialBodyForm(..)
         , LightYear
         , Orbit
-        , StarSize(..)
         , Water
         )
 import Geometry.Svg
@@ -65,6 +65,7 @@ import Svg
 import Svg.Attributes
 import Svg.Events
 import Task
+import Temperature exposing (Temperature)
 import Ui.Button
 import Viewpoint3d
 
@@ -77,7 +78,7 @@ type alias MinRenderableWorld r =
         , viewRotation : Float
         , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
         , planetTypes : Logic.Component.Set CelestialBodyForm
-        , starForms : Logic.Component.Set StarSize
+        , starTemperature : Logic.Component.Set Temperature
         , orbits : Logic.Component.Set Orbit
         , waterContent : Logic.Component.Set (Percent Water)
         , planetSize : Logic.Component.Set Float
@@ -112,12 +113,10 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            -- Point3d.meters 4 0 0
-            --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
-            --     |> Point3d.rotateAround Axis3d.z (Angle.degrees 60)
             Point3d.meters 5 2 3
                 -- One light year, 9460730000000000
-                |> Point3d.scaleAbout Point3d.origin ((25000 + (world.zoom + 1) * 100) * 9460730000000000)
+                |> Point3d.scaleAbout Point3d.origin world.zoom
+                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
                 |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
@@ -318,9 +317,9 @@ viewSolarSystem options settings world =
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            --     |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
             Point3d.meters 5 2 3
-                |> Point3d.scaleAbout Point3d.origin (1000000000000 + (world.zoom + 1) * 10000000000)
+                |> Point3d.scaleAbout Point3d.origin world.zoom
+                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
                 |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
 
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
@@ -453,12 +452,12 @@ viewSolarSystem options settings world =
                 )
                 planetVertices2d
 
-        starVertices2d : List ( EntityID, Length, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
+        starVertices2d : List ( EntityID, Temperature, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
         starVertices2d =
             List.map
                 (\details ->
                     ( details.id
-                    , details.size
+                    , details.temperature
                     , scalePointInAstroUnitsToOne details.position
                         |> Point3d.rotateAround Axis3d.z angle
                         |> Point3d.Projection.toScreenSpace camera screenRectangle
@@ -469,7 +468,7 @@ viewSolarSystem options settings world =
         starLabels : List (Svg.Svg msg)
         starLabels =
             List.map
-                (\( starId, size, vertex ) ->
+                (\( starId, temperature, vertex ) ->
                     Svg.g
                         [ Svg.Attributes.class "galactic-label"
                         ]
@@ -489,7 +488,12 @@ viewSolarSystem options settings world =
                             ]
                             (Circle2d.withRadius
                                 (Pixels.float
-                                    ((190 + -world.zoom) * Length.inKilometers size / 1000000)
+                                    ((190 + -world.zoom)
+                                        * Length.inKilometers
+                                            (Quantity.divideBy 1000000
+                                                (Data.Star.temperatureToRadius temperature)
+                                            )
+                                    )
                                 )
                                 vertex
                             )
@@ -578,17 +582,7 @@ viewSolarSystem options settings world =
                             ( Pixels.pixels (floor world.galaxyViewSize.width)
                             , Pixels.pixels (floor world.galaxyViewSize.height)
                             )
-                        , lights =
-                            Scene3d.oneLight
-                                (Scene3d.Light.point
-                                    (Scene3d.Light.castsShadows True)
-                                    { chromaticity = Scene3d.Light.color Color.yellow
-
-                                    -- Have to break these numbers up so that they don't wrap negatively by elm-format
-                                    , intensity = LuminousFlux.lumens (16240000000000 * 2200000000 * 100000000)
-                                    , position = Point3d.origin
-                                    }
-                                )
+                        , lights = getLightsFromStars starDetails
                         , exposure = Scene3d.maxLuminance (Luminance.nits 100000)
                         , toneMapping = Scene3d.noToneMapping
 
@@ -598,6 +592,89 @@ viewSolarSystem options settings world =
                         }
     in
     viewSpace options solarSystemLabels solarSystemScene
+
+
+getLightsFromStars : List StarRenderDetails -> Scene3d.Lights ScaledViewPoint
+getLightsFromStars starDetails =
+    let
+        lightFromStar : { a | temperature : Temperature } -> Scene3d.Light.Light coordinates Bool
+        lightFromStar star =
+            Scene3d.Light.point
+                (Scene3d.Light.castsShadows True)
+                { chromaticity = Scene3d.Light.color (Data.Star.tempuratureToColor star.temperature)
+                , intensity = Data.Star.temperatureToLuminosity star.temperature
+                , position = Point3d.origin
+                }
+
+        lightFromExtraStar : { a | temperature : Temperature } -> Scene3d.Light.Light coordinates Never
+        lightFromExtraStar star =
+            Scene3d.Light.point
+                Scene3d.Light.neverCastsShadows
+                { chromaticity = Scene3d.Light.color (Data.Star.tempuratureToColor star.temperature)
+                , intensity = Data.Star.temperatureToLuminosity star.temperature
+                , position = Point3d.origin
+                }
+    in
+    case starDetails of
+        [ starA ] ->
+            Scene3d.oneLight (lightFromStar starA)
+
+        [ starA, starB ] ->
+            Scene3d.twoLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+
+        [ starA, starB, starC ] ->
+            Scene3d.threeLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+
+        [ starA, starB, starC, starD ] ->
+            Scene3d.fourLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+
+        [ starA, starB, starC, starD, starE ] ->
+            Scene3d.fiveLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+
+        [ starA, starB, starC, starD, starE, starF ] ->
+            Scene3d.sixLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+                (lightFromExtraStar starF)
+
+        [ starA, starB, starC, starD, starE, starF, starG ] ->
+            Scene3d.sevenLights
+                (lightFromStar starA)
+                (lightFromStar starB)
+                (lightFromStar starC)
+                (lightFromStar starD)
+                (lightFromExtraStar starE)
+                (lightFromExtraStar starF)
+                (lightFromExtraStar starG)
+
+        _ ->
+            Scene3d.oneLight
+                (Scene3d.Light.point
+                    (Scene3d.Light.castsShadows True)
+                    { chromaticity = Scene3d.Light.color Color.yellow
+
+                    -- Have to break these numbers up so that they don't wrap negatively by elm-format
+                    , intensity = LuminousFlux.lumens (16240000000000 * 2200000000 * 100000000)
+                    , position = Point3d.origin
+                    }
+                )
 
 
 viewSpace :
@@ -880,72 +957,61 @@ getPlanetDetails settings world planetId =
 
 renderStar : Settings -> StarRenderDetails -> Scene3d.Entity ScaledViewPoint
 renderStar settings details =
+    let
+        color : Color.Color
+        color =
+            Data.Star.tempuratureToColor details.temperature
+    in
     Scene3d.sphere
         (case settings.realisticLighting of
             Enabled ->
-                Material.emissive (Scene3d.Light.color details.color) (Luminance.nits 100000)
+                Material.emissive (Scene3d.Light.color color) (Luminance.nits 100000)
 
             Disabled ->
-                Material.color details.color
+                Material.color color
         )
-        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 500 details.size))
+        (Sphere3d.atPoint
+            (scalePointInAstroUnitsToOne details.position)
+            (Quantity.multiplyBy 500 (Data.Star.temperatureToRadius details.temperature))
+        )
 
 
 type alias StarRenderDetails =
     { id : EntityID
-    , color : Color.Color
+    , temperature : Temperature
     , position : Point3d Meters AstronomicalUnit
-    , size : Length
     }
 
 
 getStarDetails : MinRenderableWorld r -> EntityID -> Maybe StarRenderDetails
 getStarDetails world starId =
     Maybe.map
-        (\size ->
+        (\temperature ->
             { id = starId
-            , color =
-                case size of
-                    Yellow ->
-                        Color.yellow
-
-                    RedGiant ->
-                        Color.red
-
-                    BlueGiant ->
-                        Color.blue
-
-                    WhiteDwarf ->
-                        Color.white
-
-                    BlackDwarf ->
-                        Color.black
+            , temperature = temperature
             , position =
                 Point3d.fromMeters
                     { x = 0
                     , y = 0
                     , z = 0
                     }
-            , size =
-                case size of
-                    Yellow ->
-                        Length.kilometers 696000
 
-                    RedGiant ->
-                        -- Length.kilometers (696000 * 2)
-                        Length.kilometers 696000
-
-                    BlueGiant ->
-                        Length.kilometers (696000 * 3)
-
-                    WhiteDwarf ->
-                        Length.kilometers (696000 / 2)
-
-                    BlackDwarf ->
-                        Length.kilometers (696000 / 3)
+            -- , size =
+            --     case size of
+            --         Yellow ->
+            --             Length.kilometers 696000
+            --         RedGiant ->
+            --             -- Length.kilometers (696000 * 2)
+            --             Length.kilometers 696000
+            --         BlueGiant ->
+            --             Length.kilometers (696000 * 3)
+            --         WhiteDwarf ->
+            --             Length.kilometers (696000 / 2)
+            --         BlackDwarf ->
+            --             Length.kilometers (696000 / 3)
             }
         )
-        (Logic.Component.get starId world.starForms)
+        (Logic.Component.get starId world.starTemperature)
 
 
 getGalaxyViewport : (Result Browser.Dom.Error Viewport -> msg) -> SubCmd msg effect

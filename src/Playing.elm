@@ -11,6 +11,7 @@ import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
+import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -29,7 +30,6 @@ import Game.Components
         , Reproduction
         , SpaceFocus(..)
         , StarDate
-        , StarSize(..)
         , TickRate(..)
         , ViewStyle(..)
         , Visible(..)
@@ -62,6 +62,7 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Temperature
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -150,6 +151,21 @@ init sharedModel playType =
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
         , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
+        , zoom =
+            Set.toList worldWithPlayerCiv.solarSystems
+                |> List.filterMap
+                    (\solarSystemId ->
+                        Maybe.map
+                            (\galacticPosition ->
+                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
+                            )
+                            (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
+                    )
+                |> List.sort
+                |> List.reverse
+                |> List.head
+                |> Maybe.map (\m -> m / 2)
+                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
       }
     , SubCmd.batch
         [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
@@ -219,6 +235,23 @@ type Msg
     | GotLocalSharedMessage SharedMsg
 
 
+zoomMultiplier : SpaceFocus -> Float
+zoomMultiplier focus =
+    case focus of
+        FGalaxy ->
+            -- One light year is 9460730000000000, this is about 10 light years
+            94607300000000000
+
+        FSolarSystem _ ->
+            10000000000
+
+        FStar _ ->
+            10000000000
+
+        FPlanet _ ->
+            1
+
+
 update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
 update sharedModel msg world =
     case msg of
@@ -252,19 +285,115 @@ update sharedModel msg world =
         GotZoom zoomValue ->
             case Json.Decode.decodeValue decodeZoomEvent zoomValue of
                 Ok delta ->
-                    ( { world | zoom = world.zoom + delta }, SubCmd.none )
+                    setZoom world (delta * zoomMultiplier world.spaceFocus)
 
                 Err _ ->
                     ( world, SubCmd.none )
 
         GotZoomChange change ->
-            ( { world | zoom = world.zoom + change }, SubCmd.none )
+            setZoom world (change * zoomMultiplier world.spaceFocus)
 
         GotRotationChange change ->
             ( { world | viewRotation = toFloat (remainderBy 360 (floor (world.viewRotation + change))) }, SubCmd.none )
 
         SetSpaceFocus focus ->
-            ( { world | spaceFocus = focus, zoom = 1, viewRotation = 0 }, SubCmd.none )
+            let
+                zoomDist : Float
+                zoomDist =
+                    case focus of
+                        FGalaxy ->
+                            Set.toList world.solarSystems
+                                |> List.filterMap
+                                    (\solarSystemId ->
+                                        Maybe.map
+                                            (\galacticPosition ->
+                                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
+                                            )
+                                            (Logic.Component.get solarSystemId world.galaxyPositions)
+                                    )
+                                |> List.sort
+                                |> List.reverse
+                                |> List.head
+                                |> Maybe.map (\m -> m / 2)
+                                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
+
+                        FSolarSystem solarSystemId ->
+                            Maybe.map
+                                (\children ->
+                                    let
+                                        largestStarRadius : Float
+                                        largestStarRadius =
+                                            Set.intersect children world.stars
+                                                |> Set.toList
+                                                |> List.filterMap
+                                                    (\starId ->
+                                                        Maybe.map
+                                                            (\starTemp ->
+                                                                Point3d.distanceFrom Point3d.origin
+                                                                    (Point3d.fromMeters
+                                                                        { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                                                        , y = 0
+                                                                        , z = 0
+                                                                        }
+                                                                    )
+                                                                    |> Length.inMeters
+                                                            )
+                                                            (Logic.Component.get starId world.starTemperature)
+                                                    )
+                                                |> List.sort
+                                                |> List.reverse
+                                                |> List.head
+                                                |> Maybe.withDefault 0
+
+                                        largestPlanetOrbit : Float
+                                        largestPlanetOrbit =
+                                            Set.intersect children world.planets
+                                                |> Set.toList
+                                                |> List.filterMap
+                                                    (\planetId ->
+                                                        Maybe.map
+                                                            (\orbit ->
+                                                                Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
+                                                            )
+                                                            (Logic.Component.get planetId world.orbits)
+                                                    )
+                                                |> List.sort
+                                                |> List.reverse
+                                                |> List.head
+                                                |> Maybe.withDefault 0
+                                    in
+                                    max largestStarRadius largestPlanetOrbit
+                                )
+                                (Logic.Component.get solarSystemId world.children)
+                                -- a good number
+                                |> Maybe.withDefault 1196782965600
+
+                        FStar starId ->
+                            Maybe.map
+                                (\starTemp ->
+                                    Point3d.distanceFrom Point3d.origin
+                                        (Point3d.fromMeters
+                                            { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                            , y = 0
+                                            , z = 0
+                                            }
+                                        )
+                                        |> Length.inMeters
+                                )
+                                (Logic.Component.get starId world.starTemperature)
+                                -- a good number
+                                |> Maybe.withDefault 1196782965600
+
+                        FPlanet _ ->
+                            1
+            in
+            ( { world
+                | spaceFocus = focus
+                , zoom = zoomDist
+                , viewRotation = 0
+              }
+            , SubCmd.none
+            )
 
         SetCivilizationFocus focus ->
             ( { world | civilizationFocus = focus }, SubCmd.none )
@@ -345,6 +474,11 @@ update sharedModel msg world =
                 ( updatedWorld
                 , SubCmd.none
                 )
+
+
+setZoom : World -> Float -> ( World, SubCmd Msg Effect )
+setZoom world delta =
+    ( { world | zoom = max 5000000 (world.zoom + delta) }, SubCmd.none )
 
 
 decodeZoomEvent : Json.Decode.Decoder Float
@@ -744,7 +878,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                         giveKnowledge BasicMetalWorking (\name -> "After many burnt appendages, the secrets of metal working were unlocked by " ++ name)
 
                     else if doesntKnow WaterSurfaceTravel then
-                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invedted boating.")
+                        giveKnowledge WaterSurfaceTravel (\name -> name ++ " takes a ride on a floating log, then claims to have invented boating.")
 
                     else
                         let
@@ -878,7 +1012,8 @@ generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
 
 generateSolarSystem : ( EntityID, World ) -> Generator ( EntityID, World )
 generateSolarSystem ( solarSystemId, world ) =
-    generateManyEntities 1 3 world (generateStar solarSystemId)
+    Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
+        |> Random.andThen (\starCount -> generateManyEntities starCount starCount world (generateStar solarSystemId))
         |> Random.andThen
             (\( starIds, starWorld ) ->
                 Random.map2
@@ -924,19 +1059,13 @@ generateGalacticPosition =
 generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generateStar solarSystemId ( starId, world ) =
     Random.map
-        (\size ->
+        (\starTemperature ->
             ( starId, world )
-                |> Logic.Entity.with ( Game.Components.starFormSpec, size )
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemperature )
                 |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
                 |> Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars })
         )
-        (Random.uniform Yellow
-            [ RedGiant
-            , BlueGiant
-            , WhiteDwarf
-            , BlackDwarf
-            ]
-        )
+        Data.Star.random
 
 
 generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
@@ -1122,21 +1251,51 @@ viewPlaying sharedModel world =
 
                     FSolarSystem id ->
                         if Set.member id world.solarSystems then
-                            viewSlice (viewSolarSystemDetailed sharedModel.settings world id)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                ]
+                                (viewSolarSystemDetailed sharedModel.settings world id)
 
                         else
                             text "Missing solar system"
 
                     FStar starId ->
                         if Set.member starId world.stars then
-                            viewSlice (viewBody world viewStarDetailed starId)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                , Ui.Button.default
+                                    { label = text "View System"
+                                    , onPress =
+                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                            (Logic.Component.get starId world.parents)
+                                    }
+                                ]
+                                (viewStarDetailed world starId)
 
                         else
                             text "Missing star"
 
                     FPlanet planetId ->
                         if Set.member planetId world.planets then
-                            viewSlice (viewBody world viewPlanetDetailed planetId)
+                            viewSlice
+                                [ Ui.Button.default
+                                    { label = text "View Galaxy"
+                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                    }
+                                , Ui.Button.default
+                                    { label = text "View System"
+                                    , onPress =
+                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                            (Logic.Component.get planetId world.parents)
+                                    }
+                                ]
+                                (viewPlanetDetailed world planetId)
 
                         else
                             text "Missing planet"
@@ -1216,33 +1375,15 @@ viewControls world =
         ]
 
 
-viewSlice : Element Msg -> Element Msg
-viewSlice slice =
-    column
+viewSlice : List (Element Msg) -> Element Msg -> Element Msg
+viewSlice menuItems slice =
+    el
         [ height fill
         , width fill
-        , padding 8
+        , inFront <|
+            row [ padding 8, spacing 8 ] menuItems
         ]
-        [ Ui.Button.default
-            { label = text "View Galaxy"
-            , onPress = Just (SetSpaceFocus FGalaxy)
-            }
-        , slice
-        ]
-
-
-viewBody : World -> (World -> EntityID -> Element Msg) -> EntityID -> Element Msg
-viewBody model bodyFn id =
-    column
-        [ spacing 8, height fill, padding 8 ]
-        [ Ui.Button.default
-            { label = text "View System"
-            , onPress =
-                Maybe.map (FSolarSystem >> SetSpaceFocus)
-                    (Logic.Component.get id model.parents)
-            }
-        , bodyFn model id
-        ]
+        slice
 
 
 viewGalaxy : World -> Element Msg
@@ -1334,34 +1475,15 @@ viewSolarSystemDetailed settings world solarSystemId =
 
 viewStarDetailed : World -> EntityID -> Element Msg
 viewStarDetailed model starId =
-    case Logic.Component.get starId model.starForms of
+    case Logic.Component.get starId model.starTemperature of
         Nothing ->
             text "Your star is missing!"
 
-        Just size ->
-            let
-                sizeStr : String
-                sizeStr =
-                    case size of
-                        Yellow ->
-                            "Yellow"
-
-                        RedGiant ->
-                            "Red Giant"
-
-                        BlueGiant ->
-                            "Blue Giant"
-
-                        WhiteDwarf ->
-                            "White Dwarf"
-
-                        BlackDwarf ->
-                            "Black Dwarf"
-            in
+        Just temp ->
             column
                 [ spacing 8 ]
                 [ text ("Name: S_" ++ String.fromInt starId)
-                , text ("Size: " ++ sizeStr)
+                , text ("Size: " ++ String.fromFloat (Temperature.inKelvins temp) ++ "K")
                 ]
 
 
