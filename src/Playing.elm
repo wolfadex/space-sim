@@ -764,8 +764,7 @@ discoverySystem knowledge ( world, initialSeed ) =
             { index : Int
             , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
             , seed : Seed
-            , civNames : Array (Maybe CivilizationName)
-            , starDate : StarDate
+            , world : World
             , logs : List Log
             }
         updates =
@@ -773,8 +772,7 @@ discoverySystem knowledge ( world, initialSeed ) =
                 { index = 0
                 , updatedKnowledge = initialUpdatedKnowledge
                 , seed = initialSeed
-                , civNames = world.named
-                , starDate = world.starDate
+                , world = world
                 , logs = []
                 }
                 (knowledge.get world)
@@ -790,19 +788,17 @@ possiblyGainKnowledge :
         { index : Int
         , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
         , seed : Seed
-        , civNames : Array (Maybe CivilizationName)
-        , starDate : StarDate
+        , world : World
         , logs : List Log
         }
     ->
         { index : Int
         , updatedKnowledge : Array (Maybe (AnySet String Knowledge))
         , seed : Seed
-        , civNames : Array (Maybe CivilizationName)
-        , starDate : StarDate
+        , world : World
         , logs : List Log
         }
-possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDate, civNames } as updates) =
+possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world } as updates) =
     case maybeCivKnowledge of
         Nothing ->
             { updates | index = index + 1, updatedKnowledge = Array.set index Nothing updatedKnowledge }
@@ -811,7 +807,7 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDa
             let
                 civName : CivilizationName
                 civName =
-                    case Array.get index civNames of
+                    case Array.get index world.named of
                         Just (Just name) ->
                             name
 
@@ -825,8 +821,9 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, starDa
                         updatedKnowledge
                         maybeCivKnowledge
                         seed
-                        starDate
+                        world
                         civName
+                        index
             in
             { updates
                 | index = index + 1
@@ -848,10 +845,11 @@ gainRandomKnowledge :
     -> Array (Maybe (AnySet String Knowledge))
     -> Maybe (AnySet String Knowledge)
     -> Seed
-    -> StarDate
+    -> World
     -> CivilizationName
+    -> EntityID
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed starDate civName =
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civId =
     Random.step
         (Random.andThen
             (\gainsKnowledge ->
@@ -869,13 +867,47 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed s
                         first :: rest ->
                             Random.map2
                                 (\personName knowledgeGained ->
-                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
-                                    , Just
-                                        { time = starDate
-                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
-                                        , civilizationId = index
-                                        }
-                                    )
+                                    case knowledgeGained of
+                                        KnowsOf _ ->
+                                            let
+                                                planetsInSolarSystem : Maybe EntityID
+                                                planetsInSolarSystem =
+                                                    Logic.Component.get civId world.civilizationPopulations
+                                                        |> Maybe.andThen
+                                                            (Dict.keys
+                                                                >> List.filterMap
+                                                                    (\planetId ->
+                                                                        Maybe.andThen
+                                                                            (\solarSystemId ->
+                                                                                Maybe.map Set.toList (Logic.Component.get solarSystemId world.children)
+                                                                            )
+                                                                            (Logic.Component.get planetId world.parents)
+                                                                    )
+                                                                >> List.concat
+                                                                >> List.head
+                                                            )
+                                            in
+                                            case planetsInSolarSystem of
+                                                Nothing ->
+                                                    ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
+
+                                                Just planetId ->
+                                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig (KnowsOf planetId) civKnowledge)) allCivsKnowledge
+                                                    , Just
+                                                        { time = world.starDate
+                                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                                        , civilizationId = index
+                                                        }
+                                                    )
+
+                                        _ ->
+                                            ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
+                                            , Just
+                                                { time = world.starDate
+                                                , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                                , civilizationId = index
+                                                }
+                                            )
                                 )
                                 Data.Names.randomPerson
                                 (Random.uniform first rest)
