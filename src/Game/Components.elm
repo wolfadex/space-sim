@@ -31,7 +31,7 @@ module Game.Components exposing
     , waterSpec
     )
 
-import Data.Knowledge exposing (Knowledge)
+import Data.Knowledge exposing (Knowledge, KnowledgeTree)
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Length exposing (Meters)
@@ -80,7 +80,7 @@ type alias World =
     , children : Logic.Component.Set (Set EntityID)
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
 
-    ---- Book keeping entities by ID
+    ---- Book keeping
     , planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
@@ -89,6 +89,7 @@ type alias World =
     , availableCivilizationNames : List CivilizationName
     , starDate : StarDate
     , eventLog : List Log
+    , knowledgeTree : KnowledgeTree
     }
 
 
@@ -131,6 +132,7 @@ emptyWorld =
     , availableCivilizationNames = Data.Names.allCivilizationNames
     , starDate = 0
     , eventLog = []
+    , knowledgeTree = Data.Knowledge.buildKnowledgeTree []
     }
 
 

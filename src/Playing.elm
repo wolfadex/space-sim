@@ -29,7 +29,6 @@ import Game.Components
         , Orbit
         , Reproduction
         , SpaceFocus(..)
-        , StarDate
         , TickRate(..)
         , ViewStyle(..)
         , Visible(..)
@@ -166,12 +165,79 @@ init sharedModel playType =
                 |> List.head
                 |> Maybe.map (\m -> m / 2)
                 |> Maybe.withDefault (25000 + (100 * 9460730000000000))
+        , knowledgeTree =
+            Data.Knowledge.buildKnowledgeTree
+                (List.concatMap
+                    (\planetId ->
+                        let
+                            solarSiblings : Set EntityID
+                            solarSiblings =
+                                getSolarSiblings worldWithPlayerCiv planetId
+                        in
+                        List.concat
+                            [ ---- Local solar knowledge
+                              List.map
+                                (\siblingId ->
+                                    if Set.member siblingId worldWithPlayerCiv.stars then
+                                        -- No previous knowledge required
+                                        ( KnowsOf siblingId, [] )
+
+                                    else
+                                        -- Requires Optics
+                                        ( KnowsOf siblingId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                )
+                                (Set.toList solarSiblings)
+
+                            ---- Galactic knowledge
+                            -- Knowledge of extra solar stars only requires Optics
+                            , List.map
+                                (\nonSiblingStarId ->
+                                    ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                )
+                                (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
+
+                            -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
+                            , List.map
+                                (\nonSiblingPlanetId ->
+                                    ( KnowsOf nonSiblingPlanetId
+                                    , List.map
+                                        (\foreignStarId ->
+                                            Set.Any.fromList Data.Knowledge.comparableConfig
+                                                [ Optics, KnowsOf foreignStarId ]
+                                        )
+                                        (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
+                                    )
+                                )
+                                (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
+
+                            ---- Other Civ Knowledge
+                            ]
+                    )
+                    (Set.toList worldWithPlayerCiv.planets)
+                )
       }
     , SubCmd.batch
         [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
         , SubCmd.effect (UpdateSeed finalSeed)
         ]
     )
+
+
+getSolarSiblings : World -> EntityID -> Set EntityID
+getSolarSiblings world child =
+    case
+        Maybe.andThen
+            (\solarSystemId ->
+                Maybe.map (Set.remove child)
+                    (Logic.Component.get solarSystemId world.children)
+            )
+            (Logic.Component.get child world.parents)
+    of
+        Nothing ->
+            Set.empty
+
+        Just siblings ->
+            siblings
 
 
 planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
@@ -712,14 +778,57 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
                         |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, civDetails.mortalityRate )
                         |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, knowledge )
+
+                ( _, worldWithNewCivWithKnowledge ) =
+                    ( civId, worldWithNewCiv )
+                        |> Logic.Entity.with
+                            ( Game.Components.knowledgeSpec
+                            , Set.Any.union
+                                (Set.Any.fromList Data.Knowledge.comparableConfig
+                                    (List.concat
+                                        [ [ KnowsOf oldCivId
+                                          , KnowsOf civId
+                                          , KnowsOf planetId
+                                          ]
+                                        , Set.foldl (\id res -> KnowsOf id :: res)
+                                            []
+                                            (Set.intersect
+                                                (getSolarSiblings worldWithNewCiv planetId)
+                                                worldWithNewCiv.stars
+                                            )
+                                        ]
+                                    )
+                                )
+                                knowledge
+                            )
             in
-            { worldWithNewCiv
-                | civilizations = Set.insert civId worldWithNewCiv.civilizations
+            { worldWithNewCivWithKnowledge
+                | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations
                 , civilizationKnowledge =
                     Logic.Component.update oldCivId
-                        (\_ -> oldCivNewKnowledge)
-                        worldWithNewCiv.civilizationKnowledge
+                        (\_ ->
+                            Set.Any.union
+                                -- Don't forget the planets the old civ lives on!
+                                (case Logic.Component.get oldCivId worldWithNewCivWithKnowledge.civilizationPopulations of
+                                    Nothing ->
+                                        Set.Any.empty
+
+                                    Just populatedPlanets ->
+                                        Set.Any.fromList Data.Knowledge.comparableConfig
+                                            (List.map KnowsOf (Dict.keys populatedPlanets))
+                                )
+                                -- Don't forget your civ-self, your planet, or the revolting civ!
+                                (Set.Any.union
+                                    (Set.Any.fromList Data.Knowledge.comparableConfig
+                                        [ KnowsOf civId
+                                        , KnowsOf oldCivId
+                                        , KnowsOf planetId
+                                        ]
+                                    )
+                                    oldCivNewKnowledge
+                                )
+                        )
+                        worldWithNewCivWithKnowledge.civilizationKnowledge
             }
         )
         (Percent.random 95.0 100.0)
@@ -823,7 +932,6 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
                         seed
                         world
                         civName
-                        index
             in
             { updates
                 | index = index + 1
@@ -847,9 +955,8 @@ gainRandomKnowledge :
     -> Seed
     -> World
     -> CivilizationName
-    -> EntityID
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civId =
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName =
     Random.step
         (Random.andThen
             (\gainsKnowledge ->
@@ -857,7 +964,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                     let
                         canBeLearned : List Knowledge
                         canBeLearned =
-                            Data.Knowledge.canBeLearned civKnowledge
+                            Data.Knowledge.canBeLearned world.knowledgeTree civKnowledge
                                 |> Set.Any.toList Data.Knowledge.comparableConfig
                     in
                     case canBeLearned of
@@ -867,47 +974,13 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                         first :: rest ->
                             Random.map2
                                 (\personName knowledgeGained ->
-                                    case knowledgeGained of
-                                        KnowsOf _ ->
-                                            let
-                                                planetsInSolarSystem : Maybe EntityID
-                                                planetsInSolarSystem =
-                                                    Logic.Component.get civId world.civilizationPopulations
-                                                        |> Maybe.andThen
-                                                            (Dict.keys
-                                                                >> List.filterMap
-                                                                    (\planetId ->
-                                                                        Maybe.andThen
-                                                                            (\solarSystemId ->
-                                                                                Maybe.map Set.toList (Logic.Component.get solarSystemId world.children)
-                                                                            )
-                                                                            (Logic.Component.get planetId world.parents)
-                                                                    )
-                                                                >> List.concat
-                                                                >> List.head
-                                                            )
-                                            in
-                                            case planetsInSolarSystem of
-                                                Nothing ->
-                                                    ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
-
-                                                Just planetId ->
-                                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig (KnowsOf planetId) civKnowledge)) allCivsKnowledge
-                                                    , Just
-                                                        { time = world.starDate
-                                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
-                                                        , civilizationId = index
-                                                        }
-                                                    )
-
-                                        _ ->
-                                            ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
-                                            , Just
-                                                { time = world.starDate
-                                                , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
-                                                , civilizationId = index
-                                                }
-                                            )
+                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
+                                    , Just
+                                        { time = world.starDate
+                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                        , civilizationId = index
+                                        }
+                                    )
                                 )
                                 Data.Names.randomPerson
                                 (Random.uniform first rest)
@@ -1127,7 +1200,7 @@ attemptToGenerateCivilization planetType planetId world =
 generateCivilization : World -> EntityID -> CivilizationName -> Generator World
 generateCivilization worldWithFewerNames planetId name =
     Random.map4
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
+        (\initialPopulationSize reproductionRate mortalityRate _ ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -1137,11 +1210,21 @@ generateCivilization worldWithFewerNames planetId name =
                             )
                         |> Logic.Entity.with ( Game.Components.namedSpec, name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                        -- |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
                         |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+
+                ( _, worldWithNewCivWithKnowledge ) =
+                    ( civId, worldWithNewCiv )
+                        |> Logic.Entity.with
+                            ( Game.Components.knowledgeSpec
+                            , Set.Any.fromList Data.Knowledge.comparableConfig
+                                -- All civs know of themselves and their home planet
+                                [ KnowsOf planetId
+                                , KnowsOf civId
+                                ]
+                            )
             in
-            { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
+            { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
         )
         (Random.float 3 10)
         (Rate.random 0.2 0.3)

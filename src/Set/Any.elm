@@ -8,6 +8,7 @@ module Set.Any exposing
     , member
     , singleton
     , toList
+    , union
     )
 
 import Set exposing (Set)
@@ -55,3 +56,8 @@ isEmpty (AnySet set) =
 diff : AnySet comparable a -> AnySet comparable a -> AnySet comparable a
 diff (AnySet left) (AnySet right) =
     AnySet (Set.diff left right)
+
+
+union : AnySet comparable a -> AnySet comparable a -> AnySet comparable a
+union (AnySet left) (AnySet right) =
+    AnySet (Set.union left right)

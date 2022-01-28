@@ -1,5 +1,7 @@
 module Data.Knowledge exposing
     ( Knowledge(..)
+    , KnowledgeTree
+    , buildKnowledgeTree
     , canBeLearned
     , comparableConfig
     , knows
@@ -119,8 +121,8 @@ comparableConfig =
 
 {-| Given a set of known things, returns a set of things that can be learned
 -}
-canBeLearned : AnySet String Knowledge -> AnySet String Knowledge
-canBeLearned known =
+canBeLearned : KnowledgeTree -> AnySet String Knowledge -> AnySet String Knowledge
+canBeLearned (KnowledgeTree knowledgeTree) known =
     Dict.Any.filter comparableConfig
         (\_ requirements ->
             List.isEmpty requirements
@@ -130,40 +132,49 @@ canBeLearned known =
                     )
                     requirements
         )
-        requiredBeforeLearning
+        knowledgeTree
         |> Dict.Any.keys comparableConfig
         |> Set.Any.fromList comparableConfig
 
 
+type KnowledgeTree
+    = KnowledgeTree (AnyDict String Knowledge (List (AnySet String Knowledge)))
+
+
 {-| Returns what the required `Knoweldge` is to learn a new thing. An empty `List` means that no prior `Knowledge` is required. If more than 1 set of `Knowledge` is returns, then any of those sets can be met.
 -}
-requiredBeforeLearning : AnyDict String Knowledge (List (AnySet String Knowledge))
-requiredBeforeLearning =
-    Dict.Any.fromList comparableConfig
-        [ ( LandTravel, [] )
-        , ( WaterSurfaceTravel, [] )
-        , ( UnderwaterTravel, [] )
-        , ( BasicAgriculture, [] )
-        , ( BasicMetalWorking, [] )
-        , ( Optics, [ Set.Any.singleton comparableConfig BasicMetalWorking ] )
-        , ( Flight
-          , [ Set.Any.singleton comparableConfig LandTravel
-            , Set.Any.singleton comparableConfig WaterSurfaceTravel
-            ]
-          )
-        , ( PlanetarySpaceTravel, [ Set.Any.singleton comparableConfig Flight ] )
-        , ( KnowsOf -1, [ Set.Any.singleton comparableConfig Optics ] )
-        , ( InterplanetarySpaceTravel, [ Set.Any.singleton comparableConfig PlanetarySpaceTravel ] )
-        , ( InterplanetarySpaceTravel
-          , [ Set.Any.fromList comparableConfig
-                [ PlanetarySpaceTravel
-                , BasicAgriculture
-                , Optics
-                ]
-            ]
-          )
-        , ( FTLSpaceTravel, [ Set.Any.fromList comparableConfig [ InterplanetarySpaceTravel ] ] )
-        ]
+buildKnowledgeTree : List ( Knowledge, List (AnySet String Knowledge) ) -> KnowledgeTree
+buildKnowledgeTree generatedKnowledge =
+    KnowledgeTree
+        (Dict.Any.fromList comparableConfig
+            -- Fixed knowledge
+            ([ ( LandTravel, [] )
+             , ( WaterSurfaceTravel, [] )
+             , ( UnderwaterTravel, [] )
+             , ( BasicAgriculture, [] )
+             , ( BasicMetalWorking, [] )
+             , ( Optics, [ Set.Any.singleton comparableConfig BasicMetalWorking ] )
+             , ( Flight
+               , [ Set.Any.singleton comparableConfig LandTravel
+                 , Set.Any.singleton comparableConfig WaterSurfaceTravel
+                 ]
+               )
+             , ( PlanetarySpaceTravel, [ Set.Any.singleton comparableConfig Flight ] )
+             , ( InterplanetarySpaceTravel, [ Set.Any.singleton comparableConfig PlanetarySpaceTravel ] )
+             , ( InterplanetarySpaceTravel
+               , [ Set.Any.fromList comparableConfig
+                    [ PlanetarySpaceTravel
+                    , BasicAgriculture
+                    , Optics
+                    ]
+                 ]
+               )
+             , ( FTLSpaceTravel, [ Set.Any.fromList comparableConfig [ InterplanetarySpaceTravel ] ] )
+             ]
+                ++ generatedKnowledge
+             -- [( KnowsOf -1, [ Set.Any.singleton comparableConfig Optics ] )]
+            )
+        )
 
 
 

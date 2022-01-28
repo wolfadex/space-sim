@@ -2,7 +2,6 @@ module Dict.Any exposing
     ( AnyDict
     , filter
     , fromList
-    , get
     , keys
     )
 
@@ -16,11 +15,6 @@ type AnyDict comparable key value
 fromList : { r | toComparable : key -> comparable } -> List ( key, value ) -> AnyDict comparable key value
 fromList config list =
     AnyDict (Dict.fromList (List.map (\( k, v ) -> ( config.toComparable k, v )) list))
-
-
-get : { r | toComparable : key -> comparable } -> key -> AnyDict comparable key value -> Maybe value
-get config key (AnyDict dict) =
-    Dict.get (config.toComparable key) dict
 
 
 keys : { r | fromComparable : comparable -> key } -> AnyDict comparable key value -> List key
