@@ -419,9 +419,9 @@ export const plugin = (opts) => {
       try {
         let compiled;
 
-        if (isBuild && !debug) {
+        if (isBuild || !debug) {
           const file = temp.openSync({ suffix: ".js " });
-          const result = spawn.sync("elm-optimize-level-2", [
+          spawn.sync("elm-optimize-level-2", [
             id,
             "--optimize-speed",
             "--output",
