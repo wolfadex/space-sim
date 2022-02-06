@@ -282,5 +282,19 @@ viewSettings settings =
                         Disabled ->
                             False
                 }
+            , paragraph
+                [ Font.size 16
+                , Font.color Ui.Theme.nearlyWhite
+                , Background.color Ui.Theme.darkGray
+                , padding 4
+                , Border.rounded 4
+                ]
+                [ text "For issues or to follow development, checkout the "
+                , newTabLink
+                    [ Font.color Ui.Theme.green ]
+                    { url = "https://github.com/wolfadex/space-sim"
+                    , label = text "GitHub page."
+                    }
+                ]
             ]
         )
