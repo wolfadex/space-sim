@@ -15,9 +15,12 @@
     "review-watch": "elm-review --fix --watch"
   },
   "devDependencies": {
+    "cross-spawn": "^7.0.3",
     "elm": "^0.19.1-5",
+    "elm-esm": "^1.1.4",
     "elm-format": "^0.8.5",
     "elm-json": "^0.2.10",
+    "elm-optimize-level-2": "^0.2.3",
     "elm-review": "^2.7.0",
     "elm-tooling": "^1.7.0",
     "vite": "^2.7.10",

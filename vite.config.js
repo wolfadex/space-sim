@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import elmPlugin from "vite-plugin-elm";
+import elmPluginOptimized from "./vite-elm-fork";
 
 export default defineConfig({
   devServer: {
@@ -7,8 +7,7 @@ export default defineConfig({
     liveReload: false,
   },
   plugins: [
-    elmPlugin({
-      optimize: true,
+    elmPluginOptimized({
       debug: false,
     }),
   ],
