@@ -42,6 +42,7 @@ import Population exposing (Population)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
+import Shared exposing (PlayType(..))
 import Temperature exposing (Temperature)
 
 
@@ -56,6 +57,7 @@ type alias World =
     , zoom : Float
     , viewRotation : Float
     , settingsVisible : Visible
+    , playType : PlayType
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -103,6 +105,7 @@ emptyWorld =
     , zoom = 0
     , viewRotation = 0
     , settingsVisible = Hidden
+    , playType = Observation
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals

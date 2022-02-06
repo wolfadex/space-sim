@@ -362,13 +362,12 @@ updateParticipate mainModel msg model =
                     ( mainModel
                     , SubCmd.effect
                         (Shared.CreateGame
-                            (Participation
-                                { name = validName
-                                , homePlanetName = validHomeName
-                                , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                                , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                                }
-                            )
+                            Participation
+                            { name = validName
+                            , homePlanetName = validHomeName
+                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                            }
                         )
                     )
 
@@ -407,11 +406,12 @@ updateObserve mainModel msg model =
             ( mainModel
             , SubCmd.effect
                 (Shared.CreateGame
-                    (Observation
-                        { minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                        , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                        }
-                    )
+                    Observation
+                    { name = { singular = "", many = Nothing, possessive = Nothing }
+                    , homePlanetName = ""
+                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                    }
                 )
             )
 

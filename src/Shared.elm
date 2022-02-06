@@ -52,19 +52,17 @@ type alias SharedModel =
 
 type PlayType
     = Observation
-        { minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
     | Participation
+
+
+type Effect
+    = CreateGame
+        PlayType
         { name : CivilizationName
         , homePlanetName : String
         , minSolarSystemsToGenerate : Int
         , maxSolarSystemsToGenerate : Int
         }
-
-
-type Effect
-    = CreateGame PlayType
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg

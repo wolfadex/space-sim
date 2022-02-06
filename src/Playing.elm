@@ -71,37 +71,35 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : SharedModel -> PlayType -> ( World, SubCmd Msg Effect )
-init sharedModel playType =
+init :
+    SharedModel
+    -> PlayType
+    ->
+        { name : CivilizationName
+        , homePlanetName : String
+        , minSolarSystemsToGenerate : Int
+        , maxSolarSystemsToGenerate : Int
+        }
+    -> ( World, SubCmd Msg Effect )
+init sharedModel playType generationConfig =
     let
         ( generatedWorld, seed ) =
             let
-                generationArguments : { minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int }
-                generationArguments =
-                    case playType of
-                        Participation r ->
-                            { minSolarSystemsToGenerate = r.minSolarSystemsToGenerate
-                            , maxSolarSystemsToGenerate = r.maxSolarSystemsToGenerate
-                            }
-
-                        Observation r ->
-                            r
-
                 -- Filter out a civilization name if the player's chosen name matches
                 worldWithPlayerDataFilteredOut : World
                 worldWithPlayerDataFilteredOut =
                     case playType of
-                        Participation r ->
+                        Participation ->
                             { emptyWorld
                                 | availableCivilizationNames =
-                                    List.filter (\name -> String.toLower name.singular /= String.toLower r.name.singular)
+                                    List.filter (\name -> String.toLower name.singular /= String.toLower generationConfig.name.singular)
                                         emptyWorld.availableCivilizationNames
                             }
 
-                        Observation _ ->
+                        Observation ->
                             emptyWorld
             in
-            Random.step (generateGalaxy generationArguments worldWithPlayerDataFilteredOut) sharedModel.seed
+            Random.step (generateGalaxy generationConfig worldWithPlayerDataFilteredOut) sharedModel.seed
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
@@ -132,10 +130,10 @@ init sharedModel playType =
 
         ( playerCiv, worldWithPlayerCiv ) =
             case playType of
-                Participation r ->
+                Participation ->
                     Logic.Entity.Extra.create generatedWorld
                         |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                        |> Logic.Entity.with ( Game.Components.namedSpec, r.name )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
                         |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
                         |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
                         |> Logic.Entity.with
@@ -145,11 +143,12 @@ init sharedModel playType =
                         |> Logic.Entity.with ( Data.Knowledge.spec, Set.Any.empty )
                         |> Tuple.mapFirst Just
 
-                Observation _ ->
+                Observation ->
                     ( Nothing, generatedWorld )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
+        , playType = playType
         , civilizations =
             case playerCiv of
                 Nothing ->
@@ -1428,7 +1427,7 @@ viewGalaxy world =
                         FOne id ->
                             Just id
                 }
-                world
+                (filterWorldByKnowledge world)
 
         TwoD ->
             Galaxy2d.viewGalaxy
@@ -1442,7 +1441,42 @@ viewGalaxy world =
                         FOne id ->
                             Just id
                 }
-                world
+                (filterWorldByKnowledge world)
+
+
+filterWorldByKnowledge : World -> World
+filterWorldByKnowledge world =
+    case ( world.playType, world.playerCiv ) of
+        ( Participation, Just playerCivId ) ->
+            case Logic.Component.get playerCivId world.civilizationKnowledge of
+                Nothing ->
+                    world
+
+                Just playerCivKnowledge ->
+                    let
+                        knowsOfIds : Set EntityID
+                        knowsOfIds =
+                            Set.fromList
+                                (List.filterMap
+                                    (\knowledge ->
+                                        case knowledge of
+                                            KnowsOf id ->
+                                                Just id
+
+                                            _ ->
+                                                Nothing
+                                    )
+                                    (Set.Any.toList Data.Knowledge.comparableConfig playerCivKnowledge)
+                                )
+                    in
+                    { world
+                        | planets = Set.intersect knowsOfIds world.planets
+                        , stars = Set.intersect knowsOfIds world.stars
+                        , solarSystems = Set.intersect knowsOfIds world.solarSystems
+                    }
+
+        _ ->
+            world
 
 
 viewSolarSystemDetailed : Settings -> World -> EntityID -> Element Msg
