@@ -8,6 +8,7 @@ export default defineConfig({
   },
   plugins: [
     elmPlugin({
+      optimize: true,
       debug: false,
     }),
   ],

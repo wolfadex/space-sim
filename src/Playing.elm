@@ -143,13 +143,20 @@ init sharedModel playType =
                             , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
                             )
                         |> Logic.Entity.with ( Data.Knowledge.spec, Set.Any.empty )
+                        |> Tuple.mapFirst Just
 
                 Observation _ ->
-                    ( -1, generatedWorld )
+                    ( Nothing, generatedWorld )
     in
     ( { worldWithPlayerCiv
         | playerCiv = playerCiv
-        , civilizations = Set.insert playerCiv worldWithPlayerCiv.civilizations
+        , civilizations =
+            case playerCiv of
+                Nothing ->
+                    worldWithPlayerCiv.civilizations
+
+                Just playerCivId ->
+                    Set.insert playerCivId worldWithPlayerCiv.civilizations
         , zoom =
             Set.toList worldWithPlayerCiv.solarSystems
                 |> List.filterMap

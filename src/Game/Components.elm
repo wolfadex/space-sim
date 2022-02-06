@@ -82,7 +82,7 @@ type alias World =
     , planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
-    , playerCiv : EntityID
+    , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
     , availableCivilizationNames : List CivilizationName
     , starDate : StarDate
@@ -125,7 +125,7 @@ emptyWorld =
     , planets = Set.empty
     , stars = Set.empty
     , solarSystems = Set.empty
-    , playerCiv = -1
+    , playerCiv = Nothing
     , civilizations = Set.empty
     , availableCivilizationNames = Data.Names.allCivilizationNames
     , starDate = 0
