@@ -61,6 +61,7 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Svg.Attributes exposing (r)
 import Temperature
 import Ui.Button
 import Ui.Theme
@@ -142,7 +143,7 @@ init sharedModel playType =
                             ( Game.Components.civilizationHappinessSpec
                             , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
                             )
-                        |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+                        |> Logic.Entity.with ( Data.Knowledge.spec, Set.Any.empty )
 
                 Observation _ ->
                     ( -1, generatedWorld )
@@ -522,16 +523,12 @@ update sharedModel msg world =
             in
             if doTick then
                 updatedWorld
-                    |> happinessSystem
-                        Game.Components.civilizationReproductionRateSpec
-                        Game.Components.civilizationMortalityRateSpec
-                        Game.Components.civilizationHappinessSpec
                     |> birthAndDeathSystem
                         Game.Components.civilizationReproductionRateSpec
                         Game.Components.civilizationMortalityRateSpec
                         Game.Components.civilizationPopulationSpec
                     |> (\w -> ( w, sharedModel.seed ))
-                    |> discoverySystem Game.Components.knowledgeSpec
+                    |> discoverySystem Data.Knowledge.spec
                     |> expansionSystem
                     |> civilUnrestSystem
                     |> Tuple.mapSecond (UpdateSeed >> SubCmd.effect)
@@ -782,7 +779,7 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
                 ( _, worldWithNewCivWithKnowledge ) =
                     ( civId, worldWithNewCiv )
                         |> Logic.Entity.with
-                            ( Game.Components.knowledgeSpec
+                            ( Data.Knowledge.spec
                             , Set.Any.union
                                 (Set.Any.fromList Data.Knowledge.comparableConfig
                                     (List.concat
@@ -1016,68 +1013,6 @@ birthAndDeathSystem =
         )
 
 
-happinessSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID (Percent Happiness)) world -> System world
-happinessSystem =
-    Logic.System.step3
-        (\( reproductionRate, setReproductionRate ) ( mortalityRate, setMortalityRate ) ( happinessPercent, setHappiness ) ->
-            let
-                averageHappiness : Percent Happiness
-                averageHappiness =
-                    averageCivilizationHappiness happinessPercent
-
-                repro : Float
-                repro =
-                    Rate.toFloat reproductionRate
-
-                happiness : Float
-                happiness =
-                    Percent.toFloat averageHappiness
-
-                mortality : Float
-                mortality =
-                    Rate.toFloat mortalityRate
-
-                -- Providing type annotations here causes a Haskell runtime error
-                newHappiness =
-                    (if mortality > repro then
-                        -0.1
-
-                     else if repro > mortality * 2 then
-                        -0.1
-
-                     else
-                        0.1
-                    )
-                        |> Percent.fromFloat
-                        |> (\percentChange -> Dict.map (\_ -> Quantity.plus percentChange) happinessPercent)
-                        |> setHappiness
-
-                -- Providing type annotations here causes a Haskell runtime error
-                newReproductinRate =
-                    (if happiness > 80.0 then
-                        repro + 0.01
-
-                     else
-                        repro - 0.01
-                    )
-                        |> Rate.fromFloat
-                        |> setReproductionRate
-
-                -- Providing type annotations here causes a Haskell runtime error
-                newMortalityRate =
-                    (if happiness < 50.0 then
-                        mortality - 0.01
-
-                     else
-                        mortality + 0.01
-                    )
-                        |> Rate.fromFloat
-                        |> setMortalityRate
-            in
-            newHappiness >> newReproductinRate >> newMortalityRate
-        )
-
-
 generateGalaxy : { r | minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int } -> World -> Generator World
 generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
     generateManyEntities minSolarSystemsToGenerate maxSolarSystemsToGenerate model generateSolarSystem
@@ -1216,7 +1151,7 @@ generateCivilization worldWithFewerNames planetId name =
                 ( _, worldWithNewCivWithKnowledge ) =
                     ( civId, worldWithNewCiv )
                         |> Logic.Entity.with
-                            ( Game.Components.knowledgeSpec
+                            ( Data.Knowledge.spec
                             , Set.Any.fromList Data.Knowledge.comparableConfig
                                 -- All civs know of themselves and their home planet
                                 [ KnowsOf planetId
@@ -1227,7 +1162,7 @@ generateCivilization worldWithFewerNames planetId name =
             { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
         )
         (Random.float 3 10)
-        (Rate.random 0.2 0.3)
+        (Rate.random 0.002 0.003)
         (Rate.random 0.1 0.2)
         (Percent.random 90.0 100.0)
 

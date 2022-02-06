@@ -1,6 +1,5 @@
 module Game.Components exposing
-    ( AstronomicalUnit
-    , CelestialBodyForm(..)
+    ( CelestialBodyForm(..)
     , CivilizationFocus(..)
     , Happiness
     , LightYear
@@ -21,7 +20,6 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
-    , knowledgeSpec
     , namedSpec
     , orbitSpec
     , parentSpec
@@ -257,11 +255,6 @@ type Happiness
     = Happiness Never
 
 
-knowledgeSpec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
-knowledgeSpec =
-    Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })
-
-
 positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }
 positionSpec =
     Logic.Component.Spec .galaxyPositions (\comps world -> { world | galaxyPositions = comps })
@@ -269,7 +262,3 @@ positionSpec =
 
 type LightYear
     = LightYear Never
-
-
-type AstronomicalUnit
-    = AstronomicalUnit Never

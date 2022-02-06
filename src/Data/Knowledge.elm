@@ -5,9 +5,11 @@ module Data.Knowledge exposing
     , canBeLearned
     , comparableConfig
     , knows
+    , spec
     )
 
 import Dict.Any exposing (AnyDict)
+import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Set.Any exposing (AnySet)
 
@@ -177,17 +179,6 @@ buildKnowledgeTree generatedKnowledge =
         )
 
 
-
--- LandTravel
--- | WaterSurfaceTravel
--- | UnderwaterTravel
--- | Flight
--- | PlanetarySpaceTravel
--- | InterplanetarySpaceTravel
--- | FTLSpaceTravel
---     -- Basics of civilization
--- | BasicAgriculture
--- | BasicMetalWorking
--- | Optics
---     -- Things in the universe
--- | KnowsOf EntityID
+spec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
+spec =
+    Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })

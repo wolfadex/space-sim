@@ -20,14 +20,7 @@ import Direction3d
 import Element exposing (..)
 import Element.Extra
 import Frame2d
-import Game.Components
-    exposing
-        ( AstronomicalUnit
-        , CelestialBodyForm(..)
-        , LightYear
-        , Orbit
-        , Water
-        )
+import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Water)
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
@@ -89,6 +82,10 @@ type alias MinRenderableWorld r =
         , solarSystems : Set EntityID
         , civilizations : Set EntityID
     }
+
+
+type AstronomicalUnit
+    = AstronomicalUnit Never
 
 
 viewGalaxy :

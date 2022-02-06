@@ -185,8 +185,8 @@ baseParticipateModel =
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
-    , minSolarSystemsToGenerate = 100
-    , maxSolarSystemsToGenerate = 300
+    , minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
@@ -198,8 +198,8 @@ type alias ObserveModel =
 
 baseObserveModel : ObserveModel
 baseObserveModel =
-    { minSolarSystemsToGenerate = 100
-    , maxSolarSystemsToGenerate = 300
+    { minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
@@ -688,7 +688,7 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 120
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -702,7 +702,7 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 120
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
@@ -823,7 +823,7 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 120
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -837,14 +837,10 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 120
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
-
-        -- , model.errors
-        --     |> List.map viewError
-        --     |> wrappedRow [ spacing 8 ]
         , Ui.Button.default
             { label = text "Begin Simulation"
             , onPress = Just BeginSimulation
