@@ -61,6 +61,7 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Svg.Attributes exposing (r)
 import Temperature
 import Ui.Button
 import Ui.Theme
