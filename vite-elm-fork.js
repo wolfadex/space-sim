@@ -421,13 +421,22 @@ export const plugin = (opts) => {
 
         if (isBuild || !debug) {
           const file = temp.openSync({ suffix: ".js " });
-          spawn.sync("elm-optimize-level-2", [
+          const result = spawn.sync("elm-optimize-level-2", [
             id,
             "--optimize-speed",
             "--output",
             file.path,
           ]);
 
+          if (
+            result &&
+            result.output &&
+            result.output[2] &&
+            result.output[2].toString()
+          ) {
+            // Convert the buffered error to a regular Elm error message
+            throw new Error(result.output[2].toString());
+          }
           compiled = fs.readFileSync(file.path, { encoding: "utf8" });
           temp.cleanupSync();
         } else {
@@ -442,7 +451,7 @@ export const plugin = (opts) => {
         if (this.addWatchFile) {
           dependencies.forEach(this.addWatchFile.bind(this));
         }
-        debugger;
+
         const esm = toESModule(compiled);
 
         const hotFixForMissingKey =

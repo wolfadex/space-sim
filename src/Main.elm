@@ -95,14 +95,14 @@ update msg model =
 
         ( GotSharedEffect effect, _ ) ->
             case effect of
-                CreateGame newGameDetails ->
+                CreateGame playType newGameDetails ->
                     let
                         ( playingModel, initializePlaying ) =
                             SubModule.initWithEffect
                                 { toMsg = GotPlayingMessage
                                 , effectToMsg = GotSharedEffect
                                 }
-                                (Playing.init model.shared newGameDetails)
+                                (Playing.init model.shared playType newGameDetails)
                     in
                     ( { model | page = Playing playingModel }
                     , Cmd.none
