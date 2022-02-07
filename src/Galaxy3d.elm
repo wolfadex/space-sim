@@ -110,12 +110,14 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            Point3d.meters 5 2 3
-                -- One light year, 9460730000000000
-                |> Point3d.scaleAbout Point3d.origin world.zoom
-                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
-                |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
+            Point3d.rotateAround Axis3d.z
+                (Angle.degrees world.viewRotation)
+                (Point3d.scaleAbout Point3d.origin
+                    world.zoom
+                    (Point3d.meters 5 2 3)
+                )
 
+        -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
             Viewpoint3d.lookAt
@@ -165,42 +167,44 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
                     let
                         highlightSolarSystem : Bool
                         highlightSolarSystem =
-                            world.civilizations
-                                |> Set.toList
-                                |> List.any
-                                    (\civId ->
-                                        Logic.Component.get civId world.civilizationPopulations
-                                            |> Maybe.map
-                                                (\dictPlanetPopulatiopns ->
-                                                    let
-                                                        solarSystemsCivIsIn : List EntityID
-                                                        solarSystemsCivIsIn =
-                                                            List.filterMap
-                                                                (\planetId ->
-                                                                    Logic.Component.get planetId world.parents
-                                                                )
-                                                                (Dict.keys dictPlanetPopulatiopns)
-                                                    in
-                                                    List.any ((==) solarSystemId) solarSystemsCivIsIn && Just civId == focusedCivilization
-                                                )
-                                            |> Maybe.withDefault False
-                                    )
+                            List.any
+                                (\civId ->
+                                    Maybe.withDefault False
+                                        (Maybe.map
+                                            (\dictPlanetPopulatiopns ->
+                                                let
+                                                    solarSystemsCivIsIn : List EntityID
+                                                    solarSystemsCivIsIn =
+                                                        List.filterMap
+                                                            (\planetId ->
+                                                                Logic.Component.get planetId world.parents
+                                                            )
+                                                            (Dict.keys dictPlanetPopulatiopns)
+                                                in
+                                                List.any ((==) solarSystemId) solarSystemsCivIsIn && Just civId == focusedCivilization
+                                            )
+                                            (Logic.Component.get civId world.civilizationPopulations)
+                                        )
+                                )
+                                (Set.toList world.civilizations)
                     in
                     Svg.g
-                        [ Svg.Attributes.class <|
-                            if highlightSolarSystem then
+                        [ Svg.Attributes.class
+                            (if highlightSolarSystem then
                                 "galactic-label-focus-civ"
 
-                            else
+                             else
                                 "galactic-label"
+                            )
                         ]
                         [ Geometry.Svg.circle2d
-                            [ Svg.Attributes.stroke <|
-                                if highlightSolarSystem then
+                            [ Svg.Attributes.stroke
+                                (if highlightSolarSystem then
                                     "rgb(200, 255, 200)"
 
-                                else
+                                 else
                                     "rgb(255, 255, 0)"
+                                )
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
                             , Svg.Events.onClick (onPressSolarSystem solarSystemId)
@@ -240,8 +244,7 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
         -- corner (which is what SVG natively works in)
         topLeftFrame : Frame2d.Frame2d Pixels.Pixels coordinates defines2
         topLeftFrame =
-            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height))
-                |> Frame2d.reverseY
+            Frame2d.reverseY (Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height)))
 
         -- Create an SVG element with the projected points, lines and
         -- associated labels
@@ -314,11 +317,14 @@ viewSolarSystem options settings world =
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
-            Point3d.meters 5 2 3
-                |> Point3d.scaleAbout Point3d.origin world.zoom
-                -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
-                |> Point3d.rotateAround Axis3d.z (Angle.degrees world.viewRotation)
+            Point3d.rotateAround Axis3d.z
+                (Angle.degrees world.viewRotation)
+                (Point3d.scaleAbout Point3d.origin
+                    world.zoom
+                    (Point3d.meters 5 2 3)
+                )
 
+        -- |> Point3d.rotateAround Axis3d.y (Angle.degrees -22.5)
         viewpoint : Viewpoint3d.Viewpoint3d Meters coordinates
         viewpoint =
             Viewpoint3d.lookAt
@@ -354,9 +360,7 @@ viewSolarSystem options settings world =
                 (\details ->
                     ( details.id
                     , details.size
-                    , scalePointInAstroUnitsToOne details.position
-                        |> Point3d.rotateAround Axis3d.z angle
-                        |> Point3d.Projection.toScreenSpace camera screenRectangle
+                    , Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
                     )
                 )
                 planetDetails
@@ -368,39 +372,41 @@ viewSolarSystem options settings world =
                     let
                         highlightPlanet : Bool
                         highlightPlanet =
-                            world.civilizations
-                                |> Set.toList
-                                |> List.any
-                                    (\civId ->
-                                        Logic.Component.get civId world.civilizationPopulations
-                                            |> Maybe.map
-                                                (\dictPlanetPopulatiopns ->
-                                                    Dict.member planetId dictPlanetPopulatiopns && Just civId == options.focusedCivilization
-                                                )
-                                            |> Maybe.withDefault False
-                                    )
+                            List.any
+                                (\civId ->
+                                    Maybe.withDefault False
+                                        (Maybe.map
+                                            (\dictPlanetPopulatiopns ->
+                                                Dict.member planetId dictPlanetPopulatiopns && Just civId == options.focusedCivilization
+                                            )
+                                            (Logic.Component.get civId world.civilizationPopulations)
+                                        )
+                                )
+                                (Set.toList world.civilizations)
                     in
                     Svg.g
-                        [ Svg.Attributes.class <|
-                            if highlightPlanet then
+                        [ Svg.Attributes.class
+                            (if highlightPlanet then
                                 "galactic-label-focus-civ"
 
-                            else if options.onPressPlanet == Nothing then
+                             else if options.onPressPlanet == Nothing then
                                 "galactic-label-no-show"
 
-                            else
+                             else
                                 "galactic-label"
+                            )
 
                         --"galactic-label"
                         ]
                         [ -- Planet highlight
                           Geometry.Svg.circle2d
-                            [ Svg.Attributes.stroke <|
-                                if highlightPlanet then
+                            [ Svg.Attributes.stroke
+                                (if highlightPlanet then
                                     "rgb(0, 255, 200)"
 
-                                else
+                                 else
                                     "rgb(255, 255, 0)"
+                                )
                             , Svg.Attributes.strokeWidth "2"
                             , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
                             , case options.onPressPlanet of
@@ -455,9 +461,7 @@ viewSolarSystem options settings world =
                 (\details ->
                     ( details.id
                     , details.temperature
-                    , scalePointInAstroUnitsToOne details.position
-                        |> Point3d.rotateAround Axis3d.z angle
-                        |> Point3d.Projection.toScreenSpace camera screenRectangle
+                    , Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
                     )
                 )
                 starDetails
@@ -525,8 +529,7 @@ viewSolarSystem options settings world =
         -- corner (which is what SVG natively works in)
         topLeftFrame : Frame2d.Frame2d Pixels.Pixels coordinates defines2
         topLeftFrame =
-            Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height))
-                |> Frame2d.reverseY
+            Frame2d.reverseY (Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height)))
 
         -- Create an SVG element with the projected points, lines and
         -- associated labels
@@ -926,14 +929,14 @@ getPlanetDetails settings world planetId =
             , color =
                 case planetType_ of
                     Rocky ->
-                        if waterPercent |> Quantity.lessThan (Percent.fromFloat 50.0) then
+                        if Quantity.lessThan (Percent.fromFloat 50.0) waterPercent then
                             Color.brown
 
                         else
                             Color.blue
 
                     Gas ->
-                        if waterPercent |> Quantity.lessThan (Percent.fromFloat 50.0) then
+                        if Quantity.lessThan (Percent.fromFloat 50.0) waterPercent then
                             Color.lightGreen
 
                         else
@@ -1013,7 +1016,4 @@ getStarDetails world starId =
 
 getGalaxyViewport : (Result Browser.Dom.Error Viewport -> msg) -> SubCmd msg effect
 getGalaxyViewport gotViewport =
-    Process.sleep 100
-        |> Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view")
-        |> Task.attempt gotViewport
-        |> SubCmd.cmd
+    SubCmd.cmd (Task.attempt gotViewport (Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view") (Process.sleep 100)))

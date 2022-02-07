@@ -196,13 +196,14 @@ type Enabled
 
 encodeEnabled : Enabled -> Value
 encodeEnabled enabled =
-    Json.Encode.bool <|
-        case enabled of
+    Json.Encode.bool
+        (case enabled of
             Enabled ->
                 True
 
             Disabled ->
                 False
+        )
 
 
 decodeEnabled : Decoder Enabled

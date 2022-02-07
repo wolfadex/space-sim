@@ -19,14 +19,13 @@ viewGalaxy :
     -> World
     -> Element msg
 viewGalaxy onPress world =
-    Set.toList world.solarSystems
-        |> List.map (viewSolarSystemSimple onPress world)
-        |> column
-            [ spacing 8
-            , width fill
-            , spacing 8
-            , Background.color Ui.Theme.darkGray
-            ]
+    column
+        [ spacing 8
+        , width fill
+        , spacing 8
+        , Background.color Ui.Theme.darkGray
+        ]
+        (List.map (viewSolarSystemSimple onPress world) (Set.toList world.solarSystems))
 
 
 viewSolarSystemSimple :
@@ -40,15 +39,18 @@ viewSolarSystemSimple :
 viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCivilization } world solarSystemId =
     let
         ( starCount, planetCount ) =
-            Logic.Component.get solarSystemId world.children
-                |> Maybe.map
-                    (\children ->
-                        ( Set.intersect children world.stars
-                        , Set.intersect children world.planets
+            Tuple.mapBoth Set.size
+                Set.size
+                (Maybe.withDefault ( Set.empty, Set.empty )
+                    (Maybe.map
+                        (\children ->
+                            ( Set.intersect children world.stars
+                            , Set.intersect children world.planets
+                            )
                         )
+                        (Logic.Component.get solarSystemId world.children)
                     )
-                |> Maybe.withDefault ( Set.empty, Set.empty )
-                |> Tuple.mapBoth Set.size Set.size
+                )
     in
     column
         [ padding 8
@@ -63,12 +65,11 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
             ]
         , text ("Stars: " ++ String.fromInt starCount)
         , text ("Planets: " ++ String.fromInt planetCount)
-        , world.civilizations
-            |> Set.toList
-            |> List.filterMap
-                (\civId ->
-                    Logic.Component.get civId world.civilizationPopulations
-                        |> Maybe.andThen
+        , wrappedRow [ spacing 8 ]
+            (text "Occupied by: "
+                :: List.filterMap
+                    (\civId ->
+                        Maybe.andThen
                             (\dictPlanetPopulatiopns ->
                                 let
                                     solarSystemsCivIsIn : List EntityID
@@ -83,9 +84,7 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                     let
                                         civName : String
                                         civName =
-                                            Logic.Component.get civId world.named
-                                                |> Maybe.map .singular
-                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
+                                            Maybe.withDefault ("CIV_" ++ String.fromInt civId) (Maybe.map .singular (Logic.Component.get civId world.named))
                                     in
                                     Just
                                         (if Just civId == focusedCivilization then
@@ -104,9 +103,10 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                 else
                                     Nothing
                             )
-                )
-            |> (::) (text "Occupied by: ")
-            |> wrappedRow [ spacing 8 ]
+                            (Logic.Component.get civId world.civilizationPopulations)
+                    )
+                    (Set.toList world.civilizations)
+            )
         ]
 
 
@@ -127,19 +127,34 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivili
         [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
         , column [ padding 8 ]
             [ text "Stars:"
-            , stars
-                |> Set.toList
-                |> List.map (viewStarSimple onPressStar world)
-                |> column [ padding 8, spacing 4 ]
+            , column [ padding 8, spacing 4 ]
+                (List.map (viewStarSimple onPressStar world)
+                    (Set.toList stars)
+                )
             ]
         , column [ padding 8 ]
             [ text "Planets:"
-            , planets
-                |> Set.toList
-                |> List.filterMap (\planetId -> Maybe.map (Tuple.pair planetId) (Logic.Component.get planetId world.orbits))
-                |> List.sortBy (\( _, orbit ) -> orbit)
-                |> List.map (Tuple.first >> viewPlanetSimple { onPressPlanet = onPressPlanet, onPressCivilization = onPressCivilization, focusedCivilization = focusedCivilization } world)
-                |> column [ padding 8, spacing 4 ]
+            , column [ padding 8, spacing 4 ]
+                (List.map
+                    (Tuple.first
+                        >> viewPlanetSimple
+                            { onPressPlanet = onPressPlanet
+                            , onPressCivilization = onPressCivilization
+                            , focusedCivilization = focusedCivilization
+                            }
+                            world
+                    )
+                    (List.sortBy (\( _, orbit ) -> orbit)
+                        (List.filterMap
+                            (\planetId ->
+                                Maybe.map
+                                    (Tuple.pair planetId)
+                                    (Logic.Component.get planetId world.orbits)
+                            )
+                            (Set.toList planets)
+                        )
+                    )
+                )
             ]
         ]
 
@@ -169,38 +184,37 @@ viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } wor
             [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
             , Ui.Button.inspect (Just (onPressPlanet planetId))
             ]
-        , world.civilizations
-            |> Set.toList
-            |> List.filterMap
+        , wrappedRow [ spacing 8 ]
+            (List.filterMap
                 (\civId ->
-                    Logic.Component.get civId world.civilizationPopulations
-                        |> Maybe.andThen
-                            (\dictPlanetPopulatiopns ->
-                                if Dict.member planetId dictPlanetPopulatiopns then
-                                    let
-                                        civName : String
-                                        civName =
-                                            Logic.Component.get civId world.named
-                                                |> Maybe.map .singular
-                                                |> Maybe.withDefault ("CIV_" ++ String.fromInt civId)
-                                    in
-                                    Just
-                                        (if Just civId == focusedCivilization then
-                                            Ui.Button.primary
-                                                { label = text civName
-                                                , onPress = Just (onPressCivilization civId)
-                                                }
+                    Maybe.andThen
+                        (\dictPlanetPopulatiopns ->
+                            if Dict.member planetId dictPlanetPopulatiopns then
+                                let
+                                    civName : String
+                                    civName =
+                                        Maybe.withDefault ("CIV_" ++ String.fromInt civId)
+                                            (Maybe.map .singular (Logic.Component.get civId world.named))
+                                in
+                                Just
+                                    (if Just civId == focusedCivilization then
+                                        Ui.Button.primary
+                                            { label = text civName
+                                            , onPress = Just (onPressCivilization civId)
+                                            }
 
-                                         else
-                                            Ui.Button.default
-                                                { label = text civName
-                                                , onPress = Just (onPressCivilization civId)
-                                                }
-                                        )
+                                     else
+                                        Ui.Button.default
+                                            { label = text civName
+                                            , onPress = Just (onPressCivilization civId)
+                                            }
+                                    )
 
-                                else
-                                    Nothing
-                            )
+                            else
+                                Nothing
+                        )
+                        (Logic.Component.get civId world.civilizationPopulations)
                 )
-            |> wrappedRow [ spacing 8 ]
+                (Set.toList world.civilizations)
+            )
         ]

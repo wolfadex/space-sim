@@ -42,12 +42,12 @@ init flags =
                 }
                 NewGame.init
     in
-    ( { shared = Shared.init flags
-      , page = NewGame newGameModel
-      }
-    , Cmd.none
-    )
-        |> initializeNewGame
+    initializeNewGame
+        ( { shared = Shared.init flags
+          , page = NewGame newGameModel
+          }
+        , Cmd.none
+        )
 
 
 subscriptions : Model -> Sub Msg
@@ -104,10 +104,10 @@ update msg model =
                                 }
                                 (Playing.init model.shared playType newGameDetails)
                     in
-                    ( { model | page = Playing playingModel }
-                    , Cmd.none
-                    )
-                        |> initializePlaying
+                    initializePlaying
+                        ( { model | page = Playing playingModel }
+                        , Cmd.none
+                        )
 
                 DeleteGame ->
                     let
@@ -118,10 +118,10 @@ update msg model =
                                 }
                                 NewGame.init
                     in
-                    ( { model | page = NewGame newGameModel }
-                    , Cmd.none
-                    )
-                        |> initializeNewGame
+                    initializeNewGame
+                        ( { model | page = NewGame newGameModel }
+                        , Cmd.none
+                        )
 
                 GotSharedMessage change ->
                     let

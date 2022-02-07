@@ -125,18 +125,20 @@ comparableConfig =
 -}
 canBeLearned : KnowledgeTree -> AnySet String Knowledge -> AnySet String Knowledge
 canBeLearned (KnowledgeTree knowledgeTree) known =
-    Dict.Any.filter comparableConfig
-        (\_ requirements ->
-            List.isEmpty requirements
-                || List.any
-                    (\setOfRequirements ->
-                        Set.Any.isEmpty (Set.Any.diff setOfRequirements known)
-                    )
-                    requirements
+    Set.Any.fromList comparableConfig
+        (Dict.Any.keys comparableConfig
+            (Dict.Any.filter comparableConfig
+                (\_ requirements ->
+                    List.isEmpty requirements
+                        || List.any
+                            (\setOfRequirements ->
+                                Set.Any.isEmpty (Set.Any.diff setOfRequirements known)
+                            )
+                            requirements
+                )
+                knowledgeTree
+            )
         )
-        knowledgeTree
-        |> Dict.Any.keys comparableConfig
-        |> Set.Any.fromList comparableConfig
 
 
 type KnowledgeTree
