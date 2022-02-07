@@ -136,13 +136,14 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivili
             [ text "Planets:"
             , column [ padding 8, spacing 4 ]
                 (List.map
-                    (Tuple.first
-                        >> viewPlanetSimple
+                    (\( planetId, _ ) ->
+                        viewPlanetSimple
                             { onPressPlanet = onPressPlanet
                             , onPressCivilization = onPressCivilization
                             , focusedCivilization = focusedCivilization
                             }
                             world
+                            planetId
                     )
                     (List.sortBy (\( _, orbit ) -> orbit)
                         (List.filterMap

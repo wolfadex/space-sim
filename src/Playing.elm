@@ -122,9 +122,11 @@ init sharedModel playType generationConfig =
 
         ( inhabitedPlanets, finalSeed ) =
             Tuple.mapFirst
-                (List.head
-                    >> Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
-                    >> Maybe.withDefault Dict.empty
+                (\xs ->
+                    Maybe.withDefault Dict.empty
+                        (Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
+                            (List.head xs)
+                        )
                 )
                 (Random.step (Random.List.shuffle viableStartingPlanets) seed)
 
@@ -545,7 +547,7 @@ update sharedModel msg world =
                     }
             in
             if doTick then
-                Tuple.mapSecond (UpdateSeed >> SubCmd.effect)
+                Tuple.mapSecond (\seed -> SubCmd.effect (UpdateSeed seed))
                     (civilUnrestSystem
                         (expansionSystem
                             (discoverySystem Data.Knowledge.spec
@@ -623,7 +625,10 @@ expansionSystem ( world, initialSeed ) =
 
                     allPopulatedPlanets : Set EntityID
                     allPopulatedPlanets =
-                        Set.fromList (List.concatMap (Tuple.second >> Dict.keys) (Logic.Component.toList world.civilizationPopulations))
+                        Set.fromList
+                            (List.concatMap (\( _, populations ) -> Dict.keys populations)
+                                (Logic.Component.toList world.civilizationPopulations)
+                            )
 
                     allAvailablePlanets : Set EntityID
                     allAvailablePlanets =
@@ -879,7 +884,7 @@ dropRandom anySetConfig percent set =
         toDrop =
             floor (Percent.toFloat (Quantity.divideBy (toFloat (List.length setList)) (Quantity.multiplyBy 100.0 percent)))
     in
-    Random.map (List.drop toDrop >> Set.Any.fromList anySetConfig)
+    Random.map (\a -> Set.Any.fromList anySetConfig (List.drop toDrop a))
         (Random.List.shuffle setList)
 
 
@@ -1311,7 +1316,7 @@ viewPlaying sharedModel world =
                                 , Ui.Button.default
                                     { label = text "View System"
                                     , onPress =
-                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                        Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
                                             (Logic.Component.get starId world.parents)
                                     }
                                 ]
@@ -1330,7 +1335,7 @@ viewPlaying sharedModel world =
                                 , Ui.Button.default
                                     { label = text "View System"
                                     , onPress =
-                                        Maybe.map (FSolarSystem >> SetSpaceFocus)
+                                        Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
                                             (Logic.Component.get planetId world.parents)
                                     }
                                 ]
@@ -1431,7 +1436,7 @@ viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewGalaxy
-                { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
+                { onPressSolarSystem = \id -> SetSpaceFocus (FSolarSystem id)
                 , onZoom = GotZoom
                 , onZoomPress = GotZoomChange
                 , onRotationPress = GotRotationChange
@@ -1447,8 +1452,8 @@ viewGalaxy world =
 
         TwoD ->
             Galaxy2d.viewGalaxy
-                { onPressSolarSystem = FSolarSystem >> SetSpaceFocus
-                , onPressCivilization = FOne >> SetCivilizationFocus
+                { onPressSolarSystem = \id -> SetSpaceFocus (FSolarSystem id)
+                , onPressCivilization = \id -> SetCivilizationFocus (FOne id)
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1512,8 +1517,8 @@ viewSolarSystemDetailed settings world solarSystemId =
     case world.viewStyle of
         ThreeD ->
             Galaxy3d.viewSolarSystem
-                { onPressStar = Just (FStar >> SetSpaceFocus)
-                , onPressPlanet = Just (FPlanet >> SetSpaceFocus)
+                { onPressStar = Just (\id -> SetSpaceFocus (FStar id))
+                , onPressPlanet = Just (\id -> SetSpaceFocus (FPlanet id))
                 , onZoom = Just GotZoom
                 , onZoomPress = Just GotZoomChange
                 , onRotationPress = Just GotRotationChange
@@ -1532,9 +1537,9 @@ viewSolarSystemDetailed settings world solarSystemId =
 
         TwoD ->
             Galaxy2d.viewSolarSystem
-                { onPressPlanet = FPlanet >> SetSpaceFocus
-                , onPressStar = FStar >> SetSpaceFocus
-                , onPressCivilization = FOne >> SetCivilizationFocus
+                { onPressPlanet = \id -> SetSpaceFocus (FPlanet id)
+                , onPressStar = \id -> SetSpaceFocus (FStar id)
+                , onPressCivilization = \id -> SetCivilizationFocus (FOne id)
                 , focusedCivilization =
                     case world.civilizationFocus of
                         FAll ->
@@ -1789,7 +1794,7 @@ getCivilizationDetails world civId =
             , mortalityRate = mortalityRate
             , knowledge =
                 Maybe.withDefault Set.Any.empty (Logic.Component.get civId world.civilizationKnowledge)
-            , logs = List.filter (.civilizationId >> (==) civId) world.eventLog
+            , logs = List.filter (\log -> log.civilizationId == civId) world.eventLog
             , name = name
             , happiness = happiness
             }

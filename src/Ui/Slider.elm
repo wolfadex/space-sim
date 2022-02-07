@@ -21,7 +21,7 @@ int options =
                 none
             )
         ]
-        { onChange = floor >> options.onChange
+        { onChange = \i -> options.onChange (floor i)
         , label = options.label
         , min = toFloat options.min
         , max = toFloat options.max

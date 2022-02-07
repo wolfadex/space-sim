@@ -106,7 +106,7 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
 
         solarSystems : List (Scene3d.Entity ScaledViewPoint)
         solarSystems =
-            List.map (Tuple.second >> renderSolarSystem) solarSystemPoints
+            List.map (\( _, point ) -> renderSolarSystem point) solarSystemPoints
 
         eyePoint : Point3d Meters coordinates
         eyePoint =
@@ -153,9 +153,10 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
         vertices2d =
             List.map
                 (Tuple.mapSecond
-                    (scalePointInLightYearsToOne
-                        >> Point3d.rotateAround Axis3d.z angle
-                        >> Point3d.Projection.toScreenSpace camera screenRectangle
+                    (\point ->
+                        Point3d.Projection.toScreenSpace camera
+                            screenRectangle
+                            (Point3d.rotateAround Axis3d.z angle (scalePointInLightYearsToOne point))
                     )
                 )
                 solarSystemPoints
