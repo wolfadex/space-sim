@@ -130,23 +130,53 @@ init sharedModel playType generationConfig =
                 )
                 (Random.step (Random.List.shuffle viableStartingPlanets) seed)
 
-        ( playerCiv, worldWithPlayerCiv ) =
+        ( playerCivId, worldWithPlayerCiv ) =
+            Logic.Entity.with
+                ( Game.Components.civilizationHappinessSpec
+                , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                )
+                (Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                    (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                        (Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
+                            (Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                                (Logic.Entity.Extra.create generatedWorld)
+                            )
+                        )
+                    )
+                )
+
+        ( playerCiv, worldWithPlayerCivWithKnowledge ) =
             case playType of
                 Participation ->
                     Tuple.mapFirst Just
-                        (Logic.Entity.with ( Data.Knowledge.spec, Set.Any.empty )
-                            (Logic.Entity.with
-                                ( Game.Components.civilizationHappinessSpec
-                                , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                        (Logic.Entity.with
+                            ( Data.Knowledge.spec
+                            , Set.Any.fromList Data.Knowledge.comparableConfig
+                                (KnowsOf playerCivId
+                                    :: List.concatMap
+                                        (\planetId ->
+                                            case Logic.Component.get planetId worldWithPlayerCiv.parents of
+                                                Nothing ->
+                                                    [ KnowsOf planetId ]
+
+                                                Just solarSystemId ->
+                                                    case Logic.Component.get solarSystemId worldWithPlayerCiv.children of
+                                                        Nothing ->
+                                                            [ KnowsOf planetId ]
+
+                                                        Just childrenIds ->
+                                                            KnowsOf planetId :: List.map KnowsOf (Set.toList (Set.intersect childrenIds worldWithPlayerCiv.stars))
+                                        )
+                                        (Dict.keys inhabitedPlanets)
                                 )
-                                (Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 ) (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 ) (Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name ) (Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets ) (Logic.Entity.Extra.create generatedWorld)))))
                             )
+                            ( playerCivId, worldWithPlayerCiv )
                         )
 
                 Observation ->
                     ( Nothing, generatedWorld )
     in
-    ( { worldWithPlayerCiv
+    ( { worldWithPlayerCivWithKnowledge
         | playerCiv = playerCiv
         , playType = playType
         , civilizations =
@@ -154,8 +184,8 @@ init sharedModel playType generationConfig =
                 Nothing ->
                     worldWithPlayerCiv.civilizations
 
-                Just playerCivId ->
-                    Set.insert playerCivId worldWithPlayerCiv.civilizations
+                Just civId ->
+                    Set.insert civId worldWithPlayerCiv.civilizations
         , zoom =
             Maybe.withDefault (25000 + (100 * 9460730000000000))
                 (Maybe.map (\m -> m / 2)
@@ -1249,8 +1279,60 @@ generateEntity world fn =
 view : SharedModel -> World -> View Msg
 view sharedModel world =
     { title = "Hello Space!"
-    , body = viewPlaying sharedModel world
+    , body = viewPlaying sharedModel (filterWorldByKnowledge world)
     }
+
+
+filterWorldByKnowledge : World -> World
+filterWorldByKnowledge world =
+    case ( world.playType, world.playerCiv ) of
+        ( Participation, Just playerCivId ) ->
+            case Logic.Component.get playerCivId world.civilizationKnowledge of
+                Nothing ->
+                    world
+
+                Just playerCivKnowledge ->
+                    let
+                        knowsOfIds : Set EntityID
+                        knowsOfIds =
+                            Set.fromList
+                                (List.filterMap
+                                    (\knowledge ->
+                                        case knowledge of
+                                            KnowsOf id ->
+                                                Just id
+
+                                            _ ->
+                                                Nothing
+                                    )
+                                    (Set.Any.toList Data.Knowledge.comparableConfig playerCivKnowledge)
+                                )
+
+                        knownPlanets : Set EntityID
+                        knownPlanets =
+                            Set.intersect knowsOfIds world.planets
+
+                        knownStars : Set EntityID
+                        knownStars =
+                            Set.intersect knowsOfIds world.stars
+
+                        knownParents : List EntityID
+                        knownParents =
+                            List.filterMap (\id -> Logic.Component.get id world.parents)
+                                (Set.toList (Set.union knownPlanets knownStars))
+                    in
+                    { world
+                        | planets = knownPlanets
+                        , stars = knownStars
+                        , solarSystems =
+                            List.foldl (\id result -> Set.insert id result)
+                                (Set.intersect knowsOfIds world.solarSystems)
+                                knownParents
+                        , civilizations = Set.intersect knowsOfIds world.civilizations
+                    }
+
+        _ ->
+            world
 
 
 viewPlaying : SharedModel -> World -> Element Msg
@@ -1448,7 +1530,7 @@ viewGalaxy world =
                         FOne id ->
                             Just id
                 }
-                (filterWorldByKnowledge world)
+                world
 
         TwoD ->
             Galaxy2d.viewGalaxy
@@ -1462,42 +1544,7 @@ viewGalaxy world =
                         FOne id ->
                             Just id
                 }
-                (filterWorldByKnowledge world)
-
-
-filterWorldByKnowledge : World -> World
-filterWorldByKnowledge world =
-    case ( world.playType, world.playerCiv ) of
-        ( Participation, Just playerCivId ) ->
-            case Logic.Component.get playerCivId world.civilizationKnowledge of
-                Nothing ->
-                    world
-
-                Just playerCivKnowledge ->
-                    let
-                        knowsOfIds : Set EntityID
-                        knowsOfIds =
-                            Set.fromList
-                                (List.filterMap
-                                    (\knowledge ->
-                                        case knowledge of
-                                            KnowsOf id ->
-                                                Just id
-
-                                            _ ->
-                                                Nothing
-                                    )
-                                    (Set.Any.toList Data.Knowledge.comparableConfig playerCivKnowledge)
-                                )
-                    in
-                    { world
-                        | planets = Set.intersect knowsOfIds world.planets
-                        , stars = Set.intersect knowsOfIds world.stars
-                        , solarSystems = Set.intersect knowsOfIds world.solarSystems
-                    }
-
-        _ ->
-            world
+                world
 
 
 viewSolarSystemDetailed : Settings -> World -> EntityID -> Element Msg
