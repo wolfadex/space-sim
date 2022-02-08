@@ -1609,9 +1609,16 @@ viewStarDetailed model starId =
 
         Just temp ->
             column
-                [ spacing 8 ]
+                [ spacing 8
+                , paddingEach
+                    { top = 64
+                    , left = 8
+                    , bottom = 8
+                    , right = 8
+                    }
+                ]
                 [ text ("Name: S_" ++ String.fromInt starId)
-                , text ("Size: " ++ String.fromFloat (Temperature.inKelvins temp) ++ "K")
+                , text ("Temperature: " ++ String.fromInt (round (Temperature.inKelvins temp)) ++ "K")
                 ]
 
 
@@ -1641,7 +1648,14 @@ viewPlanetDetailed world planetId =
                         (Set.toList world.civilizations)
             in
             column
-                [ spacing 8 ]
+                [ spacing 8
+                , paddingEach
+                    { top = 64
+                    , left = 8
+                    , bottom = 8
+                    , right = 8
+                    }
+                ]
                 [ text ("Name: P_" ++ String.fromInt planetId)
                 , text
                     ("Terrain: "

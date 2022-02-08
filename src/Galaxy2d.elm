@@ -123,7 +123,13 @@ viewSolarSystem :
     -> Element msg
 viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivilization } solarSystemId stars world planets =
     column
-        [ padding 8 ]
+        [ paddingEach
+            { top = 64
+            , left = 8
+            , bottom = 8
+            , right = 8
+            }
+        ]
         [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
         , column [ padding 8 ]
             [ text "Stars:"
