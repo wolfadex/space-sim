@@ -1186,18 +1186,20 @@ attemptToGenerateCivilization planetType planetId world =
 generateCivilization : World -> EntityID -> CivilizationName -> Generator World
 generateCivilization worldWithFewerNames planetId name =
     Random.map4
-        (\initialPopulationSize reproductionRate mortalityRate _ ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
             let
                 ( civId, worldWithNewCiv ) =
-                    -- Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                    Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                        (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                            (Logic.Entity.with ( Game.Components.namedSpec, name )
-                                (Logic.Entity.with
-                                    ( Game.Components.civilizationPopulationSpec
-                                    , Dict.singleton planetId (Population.millions initialPopulationSize)
+                    Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                        (Logic.Entity.with
+                            ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                            (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                                (Logic.Entity.with ( Game.Components.namedSpec, name )
+                                    (Logic.Entity.with
+                                        ( Game.Components.civilizationPopulationSpec
+                                        , Dict.singleton planetId (Population.millions initialPopulationSize)
+                                        )
+                                        (Logic.Entity.Extra.create worldWithFewerNames)
                                     )
-                                    (Logic.Entity.Extra.create worldWithFewerNames)
                                 )
                             )
                         )
