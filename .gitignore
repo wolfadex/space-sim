@@ -4,3 +4,4 @@ elm-stuff
 dist
 dist-ssr
 *.local
+dist-newstyle
