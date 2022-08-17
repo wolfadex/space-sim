@@ -17,6 +17,7 @@ import Apecs
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Set as Set
+
 import Flow
 import GHC.Generics (Generic)
 import Graphics.Gloss
@@ -25,6 +26,8 @@ import System.Random (Random)
 import qualified System.Random as Random
 import Units.Length (Length)
 import qualified Units.Length as Length
+import qualified Extra.Random
+import qualified Data.Star as Star
 -- 
 import Debug
 
@@ -37,7 +40,7 @@ data SolarSystem = SolarSystem
   deriving (Show)
 
 
-data Star = Star
+newtype Star = Star Temperature
   deriving (Show)
 
 data Planet = Rocky | Water | Gas
@@ -61,12 +64,14 @@ game = do
   solarSystemCount <- Random.randomRIO ( 3, 8) |> liftIO
   replicateM solarSystemCount randomSolarSystem
 
-  cmapM_ $ \(SolarSystem _ _ pos, Entity e) -> (e, pos) |> print |> liftIO
+  cmapM_ $ \(SolarSystem _ _ pos, Entity _) -> (pos) |> print |> liftIO
+
+  cmapM_ $ \(Star temp, Entity _) -> (temp) |> print |> liftIO
   
 
 randomSolarSystem :: System' Entity
 randomSolarSystem = do
-  starCount <- randomWeighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
+  starCount <- Extra.Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
                 |> liftIO
   stars <- replicateM starCount randomStar
 
@@ -98,8 +103,8 @@ randomGalacticPosition = do
 
 randomStar :: System' Entity
 randomStar = do
-
-  newEntity Star
+  temp <- Star.generate |> liftIO
+  newEntity <| Star temp
 
 
 randomPlanet :: System' Entity
@@ -113,21 +118,3 @@ main = do
   w <- initWorld
   runSystem game w
   -- display (InWindow "Space Sim" (800, 600) (10, 10)) white (Circle 80)
-
-
-randomWeighted :: ( Random a, MonadIO m ) => ( Float, a ) -> [( Float, a )] -> m a
-randomWeighted first others = do
-  let normalize ( weight, _ ) = abs weight
-  let total = normalize first + sum (fmap normalize others)
-
-  cntDwn <- Random.randomRIO (0.0, total)
-
-  let getByWeight ( weight, value ) oths countdown =
-        case oths of
-          [] -> value
-          next : rest ->
-            if countdown <= abs weight
-              then value
-              else getByWeight next rest (countdown - abs weight)
-
-  pure <| getByWeight first others cntDwn
