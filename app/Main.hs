@@ -15,22 +15,23 @@
 
 import Apecs
 import Control.Monad
-import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Set as Set
 
 import Flow
 import GHC.Generics (Generic)
 import Graphics.Gloss
 import Linear (V2 (..), V3(..))
-import System.Random (Random)
+import System.Random (Random, RandomGen, StdGen)
 import qualified System.Random as Random
 import Units.Length (Length)
 import qualified Units.Length as Length
+import Units.Temperature (Temperature)
 import qualified Extra.Random
 import qualified Data.Star as Star
 -- 
 import Debug
 
+-- instance Component StdGen where type Storage StdGen = Global StdGen
 
 data SolarSystem = SolarSystem
   { stars :: Set.Set Entity
@@ -53,7 +54,7 @@ instance Random Planet where
                       (r, g') -> (toEnum r, g')
 
 
-makeWorldAndComponents "World" [''SolarSystem, ''Star, ''Planet]
+makeWorldAndComponents "World" [''StdGen, ''SolarSystem, ''Star, ''Planet]
 
 
 type System' a = System World a 
@@ -61,7 +62,9 @@ type System' a = System World a
 
 game :: System' ()
 game = do
-  solarSystemCount <- Random.randomRIO ( 3, 8) |> liftIO
+  randSeed <- liftIO Random.initStdGen
+  let (solarSystemCount, nextSeed) = Random.randomR ( 3, 8) randSeed
+  global $= nextSeed
   replicateM solarSystemCount randomSolarSystem
 
   cmapM_ $ \(SolarSystem _ _ pos, Entity _) -> (pos) |> print |> liftIO
@@ -71,11 +74,13 @@ game = do
 
 randomSolarSystem :: System' Entity
 randomSolarSystem = do
-  starCount <- Extra.Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
-                |> liftIO
+  randSeed <- get global
+  let (starCount, starSeed) = Extra.Random.weighted randSeed ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
+  global $= (starSeed :: StdGen)
   stars <- replicateM starCount randomStar
-
-  planetCount <- Random.randomRIO ( 3, 8) |> liftIO
+  nextRandSeed <- get global
+  let (planetCount, planetSeed) = Random.randomR (3, 8) nextRandSeed
+  global $= (planetSeed :: StdGen)
   planets <- replicateM planetCount randomPlanet
 
   position <- randomGalacticPosition
@@ -91,9 +96,11 @@ randomSolarSystem = do
 
 randomGalacticPosition :: System' (V3 Length)
 randomGalacticPosition = do
-  rand1 <- Random.randomRIO (0, 1.0) |> liftIO
-  rand2 <- Random.randomRIO (0, 1.0) |> liftIO
-
+  randSeed <- get global
+  let (rand1, nextSeed) = Random.randomR (0, 1.0) randSeed
+  let (rand2, finalSeed) = Random.randomR (0, 1.0) nextSeed
+  global $= (finalSeed :: StdGen)
+  
   let radius = (Length.lightYears 50000 |> Length.inMeters)
   let u1 = 2 * pi * rand1
   let u2 = radius * rand2
@@ -103,13 +110,17 @@ randomGalacticPosition = do
 
 randomStar :: System' Entity
 randomStar = do
-  temp <- Star.generate |> liftIO
+  (randSeed :: StdGen) <- get global
+  let (temp, nextSeed) = Star.generate randSeed
+  global $= (nextSeed :: StdGen)
   newEntity <| Star temp
 
 
 randomPlanet :: System' Entity
 randomPlanet = do
-  planetType <- Random.randomRIO (Rocky, Gas) |> liftIO
+  randSeed <- get global
+  let (planetType, nextSeed) = Random.randomR (Rocky, Gas) randSeed
+  global $= (nextSeed :: StdGen)
   newEntity planetType
 
 
