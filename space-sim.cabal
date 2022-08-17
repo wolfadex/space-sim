@@ -26,6 +26,7 @@ library
         Units.Constants
         Units.Length
         Units.Quantity
+        Units.Percent
         Units.Temperature
         Random
 

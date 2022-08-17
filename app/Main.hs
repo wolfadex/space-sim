@@ -25,6 +25,8 @@ import System.Random (Random, RandomGen, StdGen)
 import qualified System.Random
 import Units.Length (Length)
 import qualified Units.Length as Length
+import Units.Percent (Percent)
+import qualified Units.Percent as Percent
 import Units.Temperature (Temperature)
 import qualified Random
 import qualified Data.Star as Star
@@ -44,17 +46,48 @@ data SolarSystem = SolarSystem
 newtype Star = Star Temperature
   deriving (Show)
 
-data Planet = Rocky | Water | Gas
+
+newtype Planet = Planet PlanetType
+  deriving (Show)
+
+data PlanetType = Rocky | Gas
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-instance Random Planet where
+instance Random PlanetType where
   random g = case System.Random.randomR (0,2) g of
                  (r, g') -> (toEnum r, g')
   randomR (a,b) g = case System.Random.randomR (fromEnum a, fromEnum b) g of
                       (r, g') -> (toEnum r, g')
 
+data Water = Water
+  deriving (Show)
 
-makeWorldAndComponents "World" [''StdGen, ''SolarSystem, ''Star, ''Planet]
+
+type WaterPercent = Percent Water
+
+
+newtype Orbit = Orbit Int
+  deriving (Show)
+
+
+newtype Size = Size Float
+  deriving (Show)
+
+
+newtype Parent = Parent Entity
+  deriving (Show)
+
+
+makeWorldAndComponents "World"
+  [ ''StdGen
+  , ''SolarSystem
+  , ''Star
+  , ''Planet
+  , ''WaterPercent
+  , ''Orbit
+  , ''Size
+  , ''Parent
+  ]
 
 
 type System' a = System World a 
@@ -79,19 +112,24 @@ randomSolarSystem = do
   global $= (starSeed :: StdGen)
   stars <- replicateM starCount randomStar
   nextRandSeed <- get global
-  let (planetCount, planetSeed) = Random.range nextRandSeed 3 8
+  let (planetCount, planetSeed) = Random.range nextRandSeed 1 12
   global $= (planetSeed :: StdGen)
   planets <- replicateM planetCount randomPlanet
 
   position <- randomGalacticPosition
 
-  newEntity
-    (SolarSystem
-      { stars = Set.fromList stars
-      , planets = Set.fromList planets
-      , position = position
-      }
-    )
+  solarSystem <- newEntity
+                  (SolarSystem
+                    { stars = Set.fromList stars
+                    , planets = Set.fromList planets
+                    , position = position
+                    }
+                  )
+
+  cmapM $ \(Planet _, e) -> e $= Parent solarSystem
+  cmapM $ \(Star _, e) -> e $= Parent solarSystem
+
+  pure solarSystem
 
 
 randomGalacticPosition :: System' (V3 Length)
@@ -119,9 +157,35 @@ randomStar = do
 randomPlanet :: System' Entity
 randomPlanet = do
   randSeed <- get global
-  let (planetType, nextSeed) = Random.range randSeed Rocky Gas
-  global $= (nextSeed :: StdGen)
-  newEntity planetType
+  
+  let (planetType, typeSeed) = Random.range randSeed Rocky Gas
+  let (waterPercent, waterSeed) = Random.range typeSeed 0.0 100.0
+
+  let (orbit, orbitSeed) = planetOrbit waterSeed planetType
+  let (size, sizeSeed) = planetSize orbitSeed planetType
+  
+  global $= (sizeSeed :: StdGen)
+  
+  newEntity
+    ( Planet planetType
+    , Percent.fromFloat waterPercent :: WaterPercent
+    , Orbit orbit
+    , Size size
+    )
+
+
+planetOrbit :: (RandomGen g) => g -> PlanetType -> (Int, g)
+planetOrbit seed planetType =
+  case planetType of
+    Rocky -> Random.range seed 0 7
+    Gas -> Random.range seed 5 12
+
+
+planetSize :: (RandomGen g) => g -> PlanetType -> (Float, g)
+planetSize seed planetType =
+  case planetType of
+    Rocky -> Random.range seed 1000.0 8000.0
+    Gas -> Random.range seed 22000.0 90000.0
 
 
 main :: IO ()
