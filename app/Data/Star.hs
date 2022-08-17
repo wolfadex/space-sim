@@ -2,7 +2,7 @@ module Data.Star
     ( generate
     ) where
 
-import qualified Extra.Random
+import qualified Random
 import Flow
 import System.Random (Random, RandomGen)
 import qualified System.Random as Random
@@ -15,7 +15,7 @@ generate :: RandomGen g => g -> (Temperature, g)
 generate seed =
   (Temperature.kelvins temp, finalSeed)
   where
-    (tempGen, nextSeed ) = Extra.Random.weighted seed
+    (tempGen, nextSeed ) = Random.weighted seed
                             ( 0.00001, Random.randomR (33000, 42000) )
                             [ ( 0.1, Random.randomR (10000, 32999) )
                             , ( 0.7, Random.randomR (7500, 19999) )

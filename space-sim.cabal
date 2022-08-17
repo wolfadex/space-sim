@@ -27,7 +27,7 @@ library
         Units.Length
         Units.Quantity
         Units.Temperature
-        Extra.Random
+        Random
 
     -- Modules included in this library but not exported.
     -- other-modules:

@@ -22,11 +22,11 @@ import GHC.Generics (Generic)
 import Graphics.Gloss
 import Linear (V2 (..), V3(..))
 import System.Random (Random, RandomGen, StdGen)
-import qualified System.Random as Random
+import qualified System.Random
 import Units.Length (Length)
 import qualified Units.Length as Length
 import Units.Temperature (Temperature)
-import qualified Extra.Random
+import qualified Random
 import qualified Data.Star as Star
 -- 
 import Debug
@@ -48,9 +48,9 @@ data Planet = Rocky | Water | Gas
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 instance Random Planet where
-  random g = case Random.randomR (0,2) g of
+  random g = case System.Random.randomR (0,2) g of
                  (r, g') -> (toEnum r, g')
-  randomR (a,b) g = case Random.randomR (fromEnum a, fromEnum b) g of
+  randomR (a,b) g = case System.Random.randomR (fromEnum a, fromEnum b) g of
                       (r, g') -> (toEnum r, g')
 
 
@@ -62,8 +62,8 @@ type System' a = System World a
 
 game :: System' ()
 game = do
-  randSeed <- liftIO Random.initStdGen
-  let (solarSystemCount, nextSeed) = Random.randomR ( 3, 8) randSeed
+  randSeed <- liftIO System.Random.initStdGen
+  let (solarSystemCount, nextSeed) = Random.range randSeed 3 8
   global $= nextSeed
   replicateM solarSystemCount randomSolarSystem
 
@@ -75,11 +75,11 @@ game = do
 randomSolarSystem :: System' Entity
 randomSolarSystem = do
   randSeed <- get global
-  let (starCount, starSeed) = Extra.Random.weighted randSeed ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
+  let (starCount, starSeed) = Random.weighted randSeed ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]
   global $= (starSeed :: StdGen)
   stars <- replicateM starCount randomStar
   nextRandSeed <- get global
-  let (planetCount, planetSeed) = Random.randomR (3, 8) nextRandSeed
+  let (planetCount, planetSeed) = Random.range nextRandSeed 3 8
   global $= (planetSeed :: StdGen)
   planets <- replicateM planetCount randomPlanet
 
@@ -97,8 +97,8 @@ randomSolarSystem = do
 randomGalacticPosition :: System' (V3 Length)
 randomGalacticPosition = do
   randSeed <- get global
-  let (rand1, nextSeed) = Random.randomR (0, 1.0) randSeed
-  let (rand2, finalSeed) = Random.randomR (0, 1.0) nextSeed
+  let (rand1, nextSeed) = Random.range randSeed 0 1.0
+  let (rand2, finalSeed) = Random.range nextSeed 0 1.0
   global $= (finalSeed :: StdGen)
   
   let radius = (Length.lightYears 50000 |> Length.inMeters)
@@ -119,7 +119,7 @@ randomStar = do
 randomPlanet :: System' Entity
 randomPlanet = do
   randSeed <- get global
-  let (planetType, nextSeed) = Random.randomR (Rocky, Gas) randSeed
+  let (planetType, nextSeed) = Random.range randSeed Rocky Gas
   global $= (nextSeed :: StdGen)
   newEntity planetType
 
