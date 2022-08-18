@@ -21,6 +21,7 @@ import Flow
 import GHC.Generics (Generic)
 import Graphics.Gloss
 import Linear (V2 (..), V3(..))
+import qualified Data.Map.Strict as Map
 import System.Random (Random, RandomGen, StdGen)
 import qualified System.Random
 import Units.Length (Length)
@@ -30,10 +31,11 @@ import qualified Units.Percent as Percent
 import Units.Temperature (Temperature)
 import qualified Random
 import qualified Data.Star as Star
+import Population (Population)
+import qualified Population
 -- 
 import Debug
 
--- instance Component StdGen where type Storage StdGen = Global StdGen
 
 data SolarSystem = SolarSystem
   { stars :: Set.Set Entity
@@ -78,6 +80,26 @@ newtype Parent = Parent Entity
   deriving (Show)
 
 
+newtype CivPopulation = CivPopulation (Map.Map Entity Population)
+  deriving (Show)
+
+
+newtype Named = Named String
+  deriving (Show)
+
+
+newtype ReproductionRate = ReproductionRate Float
+  deriving (Show)
+
+
+newtype MortalityRate = MortalityRate Float
+  deriving (Show)
+
+
+newtype CivHappniness = CivHappniness (Map.Map Entity Float)
+  deriving (Show)
+
+
 makeWorldAndComponents "World"
   [ ''StdGen
   , ''SolarSystem
@@ -87,6 +109,11 @@ makeWorldAndComponents "World"
   , ''Orbit
   , ''Size
   , ''Parent
+  , ''CivPopulation
+  , ''Named
+  , ''ReproductionRate
+  , ''MortalityRate
+  , ''CivHappniness
   ]
 
 
@@ -100,9 +127,12 @@ game = do
   global $= nextSeed
   replicateM solarSystemCount randomSolarSystem
 
+  liftIO <| putStrLn "\nSolar System positions:"
   cmapM_ $ \(SolarSystem _ _ pos, Entity _) -> (pos) |> print |> liftIO
-
+  liftIO <| putStrLn "\nStar temps:"
   cmapM_ $ \(Star temp, Entity _) -> (temp) |> print |> liftIO
+  liftIO <| putStrLn "\nCivs:"
+  cmapM_ $ \(Named name, CivPopulation pop, Entity _) -> (name, pop) |> print |> liftIO
   
 
 randomSolarSystem :: System' Entity
@@ -166,12 +196,16 @@ randomPlanet = do
   
   global $= (sizeSeed :: StdGen)
   
-  newEntity
-    ( Planet planetType
-    , Percent.fromFloat waterPercent :: WaterPercent
-    , Orbit orbit
-    , Size size
-    )
+  planet <- newEntity
+              ( Planet planetType
+              , Percent.fromFloat waterPercent :: WaterPercent
+              , Orbit orbit
+              , Size size
+              )
+
+  attemptToGenerateCivilization planetType planet
+  
+  pure planet
 
 
 planetOrbit :: (RandomGen g) => g -> PlanetType -> (Int, g)
@@ -186,6 +220,80 @@ planetSize seed planetType =
   case planetType of
     Rocky -> Random.range seed 1000.0 8000.0
     Gas -> Random.range seed 22000.0 90000.0
+
+
+attemptToGenerateCivilization :: PlanetType -> Entity -> System' ()
+attemptToGenerateCivilization planetType planet =
+  if planetType == Rocky
+    then do
+      randSeed <- get global
+      let (shouldCreateCiv,genSeed) = Random.oneIn randSeed 10
+      global $= (genSeed :: StdGen)
+
+      if shouldCreateCiv
+        then do
+          nextRandSeed <- get global
+          let (maybeName, _, nameSeed) = Random.choose nextRandSeed allCivNames
+          global $= (nameSeed :: StdGen)
+          case maybeName of
+            Nothing -> pure ()
+            Just name -> generateCivilization planet name
+        else pure ()
+    else pure ()
+
+
+allCivNames =
+    [ "Morlock"
+    , "Klingon"
+    , "Federation"
+    , "Borg"
+    , "Empire"
+    , "Gorn"
+    , "Talonite"
+    , "Sha' Tao"
+    ]
+
+
+generateCivilization :: Entity -> String -> System' ()
+generateCivilization planet name = do
+    -- Random.map4
+    --     (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
+    --         let
+    --             ( civId, worldWithNewCiv ) =
+    --                 Logic.Entity.Extra.create worldWithFewerNames
+    --                     |> Logic.Entity.with
+    --                         ( Game.Components.civilizationPopulationSpec
+    --                         , Dict.singleton planetId (Population.millions initialPopulationSize)
+    --                         )
+    --                     |> Logic.Entity.with ( Game.Components.namedSpec, name )
+    --                     |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+    --                     |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+    --                     |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+    --                     |> Logic.Entity.with ( Game.Components.knowledgeSpec, Set.Any.empty )
+    --         in
+    --         { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCiv.civilizations }
+    --     )
+    --     (Random.float 3 10)
+    --     (Rate.random 0.2 0.3)
+    --     (Rate.random 0.1 0.2)
+    --     (Percent.random 90.0 100.0)
+  randSeed <- get global
+  let (populationSize, popSeed) = Random.range randSeed 3 10
+  let (reproductionRate, repoSeed) = Random.range popSeed 0.2 0.3
+  let (mortalityRate, mortalitySeed) = Random.range repoSeed 0.1 0.2
+  let (happiness, happySeed) = Random.range mortalitySeed 90.0 100.0
+  global $= (happySeed :: StdGen)
+
+  newEntity_
+    ( CivPopulation (Map.singleton planet (Population.millions populationSize))
+    , Named name
+    , ReproductionRate reproductionRate
+    , MortalityRate mortalityRate
+    , CivHappniness (Map.singleton planet happiness)
+    -- , Knowledge TODO
+    )
+
+  pure ()
 
 
 main :: IO ()

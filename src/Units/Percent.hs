@@ -12,8 +12,7 @@ module Units.Percent
 import Units.Quantity (Quantity(..))
 
 
-type Percent a =
-  Quantity Float a
+type Percent a = Quantity a
 
 
 -- 100.0 is equivalent to 100%

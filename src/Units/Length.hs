@@ -20,7 +20,7 @@ data Meters = Meters
   deriving (Show)
 
 
-type Length = Quantity Float Meters
+type Length = Quantity Meters
 
 
 meters :: Float -> Length

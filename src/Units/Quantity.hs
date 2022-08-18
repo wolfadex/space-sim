@@ -5,21 +5,27 @@
 module Units.Quantity
   ( Quantity(..)
   , sum
+  , difference
   , scaleBy
   ) where
 
 import Prelude hiding (sum)
 
 
-newtype Num qty => Quantity qty unit = Quantity qty
+newtype Quantity unit = Quantity Float
   deriving (Show)
 
 
-sum :: Num qty => Quantity qty unit -> Quantity qty unit -> Quantity qty unit
+sum :: Quantity unit -> Quantity unit -> Quantity unit
 sum (Quantity a) (Quantity b) =
   Quantity (a + b)
 
 
-scaleBy :: Num qty => qty -> Quantity qty unit -> Quantity qty unit
+difference :: Quantity unit -> Quantity unit -> Quantity unit
+difference (Quantity a) (Quantity b) =
+  Quantity (a - b)
+
+
+scaleBy :: Float -> Quantity unit -> Quantity unit
 scaleBy a (Quantity qty) =
   Quantity (a * qty)
