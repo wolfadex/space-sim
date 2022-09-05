@@ -1,12 +1,12 @@
 module Game.Components exposing
-    ( AstronomicalUnit
-    , CelestialBodyForm(..)
+    ( CelestialBodyForm(..)
     , CivilizationFocus(..)
     , Happiness
     , LightYear
     , Log
     , Mortality
     , Orbit
+    , PlayingMsg(..)
     , Reproduction
     , SpaceFocus(..)
     , StarDate
@@ -21,7 +21,6 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
-    , knowledgeSpec
     , namedSpec
     , orbitSpec
     , parentSpec
@@ -31,9 +30,11 @@ module Game.Components exposing
     , waterSpec
     )
 
-import Data.Knowledge exposing (Knowledge)
+import Browser.Dom exposing (Viewport)
+import Data.Knowledge exposing (Knowledge, KnowledgeTree)
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
+import Json.Decode exposing (Value)
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -44,6 +45,8 @@ import Population exposing (Population)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
+import Shared exposing (PlayType(..), SharedMsg)
+import Task.Parallel
 import Temperature exposing (Temperature)
 
 
@@ -58,6 +61,7 @@ type alias World =
     , zoom : Float
     , viewRotation : Float
     , settingsVisible : Visible
+    , playType : PlayType
 
     ---- ECS stuff
     , ecsInternals : Logic.Entity.Extra.Internals
@@ -80,15 +84,18 @@ type alias World =
     , children : Logic.Component.Set (Set EntityID)
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
 
-    ---- Book keeping entities by ID
+    ---- Book keeping
     , planets : Set EntityID
     , stars : Set EntityID
     , solarSystems : Set EntityID
-    , playerCiv : EntityID
+    , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
     , availableCivilizationNames : List CivilizationName
     , starDate : StarDate
     , eventLog : List Log
+    , knowledgeTree : KnowledgeTree
+    , buildingKnowledgeState : Task.Parallel.ListState PlayingMsg (List ( Knowledge, List (AnySet String Knowledge) ))
+    , buildingKnowledge : Maybe ( Int, Int )
     }
 
 
@@ -104,6 +111,7 @@ emptyWorld =
     , zoom = 0
     , viewRotation = 0
     , settingsVisible = Hidden
+    , playType = Observation
 
     --
     , ecsInternals = Logic.Entity.Extra.initInternals
@@ -126,12 +134,42 @@ emptyWorld =
     , planets = Set.empty
     , stars = Set.empty
     , solarSystems = Set.empty
-    , playerCiv = -1
+    , playerCiv = Nothing
     , civilizations = Set.empty
     , availableCivilizationNames = Data.Names.allCivilizationNames
     , starDate = 0
     , eventLog = []
+    , knowledgeTree = Data.Knowledge.baseKnowledgeTree
+    , buildingKnowledgeState =
+        Tuple.first
+            (Task.Parallel.attemptList
+                { onUpdates = BuildingKnowledge
+                , onSuccess = KnowledgeBuilt
+                , onFailure = \_ -> KnowledgeBuildFailure
+                , tasks = []
+                }
+            )
+    , buildingKnowledge = Nothing
     }
+
+
+type PlayingMsg
+    = DeleteGalaxy
+    | SetSpaceFocus SpaceFocus
+    | SetCivilizationFocus CivilizationFocus
+    | Tick Float
+    | SetTickRate TickRate
+    | GotViewStyle ViewStyle
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+    | GotZoom Value
+    | GotZoomChange Float
+    | GotRotationChange Float
+    | GotSettingsVisible Visible
+    | GotLocalSharedMessage SharedMsg
+    | BuildingKnowledge (Task.Parallel.ListMsg (List ( Knowledge, List (AnySet String Knowledge) )))
+    | KnowledgeBuilt (List (List ( Knowledge, List (AnySet String Knowledge) )))
+    | KnowledgeBuildFailure
 
 
 type Visible
@@ -255,11 +293,6 @@ type Happiness
     = Happiness Never
 
 
-knowledgeSpec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
-knowledgeSpec =
-    Logic.Component.Spec .civilizationKnowledge (\comps world -> { world | civilizationKnowledge = comps })
-
-
 positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }
 positionSpec =
     Logic.Component.Spec .galaxyPositions (\comps world -> { world | galaxyPositions = comps })
@@ -267,7 +300,3 @@ positionSpec =
 
 type LightYear
     = LightYear Never
-
-
-type AstronomicalUnit
-    = AstronomicalUnit Never

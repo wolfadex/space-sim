@@ -20,18 +20,20 @@ toggle config =
         , Border.solid
         , Border.width 3
         , Border.rounded 3
-        , Background.color <|
-            if config.enabled then
+        , Background.color
+            (if config.enabled then
                 Ui.Theme.green
 
-            else
+             else
                 Ui.Theme.darkGray
-        , Font.color <|
-            if config.enabled then
+            )
+        , Font.color
+            (if config.enabled then
                 Ui.Theme.darkGray
 
-            else
+             else
                 Ui.Theme.nearlyWhite
+            )
         , Border.color Ui.Theme.darkGray
         ]
         { onPress = config.onPress

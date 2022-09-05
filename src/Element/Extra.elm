@@ -5,5 +5,5 @@ import Html.Attributes
 
 
 id : String -> Attribute msg
-id =
-    Html.Attributes.id >> htmlAttribute
+id str =
+    htmlAttribute (Html.Attributes.id str)

@@ -1,10 +1,14 @@
 module Set.Any exposing
     ( AnySet
+    , diff
     , empty
     , fromList
     , insert
+    , isEmpty
     , member
+    , singleton
     , toList
+    , union
     )
 
 import Set exposing (Set)
@@ -37,3 +41,23 @@ toList config (AnySet set) =
 fromList : { r | toComparable : a -> comparable } -> List a -> AnySet comparable a
 fromList config list =
     AnySet (Set.fromList (List.map config.toComparable list))
+
+
+singleton : { toComparable : a -> comparable, fromComparable : comparable -> a } -> a -> AnySet comparable a
+singleton config val =
+    AnySet (Set.singleton (config.toComparable val))
+
+
+isEmpty : AnySet comparable a -> Bool
+isEmpty (AnySet set) =
+    Set.isEmpty set
+
+
+diff : AnySet comparable a -> AnySet comparable a -> AnySet comparable a
+diff (AnySet left) (AnySet right) =
+    AnySet (Set.diff left right)
+
+
+union : AnySet comparable a -> AnySet comparable a -> AnySet comparable a
+union (AnySet left) (AnySet right) =
+    AnySet (Set.union left right)

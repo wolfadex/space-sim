@@ -31,6 +31,8 @@ import NoUnused.Parameters
 import NoUnused.Patterns
 import NoUnused.Variables
 import Review.Rule exposing (Rule)
+import ReviewPipelineStyles
+import ReviewPipelineStyles.Fixes
 import Simplify
 
 
@@ -73,5 +75,18 @@ config =
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
+    , ReviewPipelineStyles.rule
+        [ ReviewPipelineStyles.forbid ReviewPipelineStyles.rightCompositionPipelines
+            |> ReviewPipelineStyles.andCallThem "Non-performant composition"
+        , ReviewPipelineStyles.forbid ReviewPipelineStyles.leftCompositionPipelines
+            |> ReviewPipelineStyles.andCallThem "Non-performant left-composition"
+        , ReviewPipelineStyles.forbid ReviewPipelineStyles.rightPizzaPipelines
+            |> ReviewPipelineStyles.andTryToFixThemBy ReviewPipelineStyles.Fixes.convertingToParentheticalApplication
+            |> ReviewPipelineStyles.andCallThem "Non-performant pipe"
+        , ReviewPipelineStyles.forbid ReviewPipelineStyles.leftPizzaPipelines
+            |> ReviewPipelineStyles.andTryToFixThemBy ReviewPipelineStyles.Fixes.convertingToParentheticalApplication
+            |> ReviewPipelineStyles.andCallThem "Non-performant left-pipe"
+        ]
+        |> Review.Rule.ignoreErrorsForDirectories [ "tests" ]
     , Simplify.rule Simplify.defaults
     ]

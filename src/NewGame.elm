@@ -57,48 +57,26 @@ init : ( Model, SubCmd Msg Effect )
 init =
     let
         ( _, m0 ) =
-            Logic.Entity.create 0 baseModel
-                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million )
-                |> Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 })
+            Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 }) (Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million ) (Logic.Entity.create 0 baseModel))
 
         starTemp : Temperature
         starTemp =
             Temperature.kelvins 3700
 
         ( _, m1 ) =
-            Logic.Entity.create 1 m0
-                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemp )
-                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
-                |> Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 })
+            Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 }) (Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Data.Star.temperatureSpec, starTemp ) (Logic.Entity.create 1 m0)))
 
         ( _, m2 ) =
-            Logic.Entity.create 2 m1
-                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
-                |> Logic.Entity.with ( Game.Components.orbitSpec, 6 )
-                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 75 )
-                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 75 ) (Logic.Entity.with ( Game.Components.orbitSpec, 6 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas ) (Logic.Entity.create 2 m1)))))
 
         ( _, m3 ) =
-            Logic.Entity.create 3 m2
-                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
-                |> Logic.Entity.with ( Game.Components.orbitSpec, 8 )
-                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 15 )
-                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 15 ) (Logic.Entity.with ( Game.Components.orbitSpec, 8 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas ) (Logic.Entity.create 3 m2)))))
 
         ( _, m4 ) =
-            Logic.Entity.create 4 m3
-                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
-                |> Logic.Entity.with ( Game.Components.orbitSpec, 4 )
-                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 80 )
-                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 80 ) (Logic.Entity.with ( Game.Components.orbitSpec, 4 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky ) (Logic.Entity.create 4 m3)))))
 
         ( _, m5 ) =
-            Logic.Entity.create 5 m4
-                |> Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
-                |> Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 })
+            Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 }) (Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin ) (Logic.Entity.create 5 m4))
 
         zoomDist : Float
         zoomDist =
@@ -185,8 +163,8 @@ baseParticipateModel =
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
-    , minSolarSystemsToGenerate = 100
-    , maxSolarSystemsToGenerate = 300
+    , minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
@@ -198,8 +176,8 @@ type alias ObserveModel =
 
 baseObserveModel : ObserveModel
 baseObserveModel =
-    { minSolarSystemsToGenerate = 100
-    , maxSolarSystemsToGenerate = 300
+    { minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
@@ -362,13 +340,12 @@ updateParticipate mainModel msg model =
                     ( mainModel
                     , SubCmd.effect
                         (Shared.CreateGame
-                            (Participation
-                                { name = validName
-                                , homePlanetName = validHomeName
-                                , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                                , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                                }
-                            )
+                            Participation
+                            { name = validName
+                            , homePlanetName = validHomeName
+                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                            }
                         )
                     )
 
@@ -407,11 +384,12 @@ updateObserve mainModel msg model =
             ( mainModel
             , SubCmd.effect
                 (Shared.CreateGame
-                    (Observation
-                        { minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                        , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                        }
-                    )
+                    Observation
+                    { name = { singular = "", many = Nothing, possessive = Nothing }
+                    , homePlanetName = ""
+                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                    }
                 )
             )
 
@@ -425,22 +403,33 @@ createGameValidator =
 
 homeNameValidator : Validator ParticipateModel String String
 homeNameValidator =
-    Validator.succeed identity
-        |> Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok)
+    Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok) (Validator.succeed identity)
 
 
 civNameValidator : Validator ParticipateModel String CivilizationName
 civNameValidator =
-    Validator.succeed
-        (\singular many possessive ->
-            { singular = singular
-            , many = many
-            , possessive = possessive
-            }
+    Validator.required identity
+        (\_ -> False)
+        ""
+        (Validator.custom possessiveNameValidator)
+        (Validator.required identity
+            (\_ -> False)
+            ""
+            (Validator.custom pluralNameValidator)
+            (Validator.required .civilizationNameSingular
+                String.isEmpty
+                "Singular name is required"
+                (Validator.custom Ok)
+                (Validator.succeed
+                    (\singular many possessive ->
+                        { singular = singular
+                        , many = many
+                        , possessive = possessive
+                        }
+                    )
+                )
+            )
         )
-        |> Validator.required .civilizationNameSingular String.isEmpty "Singular name is required" (Validator.custom Ok)
-        |> Validator.required identity (\_ -> False) "" (Validator.custom pluralNameValidator)
-        |> Validator.required identity (\_ -> False) "" (Validator.custom possessiveNameValidator)
 
 
 pluralNameValidator : ParticipateModel -> Result (List String) (Maybe String)
@@ -493,8 +482,8 @@ view sharedModel model =
         el
             [ width fill
             , height fill
-            , behindContent <|
-                Galaxy3d.viewSolarSystem
+            , behindContent
+                (Galaxy3d.viewSolarSystem
                     { onPressStar = Nothing
                     , onPressPlanet = Nothing
                     , onZoom = Nothing
@@ -506,29 +495,32 @@ view sharedModel model =
                     }
                     sharedModel.settings
                     model
+                )
             , inFront
                 (el
                     [ alignRight
                     , alignTop
                     , padding 16
-                    , inFront <|
-                        case model.settingsVisible of
+                    , inFront
+                        (case model.settingsVisible of
                             Hidden ->
                                 none
 
                             Visible ->
                                 map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
+                        )
                     ]
                     (Ui.Button.default
                         { label = text "⚙"
                         , onPress =
-                            Just <|
-                                case model.settingsVisible of
+                            Just
+                                (case model.settingsVisible of
                                     Visible ->
                                         GotSettingsVisible Hidden
 
                                     Hidden ->
                                         GotSettingsVisible Visible
+                                )
                         }
                     )
                 )
@@ -565,8 +557,8 @@ viewMainMenu : View Msg
 viewMainMenu =
     { title = "Hello Space!"
     , body =
-        map MainMenuMessage <|
-            el
+        map MainMenuMessage
+            (el
                 [ padding 16
                 , width fill
                 , height fill
@@ -579,24 +571,28 @@ viewMainMenu =
                     [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
                     , column
                         [ centerX, spacing 16 ]
-                        [ Ui.Button.default
-                            { onPress = Just ViewParticipate
-                            , label = text "Participate"
-                            }
-                            |> el [ centerX ]
-                        , Ui.Button.default
-                            { onPress = Just ViewObserve
-                            , label = text "Observe"
-                            }
-                            |> el [ centerX ]
-                        , Ui.Button.default
-                            { onPress = Nothing
-                            , label = text "Load Simulation"
-                            }
-                            |> el [ centerX, Font.strike ]
+                        [ el [ centerX ]
+                            (Ui.Button.default
+                                { onPress = Just ViewParticipate
+                                , label = text "Participate"
+                                }
+                            )
+                        , el [ centerX ]
+                            (Ui.Button.default
+                                { onPress = Just ViewObserve
+                                , label = text "Observe"
+                                }
+                            )
+                        , el [ centerX, Font.strike ]
+                            (Ui.Button.default
+                                { onPress = Nothing
+                                , label = text "Load Simulation"
+                                }
+                            )
                         ]
                     ]
                 )
+            )
     }
 
 
@@ -604,15 +600,13 @@ viewParticipate : ParticipateModel -> View Msg
 viewParticipate model =
     { title = "Hello Space! - Participate"
     , body =
-        map ParticipateMessage <|
-            column
+        map ParticipateMessage
+            (column
                 [ centerX
                 , centerY
                 , spacing 64
                 ]
-                [ text "Participate in the Simulation"
-                    |> contrastingBackground
-                    |> el [ centerX, Font.size 64, Font.underline ]
+                [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
                 , wrappedRow
                     [ centerX
                     , centerY
@@ -624,6 +618,7 @@ viewParticipate model =
                     , viewExample model
                     ]
                 ]
+            )
     }
 
 
@@ -664,12 +659,13 @@ viewPlayerCivForm model =
             }
         , Ui.Button.default
             { label =
-                text <|
-                    if model.hasUniquePossessiveName then
+                text
+                    (if model.hasUniquePossessiveName then
                         "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
 
-                    else
+                     else
                         "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
+                    )
             , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
             }
         , Ui.Text.default
@@ -688,7 +684,7 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 800
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -702,18 +698,17 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 800
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
-        , model.errors
-            |> List.map viewError
-            |> wrappedRow [ spacing 8 ]
-        , Ui.Button.default
-            { label = text "Start Game"
-            , onPress = Just StartGame
-            }
-            |> el [ centerX ]
+        , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
+        , el [ centerX ]
+            (Ui.Button.default
+                { label = text "Start Game"
+                , onPress = Just StartGame
+                }
+            )
         ]
 
 
@@ -730,40 +725,41 @@ viewError error =
 
 viewExample : ParticipateModel -> Element ParticipateMsg
 viewExample model =
-    column
-        [ spacing 8
-        , fill
-            |> minimum 400
-            |> maximum 600
-            |> width
-        ]
-        [ text "Example:"
-        , paragraph
-            []
-            [ text
-                "As the battle rages on between the "
-            , displayGameValue "plural-name-example" <|
-                if model.hasUniquePluralName then
-                    model.civilizationNamePlural
+    el [ alignTop ]
+        (contrastingBackground
+            (column
+                [ spacing 8
+                , width (maximum 600 (minimum 400 fill))
+                ]
+                [ text "Example:"
+                , paragraph
+                    []
+                    [ text
+                        "As the battle rages on between the "
+                    , displayGameValue "plural-name-example"
+                        (if model.hasUniquePluralName then
+                            model.civilizationNamePlural
 
-                else
-                    model.civilizationNameSingular
-            , text " and the Federation, the "
-            , displayGameValue "singular-name-example" model.civilizationNameSingular
-            , text " people begin to question the morality of continuing the war. But the "
-            , displayGameValue "possessive-name-example" <|
-                if model.hasUniquePossessiveName then
-                    model.civilizationNamePossessive
+                         else
+                            model.civilizationNameSingular
+                        )
+                    , text " and the Federation, the "
+                    , displayGameValue "singular-name-example" model.civilizationNameSingular
+                    , text " people begin to question the morality of continuing the war. But the "
+                    , displayGameValue "possessive-name-example"
+                        (if model.hasUniquePossessiveName then
+                            model.civilizationNamePossessive
 
-                else
-                    model.civilizationNameSingular
-            , text " home planet, "
-            , displayGameValue "home-planet-name-example" model.homePlanetName
-            , text ", hangs in the balance."
-            ]
-        ]
-        |> contrastingBackground
-        |> el [ alignTop ]
+                         else
+                            model.civilizationNameSingular
+                        )
+                    , text " home planet, "
+                    , displayGameValue "home-planet-name-example" model.homePlanetName
+                    , text ", hangs in the balance."
+                    ]
+                ]
+            )
+        )
 
 
 displayGameValue : String -> String -> Element msg
@@ -779,8 +775,8 @@ viewObserve : ObserveModel -> View Msg
 viewObserve model =
     { title = "Hello Space! - Observe"
     , body =
-        map ObserveMessage <|
-            el
+        map ObserveMessage
+            (el
                 [ padding 16
                 , width fill
                 , height fill
@@ -790,9 +786,7 @@ viewObserve model =
                     , centerY
                     , spacing 64
                     ]
-                    [ text "Observe the Simulation"
-                        |> el [ centerX, Font.size 64, Font.underline ]
-                        |> contrastingBackground
+                    [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
                     , wrappedRow
                         [ centerX
                         , centerY
@@ -804,6 +798,7 @@ viewObserve model =
                         ]
                     ]
                 )
+            )
     }
 
 
@@ -823,7 +818,7 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 800
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -837,17 +832,14 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 10000
+            , max = 800
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
-
-        -- , model.errors
-        --     |> List.map viewError
-        --     |> wrappedRow [ spacing 8 ]
-        , Ui.Button.default
-            { label = text "Begin Simulation"
-            , onPress = Just BeginSimulation
-            }
-            |> el [ centerX ]
+        , el [ centerX ]
+            (Ui.Button.default
+                { label = text "Begin Simulation"
+                , onPress = Just BeginSimulation
+                }
+            )
         ]
