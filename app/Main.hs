@@ -1,13 +1,10 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DuplicateRecordFields      #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedRecordDot        #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -33,6 +30,8 @@ import qualified Random
 import qualified Data.Star as Star
 import Population (Population)
 import qualified Population
+import Data.Knowledge (Knowledge)
+import qualified Data.Knowledge as Knowledge
 -- 
 import Debug
 
@@ -100,6 +99,10 @@ newtype CivHappniness = CivHappniness (Map.Map Entity Float)
   deriving (Show)
 
 
+newtype CivKnowledge = CivKnowledge Knowledge
+  deriving (Show)
+
+
 makeWorldAndComponents "World"
   [ ''StdGen
   , ''SolarSystem
@@ -114,6 +117,7 @@ makeWorldAndComponents "World"
   , ''ReproductionRate
   , ''MortalityRate
   , ''CivHappniness
+  , ''CivKnowledge
   ]
 
 
@@ -127,12 +131,68 @@ game = do
   global $= nextSeed
   replicateM solarSystemCount randomSolarSystem
 
+
+  cmapM_ $ \(Planet, Entity e)
+  let allKnowledge = Knowledge.buildKnowledgeTree
+                      List.concatMap
+                        (\planet ->
+                          List.concat
+                              [ ---- Local solar knowledge
+                                fmap
+                                  (\sibling -> do
+                                    isStar <- exists sibling (Proxy @(Star))
+                                    pure <|
+                                      if isStarthen
+                                        -- No previous knowledge required
+                                        ( KnowsOf sibling, [] )
+                                      else
+                                        -- Requires Optics
+                                        ( KnowsOf sibling, [ Set.singleton Optics ] )
+                                  )
+                                  (Set.toList solarSiblings)
+                              ---- Galactic knowledge
+                              -- Knowledge of extra solar stars only requires Optics
+                              , List.map
+                                  (\nonSiblingStarId ->
+                                      ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                  )
+                                  (Set.toList (Set.difference worldWithPlayerCiv.stars solarSiblings))
+
+                              -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
+                              , List.map
+                                  (\nonSiblingPlanetId ->
+                                      ( KnowsOf nonSiblingPlanetId
+                                      , List.map
+                                          (\foreignStarId ->
+                                              Set.Any.fromList Data.Knowledge.comparableConfig
+                                                  [ Optics, KnowsOf foreignStarId ]
+                                          )
+                                          (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
+                                      )
+                                  )
+                                  (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
+
+                              ---- Other Civ Knowledge
+                              ]
+                              where
+                                solarSiblings = getSolarSiblings planet
+                        )
+                        (Set.toList worldWithPlayerCiv.planets)
+                       
+  -- Debug display data
   liftIO <| putStrLn "\nSolar System positions:"
   cmapM_ $ \(SolarSystem _ _ pos, Entity _) -> (pos) |> print |> liftIO
   liftIO <| putStrLn "\nStar temps:"
   cmapM_ $ \(Star temp, Entity _) -> (temp) |> print |> liftIO
   liftIO <| putStrLn "\nCivs:"
   cmapM_ $ \(Named name, CivPopulation pop, Entity _) -> (name, pop) |> print |> liftIO
+
+
+getSolarSiblings :: Entity -> System' (Set.Set Entity)
+getSolarSiblings child = do
+    (Parent p) <- get child
+    (SolarSystem { stars, planets }) <- get p
+    Set.union stars planets |> pure
   
 
 randomSolarSystem :: System' Entity

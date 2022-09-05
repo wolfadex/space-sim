@@ -1,7 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields      #-}
-{-# LANGUAGE OverloadedRecordDot        #-}
-{-# LANGUAGE OverloadedStrings          #-}
-
 module Units.Length
   ( Length
   , Meters(..)
