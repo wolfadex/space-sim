@@ -181,12 +181,12 @@ suite =
                     ProgramTest.expectView
                         (Query.find [ Html.id "max-solar-system-count" ]
                             >> Query.has
-                                [ Html.text "300" ]
+                                [ Html.text "80" ]
                         )
                         (ProgramTest.ensureView
                             (Query.find [ Html.id "min-solar-system-count" ]
                                 >> Query.has
-                                    [ Html.text "100" ]
+                                    [ Html.text "40" ]
                             )
                             (ProgramTest.clickButton "Observe"
                                 (ProgramTest.start (Random.initialSeed 0)
@@ -209,12 +209,12 @@ suite =
                     ProgramTest.expectView
                         (Query.find [ Html.id "max-solar-system-count" ]
                             >> Query.has
-                                [ Html.text "300" ]
+                                [ Html.text "80" ]
                         )
                         (ProgramTest.ensureView
                             (Query.find [ Html.id "min-solar-system-count" ]
                                 >> Query.has
-                                    [ Html.text "100" ]
+                                    [ Html.text "40" ]
                             )
                             (ProgramTest.clickButton "Observe"
                                 (ProgramTest.start (Random.initialSeed 0)

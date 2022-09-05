@@ -163,8 +163,8 @@ baseParticipateModel =
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
-    , minSolarSystemsToGenerate = 400
-    , maxSolarSystemsToGenerate = 800
+    , minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
@@ -176,8 +176,8 @@ type alias ObserveModel =
 
 baseObserveModel : ObserveModel
 baseObserveModel =
-    { minSolarSystemsToGenerate = 400
-    , maxSolarSystemsToGenerate = 800
+    { minSolarSystemsToGenerate = 40
+    , maxSolarSystemsToGenerate = 80
     }
 
 
