@@ -1,13 +1,11 @@
 module Playing exposing
-    ( Msg(..)
-    , init
+    ( init
     , subscriptions
     , update
     , view
     )
 
 import Array exposing (Array)
-import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names exposing (CivilizationName)
@@ -27,6 +25,7 @@ import Game.Components
         , Log
         , Mortality
         , Orbit
+        , PlayingMsg(..)
         , Reproduction
         , SpaceFocus(..)
         , TickRate(..)
@@ -35,7 +34,7 @@ import Game.Components
         , World
         , emptyWorld
         )
-import Json.Decode exposing (Value)
+import Json.Decode
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -44,6 +43,7 @@ import Logic.System exposing (System)
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
+import Process
 import Quantity
 import Random exposing (Generator, Seed)
 import Random.Extra
@@ -58,9 +58,10 @@ import Shared
         , PlayType(..)
         , Settings
         , SharedModel
-        , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Task
+import Task.Parallel
 import Temperature
 import Ui.Button
 import Ui.Theme
@@ -80,7 +81,7 @@ init :
         , minSolarSystemsToGenerate : Int
         , maxSolarSystemsToGenerate : Int
         }
-    -> ( World, SubCmd Msg Effect )
+    -> ( World, SubCmd PlayingMsg Effect )
 init sharedModel playType generationConfig =
     let
         ( generatedWorld, seed ) =
@@ -175,6 +176,65 @@ init sharedModel playType generationConfig =
 
                 Observation ->
                     ( Nothing, generatedWorld )
+
+        ( buildingKnowledgeState, parallelCmd ) =
+            Task.Parallel.attemptList
+                { onUpdates = BuildingKnowledge
+                , onSuccess = KnowledgeBuilt
+                , onFailure = \_ -> KnowledgeBuildFailure
+                , tasks =
+                    List.indexedMap
+                        (\delay planetId ->
+                            Task.map
+                                (\() ->
+                                    let
+                                        solarSiblings : Set EntityID
+                                        solarSiblings =
+                                            getSolarSiblings worldWithPlayerCiv planetId
+                                    in
+                                    List.concat
+                                        [ ---- Local solar knowledge
+                                          List.map
+                                            (\siblingId ->
+                                                if Set.member siblingId worldWithPlayerCiv.stars then
+                                                    -- No previous knowledge required
+                                                    ( KnowsOf siblingId, [] )
+
+                                                else
+                                                    -- Requires Optics
+                                                    ( KnowsOf siblingId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                            )
+                                            (Set.toList solarSiblings)
+
+                                        ---- Galactic knowledge
+                                        -- Knowledge of extra solar stars only requires Optics
+                                        , List.map
+                                            (\nonSiblingStarId ->
+                                                ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                            )
+                                            (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
+
+                                        -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
+                                        , List.map
+                                            (\nonSiblingPlanetId ->
+                                                ( KnowsOf nonSiblingPlanetId
+                                                , List.map
+                                                    (\foreignStarId ->
+                                                        Set.Any.fromList Data.Knowledge.comparableConfig
+                                                            [ Optics, KnowsOf foreignStarId ]
+                                                    )
+                                                    (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
+                                                )
+                                            )
+                                            (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
+
+                                        ---- Other Civ Knowledge
+                                        ]
+                                )
+                                (Process.sleep (toFloat delay))
+                        )
+                        (Set.toList worldWithPlayerCiv.planets)
+                }
     in
     ( { worldWithPlayerCivWithKnowledge
         | playerCiv = playerCiv
@@ -206,60 +266,12 @@ init sharedModel playType generationConfig =
                         )
                     )
                 )
-        , knowledgeTree =
-            Data.Knowledge.buildKnowledgeTree
-                (List.concatMap
-                    (\planetId ->
-                        let
-                            solarSiblings : Set EntityID
-                            solarSiblings =
-                                getSolarSiblings worldWithPlayerCiv planetId
-                        in
-                        List.concat
-                            [ ---- Local solar knowledge
-                              List.map
-                                (\siblingId ->
-                                    if Set.member siblingId worldWithPlayerCiv.stars then
-                                        -- No previous knowledge required
-                                        ( KnowsOf siblingId, [] )
-
-                                    else
-                                        -- Requires Optics
-                                        ( KnowsOf siblingId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
-                                )
-                                (Set.toList solarSiblings)
-
-                            ---- Galactic knowledge
-                            -- Knowledge of extra solar stars only requires Optics
-                            , List.map
-                                (\nonSiblingStarId ->
-                                    ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
-                                )
-                                (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
-
-                            -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
-                            , List.map
-                                (\nonSiblingPlanetId ->
-                                    ( KnowsOf nonSiblingPlanetId
-                                    , List.map
-                                        (\foreignStarId ->
-                                            Set.Any.fromList Data.Knowledge.comparableConfig
-                                                [ Optics, KnowsOf foreignStarId ]
-                                        )
-                                        (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
-                                    )
-                                )
-                                (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
-
-                            ---- Other Civ Knowledge
-                            ]
-                    )
-                    (Set.toList worldWithPlayerCiv.planets)
-                )
+        , buildingKnowledgeState = buildingKnowledgeState
+        , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCiv.planets )
       }
     , SubCmd.batch
-        [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
-        , SubCmd.effect (UpdateSeed finalSeed)
+        [ SubCmd.effect (UpdateSeed finalSeed)
+        , SubCmd.cmd parallelCmd
         ]
     )
 
@@ -318,28 +330,12 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 ---- UPDATE ----
 
 
-subscriptions : World -> Sub Msg
+subscriptions : World -> Sub PlayingMsg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onAnimationFrameDelta Tick
         , Browser.Events.onResize (\_ _ -> WindowResized)
         ]
-
-
-type Msg
-    = DeleteGalaxy
-    | SetSpaceFocus SpaceFocus
-    | SetCivilizationFocus CivilizationFocus
-    | Tick Float
-    | SetTickRate TickRate
-    | GotViewStyle ViewStyle
-    | WindowResized
-    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
-    | GotZoom Value
-    | GotZoomChange Float
-    | GotRotationChange Float
-    | GotSettingsVisible Visible
-    | GotLocalSharedMessage SharedMsg
 
 
 zoomMultiplier : SpaceFocus -> Float
@@ -359,9 +355,35 @@ zoomMultiplier focus =
             1
 
 
-update : SharedModel -> Msg -> World -> ( World, SubCmd Msg Effect )
+update : SharedModel -> PlayingMsg -> World -> ( World, SubCmd PlayingMsg Effect )
 update sharedModel msg world =
     case msg of
+        BuildingKnowledge taskMsg ->
+            let
+                ( nextBuildingKnowledgeState, next ) =
+                    Task.Parallel.updateList world.buildingKnowledgeState taskMsg
+            in
+            ( { world
+                | buildingKnowledgeState = nextBuildingKnowledgeState
+                , buildingKnowledge =
+                    Maybe.map
+                        (\( a, b ) -> ( a + 1, b ))
+                        world.buildingKnowledge
+              }
+            , SubCmd.cmd next
+            )
+
+        KnowledgeBuilt knowledge ->
+            ( { world
+                | knowledgeTree = Data.Knowledge.buildKnowledgeTree (List.concat knowledge)
+                , buildingKnowledge = Nothing
+              }
+            , Galaxy3d.getGalaxyViewport GotGalaxyViewport
+            )
+
+        KnowledgeBuildFailure ->
+            ( world, SubCmd.none )
+
         SetTickRate tickRate ->
             ( { world | tickRate = tickRate }, SubCmd.none )
 
@@ -599,7 +621,7 @@ update sharedModel msg world =
                 )
 
 
-setZoom : World -> Float -> ( World, SubCmd Msg Effect )
+setZoom : World -> Float -> ( World, SubCmd PlayingMsg Effect )
 setZoom world delta =
     ( { world | zoom = max 5000000 (world.zoom + delta) }, SubCmd.none )
 
@@ -1278,7 +1300,7 @@ generateEntity world fn =
 ---- VIEW ----
 
 
-view : SharedModel -> World -> View Msg
+view : SharedModel -> World -> View PlayingMsg
 view sharedModel world =
     { title = "Hello Space!"
     , body = viewPlaying sharedModel (filterWorldByKnowledge world)
@@ -1337,108 +1359,151 @@ filterWorldByKnowledge world =
             world
 
 
-viewPlaying : SharedModel -> World -> Element Msg
+viewPlaying : SharedModel -> World -> Element PlayingMsg
 viewPlaying sharedModel world =
-    column
-        [ width fill
-        , height fill
-        , inFront
-            (case world.settingsVisible of
-                Hidden ->
-                    none
-
-                Visible ->
-                    map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-            )
-        ]
-        [ viewControls world
-        , (case world.viewStyle of
-            ThreeD ->
-                column
-
-            TwoD ->
-                row
-          )
-            [ width fill
-            , height fill
-            , scrollbarY
-            , padding 16
-            , spacing 8
-            ]
-            [ el
-                [ alignTop
-                , width fill
-                , height fill
-                , scrollbarY
-                , Border.solid
-                , Border.width 1
+    case world.buildingKnowledge of
+        Just ( completed, total ) ->
+            column
+                [ centerX
+                , centerY
                 ]
-                (case world.spaceFocus of
-                    FGalaxy ->
-                        viewGalaxy world
-
-                    FSolarSystem id ->
-                        if Set.member id world.solarSystems then
-                            viewSlice
-                                [ Ui.Button.default
-                                    { label = text "View Galaxy"
-                                    , onPress = Just (SetSpaceFocus FGalaxy)
-                                    }
+                [ text "Generating Galaxy"
+                , row
+                    [ width (px 300) ]
+                    [ el
+                        [ Background.gradient
+                            { angle = pi / 2
+                            , steps =
+                                [ rgb 1 0 1
+                                , rgb 0.5 0.5 1
+                                , rgb 0.1 1 0.1
                                 ]
-                                (viewSolarSystemDetailed sharedModel.settings world id)
+                            }
+                        , width (fillPortion completed)
+                        , height (px 30)
+                        , Border.widthEach
+                            { top = 1
+                            , bottom = 1
+                            , left = 1
+                            , right = 0
+                            }
+                        ]
+                        none
+                    , el
+                        [ width (fillPortion (total - completed))
+                        , height (px 30)
+                        , Border.widthEach
+                            { top = 1
+                            , bottom = 1
+                            , left = 0
+                            , right = 1
+                            }
+                        ]
+                        none
+                    ]
+                ]
 
-                        else
-                            text "Missing solar system"
+        Nothing ->
+            column
+                [ width fill
+                , height fill
+                , inFront
+                    (case world.settingsVisible of
+                        Hidden ->
+                            none
 
-                    FStar starId ->
-                        if Set.member starId world.stars then
-                            viewSlice
-                                [ Ui.Button.default
-                                    { label = text "View Galaxy"
-                                    , onPress = Just (SetSpaceFocus FGalaxy)
-                                    }
-                                , Ui.Button.default
-                                    { label = text "View System"
-                                    , onPress =
-                                        Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
-                                            (Logic.Component.get starId world.parents)
-                                    }
-                                ]
-                                (viewStarDetailed world starId)
+                        Visible ->
+                            map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
+                    )
+                ]
+                [ viewControls world
+                , (case world.viewStyle of
+                    ThreeD ->
+                        column
 
-                        else
-                            text "Missing star"
+                    TwoD ->
+                        row
+                  )
+                    [ width fill
+                    , height fill
+                    , scrollbarY
+                    , padding 16
+                    , spacing 8
+                    ]
+                    [ el
+                        [ alignTop
+                        , width fill
+                        , height fill
+                        , scrollbarY
+                        , Border.solid
+                        , Border.width 1
+                        ]
+                        (case world.spaceFocus of
+                            FGalaxy ->
+                                viewGalaxy world
 
-                    FPlanet planetId ->
-                        if Set.member planetId world.planets then
-                            viewSlice
-                                [ Ui.Button.default
-                                    { label = text "View Galaxy"
-                                    , onPress = Just (SetSpaceFocus FGalaxy)
-                                    }
-                                , Ui.Button.default
-                                    { label = text "View System"
-                                    , onPress =
-                                        Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
-                                            (Logic.Component.get planetId world.parents)
-                                    }
-                                ]
-                                (viewPlanetDetailed world planetId)
+                            FSolarSystem id ->
+                                if Set.member id world.solarSystems then
+                                    viewSlice
+                                        [ Ui.Button.default
+                                            { label = text "View Galaxy"
+                                            , onPress = Just (SetSpaceFocus FGalaxy)
+                                            }
+                                        ]
+                                        (viewSolarSystemDetailed sharedModel.settings world id)
 
-                        else
-                            text "Missing planet"
-                )
-            , case world.civilizationFocus of
-                FAll ->
-                    viewCivilizations world
+                                else
+                                    text "Missing solar system"
 
-                FOne civId ->
-                    viewCivilizationDetailed world civId
-            ]
-        ]
+                            FStar starId ->
+                                if Set.member starId world.stars then
+                                    viewSlice
+                                        [ Ui.Button.default
+                                            { label = text "View Galaxy"
+                                            , onPress = Just (SetSpaceFocus FGalaxy)
+                                            }
+                                        , Ui.Button.default
+                                            { label = text "View System"
+                                            , onPress =
+                                                Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
+                                                    (Logic.Component.get starId world.parents)
+                                            }
+                                        ]
+                                        (viewStarDetailed world starId)
+
+                                else
+                                    text "Missing star"
+
+                            FPlanet planetId ->
+                                if Set.member planetId world.planets then
+                                    viewSlice
+                                        [ Ui.Button.default
+                                            { label = text "View Galaxy"
+                                            , onPress = Just (SetSpaceFocus FGalaxy)
+                                            }
+                                        , Ui.Button.default
+                                            { label = text "View System"
+                                            , onPress =
+                                                Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
+                                                    (Logic.Component.get planetId world.parents)
+                                            }
+                                        ]
+                                        (viewPlanetDetailed world planetId)
+
+                                else
+                                    text "Missing planet"
+                        )
+                    , case world.civilizationFocus of
+                        FAll ->
+                            viewCivilizations world
+
+                        FOne civId ->
+                            viewCivilizationDetailed world civId
+                    ]
+                ]
 
 
-viewControls : World -> Element Msg
+viewControls : World -> Element PlayingMsg
 viewControls world =
     row
         [ padding 16
@@ -1505,7 +1570,7 @@ viewControls world =
         ]
 
 
-viewSlice : List (Element Msg) -> Element Msg -> Element Msg
+viewSlice : List (Element PlayingMsg) -> Element PlayingMsg -> Element PlayingMsg
 viewSlice menuItems slice =
     el
         [ height fill
@@ -1515,7 +1580,7 @@ viewSlice menuItems slice =
         slice
 
 
-viewGalaxy : World -> Element Msg
+viewGalaxy : World -> Element PlayingMsg
 viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
@@ -1549,7 +1614,7 @@ viewGalaxy world =
                 world
 
 
-viewSolarSystemDetailed : Settings -> World -> EntityID -> Element Msg
+viewSolarSystemDetailed : Settings -> World -> EntityID -> Element PlayingMsg
 viewSolarSystemDetailed settings world solarSystemId =
     let
         ( stars, planets ) =
@@ -1603,7 +1668,7 @@ viewSolarSystemDetailed settings world solarSystemId =
                 planets
 
 
-viewStarDetailed : World -> EntityID -> Element Msg
+viewStarDetailed : World -> EntityID -> Element PlayingMsg
 viewStarDetailed model starId =
     case Logic.Component.get starId model.starTemperature of
         Nothing ->
@@ -1624,7 +1689,7 @@ viewStarDetailed model starId =
                 ]
 
 
-viewPlanetDetailed : World -> EntityID -> Element Msg
+viewPlanetDetailed : World -> EntityID -> Element PlayingMsg
 viewPlanetDetailed world planetId =
     case Logic.Component.get planetId world.planetTypes of
         Nothing ->
@@ -1688,7 +1753,7 @@ viewPlanetDetailed world planetId =
                 ]
 
 
-viewCivilizations : World -> Element Msg
+viewCivilizations : World -> Element PlayingMsg
 viewCivilizations world =
     column
         [ spacing 8
@@ -1700,7 +1765,7 @@ viewCivilizations world =
         (List.map (viewCivilizationSimple world) (Set.toList world.civilizations))
 
 
-viewCivilizationSimple : World -> EntityID -> Element Msg
+viewCivilizationSimple : World -> EntityID -> Element PlayingMsg
 viewCivilizationSimple world civId =
     case Logic.Component.get civId world.named of
         Nothing ->
@@ -1718,7 +1783,7 @@ viewCivilizationSimple world civId =
                 ]
 
 
-viewCivilizationDetailed : World -> EntityID -> Element Msg
+viewCivilizationDetailed : World -> EntityID -> Element PlayingMsg
 viewCivilizationDetailed world civId =
     column
         [ padding 16
@@ -1801,7 +1866,7 @@ populationToString population =
         postFix " trillion" Population.inTrillions
 
 
-viewLog : Log -> Element Msg
+viewLog : Log -> Element PlayingMsg
 viewLog log =
     column
         [ Border.solid

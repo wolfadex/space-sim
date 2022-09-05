@@ -163,8 +163,8 @@ baseParticipateModel =
     , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
-    , minSolarSystemsToGenerate = 40
-    , maxSolarSystemsToGenerate = 80
+    , minSolarSystemsToGenerate = 400
+    , maxSolarSystemsToGenerate = 800
     }
 
 
@@ -176,8 +176,8 @@ type alias ObserveModel =
 
 baseObserveModel : ObserveModel
 baseObserveModel =
-    { minSolarSystemsToGenerate = 40
-    , maxSolarSystemsToGenerate = 80
+    { minSolarSystemsToGenerate = 400
+    , maxSolarSystemsToGenerate = 800
     }
 
 
@@ -684,7 +684,7 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 120
+            , max = 800
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -698,7 +698,7 @@ viewPlayerCivForm model =
                         ]
                     )
             , min = 10
-            , max = 120
+            , max = 800
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
@@ -818,7 +818,7 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 120
+            , max = 800
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
@@ -832,7 +832,7 @@ viewObserveForm model =
                         ]
                     )
             , min = 10
-            , max = 120
+            , max = 800
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }

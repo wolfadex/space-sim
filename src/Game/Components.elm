@@ -6,6 +6,7 @@ module Game.Components exposing
     , Log
     , Mortality
     , Orbit
+    , PlayingMsg(..)
     , Reproduction
     , SpaceFocus(..)
     , StarDate
@@ -29,9 +30,11 @@ module Game.Components exposing
     , waterSpec
     )
 
+import Browser.Dom exposing (Viewport)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
 import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
+import Json.Decode exposing (Value)
 import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -42,7 +45,8 @@ import Population exposing (Population)
 import Rate exposing (Rate)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (PlayType(..))
+import Shared exposing (PlayType(..), SharedMsg)
+import Task.Parallel
 import Temperature exposing (Temperature)
 
 
@@ -90,6 +94,8 @@ type alias World =
     , starDate : StarDate
     , eventLog : List Log
     , knowledgeTree : KnowledgeTree
+    , buildingKnowledgeState : Task.Parallel.ListState PlayingMsg (List ( Knowledge, List (AnySet String Knowledge) ))
+    , buildingKnowledge : Maybe ( Int, Int )
     }
 
 
@@ -134,7 +140,36 @@ emptyWorld =
     , starDate = 0
     , eventLog = []
     , knowledgeTree = Data.Knowledge.buildKnowledgeTree []
+    , buildingKnowledgeState =
+        Tuple.first
+            (Task.Parallel.attemptList
+                { onUpdates = BuildingKnowledge
+                , onSuccess = KnowledgeBuilt
+                , onFailure = \_ -> KnowledgeBuildFailure
+                , tasks = []
+                }
+            )
+    , buildingKnowledge = Nothing
     }
+
+
+type PlayingMsg
+    = DeleteGalaxy
+    | SetSpaceFocus SpaceFocus
+    | SetCivilizationFocus CivilizationFocus
+    | Tick Float
+    | SetTickRate TickRate
+    | GotViewStyle ViewStyle
+    | WindowResized
+    | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
+    | GotZoom Value
+    | GotZoomChange Float
+    | GotRotationChange Float
+    | GotSettingsVisible Visible
+    | GotLocalSharedMessage SharedMsg
+    | BuildingKnowledge (Task.Parallel.ListMsg (List ( Knowledge, List (AnySet String Knowledge) )))
+    | KnowledgeBuilt (List (List ( Knowledge, List (AnySet String Knowledge) )))
+    | KnowledgeBuildFailure
 
 
 type Visible

@@ -62,7 +62,7 @@ subscriptions model =
 
 type Msg
     = GotNewGameMessage NewGame.Msg
-    | GotPlayingMessage Playing.Msg
+    | GotPlayingMessage Game.Components.PlayingMsg
     | GotSharedEffect Effect
 
 
