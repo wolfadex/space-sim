@@ -375,10 +375,17 @@ update sharedModel msg world =
 
         KnowledgeBuilt knowledge ->
             ( { world
-                | knowledgeTree = Data.Knowledge.buildKnowledgeTree (List.concat knowledge)
+                | knowledgeTree = Data.Knowledge.addKnowledge (List.concat knowledge) world.knowledgeTree
                 , buildingKnowledge = Nothing
               }
-            , Galaxy3d.getGalaxyViewport GotGalaxyViewport
+            , SubCmd.batch
+                [ Galaxy3d.getGalaxyViewport GotGalaxyViewport
+                , SubCmd.cmd
+                    (Task.perform
+                        (\() -> WindowResized)
+                        (Process.sleep 1)
+                    )
+                ]
             )
 
         KnowledgeBuildFailure ->
@@ -1369,7 +1376,18 @@ viewPlaying sharedModel world =
                 ]
                 [ text "Generating Galaxy"
                 , row
-                    [ width (px 300) ]
+                    [ width (px 300)
+                    , inFront
+                        (el
+                            [ centerX
+                            , centerY
+                            , Background.color (rgba 1 1 1 0.5)
+                            , Border.rounded 4
+                            , padding 4
+                            ]
+                            (text (String.fromInt (completed * 100 // total) ++ "%"))
+                        )
+                    ]
                     [ el
                         [ Background.gradient
                             { angle = pi / 2
@@ -1380,23 +1398,23 @@ viewPlaying sharedModel world =
                                 ]
                             }
                         , width (fillPortion completed)
-                        , height (px 30)
+                        , height (px 35)
                         , Border.widthEach
-                            { top = 1
-                            , bottom = 1
-                            , left = 1
+                            { top = 3
+                            , bottom = 3
+                            , left = 3
                             , right = 0
                             }
                         ]
                         none
                     , el
                         [ width (fillPortion (total - completed))
-                        , height (px 30)
+                        , height (px 35)
                         , Border.widthEach
-                            { top = 1
-                            , bottom = 1
+                            { top = 3
+                            , bottom = 3
                             , left = 0
-                            , right = 1
+                            , right = 3
                             }
                         ]
                         none

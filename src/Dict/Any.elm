@@ -3,6 +3,7 @@ module Dict.Any exposing
     , filter
     , fromList
     , keys
+    , union
     )
 
 import Dict exposing (Dict)
@@ -25,3 +26,8 @@ keys config (AnyDict dict) =
 filter : { r | fromComparable : comparable -> key } -> (key -> value -> Bool) -> AnyDict comparable key value -> AnyDict comparable key value
 filter config predicate (AnyDict dict) =
     AnyDict (Dict.filter (\comp val -> predicate (config.fromComparable comp) val) dict)
+
+
+union : AnyDict comparable key value -> AnyDict comparable key value -> AnyDict comparable key value
+union (AnyDict left) (AnyDict right) =
+    AnyDict (Dict.union left right)

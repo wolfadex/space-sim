@@ -139,7 +139,7 @@ emptyWorld =
     , availableCivilizationNames = Data.Names.allCivilizationNames
     , starDate = 0
     , eventLog = []
-    , knowledgeTree = Data.Knowledge.buildKnowledgeTree []
+    , knowledgeTree = Data.Knowledge.baseKnowledgeTree
     , buildingKnowledgeState =
         Tuple.first
             (Task.Parallel.attemptList

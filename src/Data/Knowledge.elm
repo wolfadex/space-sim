@@ -1,7 +1,8 @@
 module Data.Knowledge exposing
     ( Knowledge(..)
     , KnowledgeTree
-    , buildKnowledgeTree
+    , addKnowledge
+    , baseKnowledgeTree
     , canBeLearned
     , comparableConfig
     , knows
@@ -147,8 +148,8 @@ type KnowledgeTree
 
 {-| Returns what the required `Knoweldge` is to learn a new thing. An empty `List` means that no prior `Knowledge` is required. If more than 1 set of `Knowledge` is returns, then any of those sets can be met.
 -}
-buildKnowledgeTree : List ( Knowledge, List (AnySet String Knowledge) ) -> KnowledgeTree
-buildKnowledgeTree generatedKnowledge =
+baseKnowledgeTree : KnowledgeTree
+baseKnowledgeTree =
     KnowledgeTree
         (Dict.Any.fromList comparableConfig
             -- Fixed knowledge
@@ -175,10 +176,14 @@ buildKnowledgeTree generatedKnowledge =
                )
              , ( FTLSpaceTravel, [ Set.Any.fromList comparableConfig [ InterplanetarySpaceTravel ] ] )
              ]
-                ++ generatedKnowledge
              -- [( KnowsOf -1, [ Set.Any.singleton comparableConfig Optics ] )]
             )
         )
+
+
+addKnowledge : List ( Knowledge, List (AnySet String Knowledge) ) -> KnowledgeTree -> KnowledgeTree
+addKnowledge newKnowledge (KnowledgeTree existingKnowledge) =
+    KnowledgeTree (Dict.Any.union (Dict.Any.fromList comparableConfig newKnowledge) existingKnowledge)
 
 
 spec : Spec (AnySet String Knowledge) { world | civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge) }
