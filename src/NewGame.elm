@@ -590,42 +590,21 @@ viewPlayerCivForm model =
             , text = model.homePlanetName
             , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Home Planet Name:"))
             }
-        , Ui.Slider.int
-            { onChange = GotMinSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Min Solar System Count: ")
-                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.minSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , Ui.Slider.int
-            { onChange = GotMaxSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Max Solar System Count: ")
-                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.maxSolarSystemsToGenerate
-            , step = Just 10
-            }
+        , inputMaxSolarSystemCount model
+        , inputMaxSolarSystemCount model
         , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
-        , el [ centerX ]
-            (Ui.Button.default
-                { label = text "Start Game"
-                , onPress = Just StartSimulation
-                }
-            )
+        , startSimulationButton "Start Game"
         ]
+
+
+startSimulationButton : String -> Element Msg
+startSimulationButton label =
+    el [ centerX ]
+        (Ui.Button.default
+            { label = text label
+            , onPress = Just StartSimulation
+            }
+        )
 
 
 viewError : String -> Element msg
@@ -722,38 +701,43 @@ viewObserveForm model =
         [ spacing 16
         , width fill
         ]
-        [ Ui.Slider.int
-            { onChange = GotMinSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Min Solar System Count: ")
-                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.minSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , Ui.Slider.int
-            { onChange = GotMaxSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Max Solar System Count: ")
-                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.maxSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , el [ centerX ]
-            (Ui.Button.default
-                { label = text "Begin Simulation"
-                , onPress = Just StartSimulation
-                }
-            )
+        [ inputMinSolarSystemCount model
+        , inputMaxSolarSystemCount model
+        , startSimulationButton "Begin Simulation"
         ]
+
+
+inputMaxSolarSystemCount : Model -> Element Msg
+inputMaxSolarSystemCount model =
+    Ui.Slider.int
+        { onChange = GotMaxSolarSystemCount
+        , label =
+            Input.labelAbove []
+                (paragraph []
+                    [ contrastingBackground (text "Max Solar System Count: ")
+                    , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
+                    ]
+                )
+        , min = 10
+        , max = 800
+        , value = model.maxSolarSystemsToGenerate
+        , step = Just 10
+        }
+
+
+inputMinSolarSystemCount : Model -> Element Msg
+inputMinSolarSystemCount model =
+    Ui.Slider.int
+        { onChange = GotMinSolarSystemCount
+        , label =
+            Input.labelAbove []
+                (paragraph []
+                    [ contrastingBackground (text "Min Solar System Count: ")
+                    , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                    ]
+                )
+        , min = 10
+        , max = 800
+        , value = model.minSolarSystemsToGenerate
+        , step = Just 10
+        }
