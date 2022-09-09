@@ -112,6 +112,8 @@ type alias Model =
     , errors : List String
     , minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
 
     -- participate only
     , civilizationNameSingular : String
@@ -160,6 +162,8 @@ baseModel =
     , errors = []
     , minSolarSystemsToGenerate = 40
     , maxSolarSystemsToGenerate = 80
+    , minPlanetsPerSolarSystemToGenerate = 1
+    , maxPlanetsPerSolarSystemToGenerate = 12
     }
 
 
@@ -194,6 +198,8 @@ type Msg
     | SetHomePlanetName String
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
+    | GotMinPlanetCount Int
+    | GotMaxPlanetCount Int
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -277,6 +283,22 @@ update _ msg model =
             , SubCmd.none
             )
 
+        GotMinPlanetCount minCount ->
+            ( { model
+                | minPlanetsPerSolarSystemToGenerate = minCount
+                , maxPlanetsPerSolarSystemToGenerate = max minCount model.maxPlanetsPerSolarSystemToGenerate
+              }
+            , SubCmd.none
+            )
+
+        GotMaxPlanetCount maxCount ->
+            ( { model
+                | minPlanetsPerSolarSystemToGenerate = min model.minPlanetsPerSolarSystemToGenerate maxCount
+                , maxPlanetsPerSolarSystemToGenerate = maxCount
+              }
+            , SubCmd.none
+            )
+
         StartSimulation ->
             case model.page of
                 MainMenu ->
@@ -291,6 +313,8 @@ update _ msg model =
                             , homePlanetName = ""
                             , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
                             , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
                             }
                         )
                     )
@@ -306,6 +330,8 @@ update _ msg model =
                                     , homePlanetName = validHomeName
                                     , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
                                     , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                                    , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                                    , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
                                     }
                                 )
                             )
@@ -590,8 +616,10 @@ viewPlayerCivForm model =
             , text = model.homePlanetName
             , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Home Planet Name:"))
             }
+        , inputMinSolarSystemCount model
         , inputMaxSolarSystemCount model
-        , inputMaxSolarSystemCount model
+        , inputMinPlanetCount model
+        , inputMaxPlanetCount model
         , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
         , startSimulationButton "Start Game"
         ]
@@ -703,8 +731,28 @@ viewObserveForm model =
         ]
         [ inputMinSolarSystemCount model
         , inputMaxSolarSystemCount model
+        , inputMinPlanetCount model
+        , inputMaxPlanetCount model
         , startSimulationButton "Begin Simulation"
         ]
+
+
+inputMinSolarSystemCount : Model -> Element Msg
+inputMinSolarSystemCount model =
+    Ui.Slider.int
+        { onChange = GotMinSolarSystemCount
+        , label =
+            Input.labelAbove []
+                (paragraph []
+                    [ contrastingBackground (text "Min Solar System Count: ")
+                    , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                    ]
+                )
+        , min = 10
+        , max = 800
+        , value = model.minSolarSystemsToGenerate
+        , step = Just 10
+        }
 
 
 inputMaxSolarSystemCount : Model -> Element Msg
@@ -725,19 +773,37 @@ inputMaxSolarSystemCount model =
         }
 
 
-inputMinSolarSystemCount : Model -> Element Msg
-inputMinSolarSystemCount model =
+inputMinPlanetCount : Model -> Element Msg
+inputMinPlanetCount model =
     Ui.Slider.int
-        { onChange = GotMinSolarSystemCount
+        { onChange = GotMinPlanetCount
         , label =
             Input.labelAbove []
                 (paragraph []
-                    [ contrastingBackground (text "Min Solar System Count: ")
-                    , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                    [ contrastingBackground (text "Min Planets per Solar System: ")
+                    , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
                     ]
                 )
         , min = 10
         , max = 800
-        , value = model.minSolarSystemsToGenerate
+        , value = model.minPlanetsPerSolarSystemToGenerate
+        , step = Just 10
+        }
+
+
+inputMaxPlanetCount : Model -> Element Msg
+inputMaxPlanetCount model =
+    Ui.Slider.int
+        { onChange = GotMaxPlanetCount
+        , label =
+            Input.labelAbove []
+                (paragraph []
+                    [ contrastingBackground (text "Max Planets per Solar System: ")
+                    , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
+                    ]
+                )
+        , min = 10
+        , max = 800
+        , value = model.maxPlanetsPerSolarSystemToGenerate
         , step = Just 10
         }

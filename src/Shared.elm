@@ -2,6 +2,7 @@ module Shared exposing
     ( Effect(..)
     , Enabled(..)
     , Flags
+    , GenerationConfig
     , PlayType(..)
     , Settings
     , SharedModel
@@ -56,16 +57,20 @@ type PlayType
 
 
 type Effect
-    = CreateGame
-        PlayType
-        { name : CivilizationName
-        , homePlanetName : String
-        , minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
+    = CreateGame PlayType GenerationConfig
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg
+
+
+type alias GenerationConfig =
+    { name : CivilizationName
+    , homePlanetName : String
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
+    }
 
 
 type SharedMsg

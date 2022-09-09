@@ -55,6 +55,7 @@ import Set.Any exposing (AnySet)
 import Shared
     exposing
         ( Effect(..)
+        , GenerationConfig
         , PlayType(..)
         , Settings
         , SharedModel
@@ -72,16 +73,7 @@ import View exposing (View)
 ---- INIT ----
 
 
-init :
-    SharedModel
-    -> PlayType
-    ->
-        { name : CivilizationName
-        , homePlanetName : String
-        , minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
-    -> ( World, SubCmd PlayingMsg Effect )
+init : SharedModel -> PlayType -> GenerationConfig -> ( World, SubCmd PlayingMsg Effect )
 init sharedModel playType generationConfig =
     let
         ( generatedWorld, seed ) =
@@ -1102,13 +1094,19 @@ birthAndDeathSystem =
         )
 
 
-generateGalaxy : { r | minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int } -> World -> Generator World
-generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
-    Random.map Tuple.second (generateManyEntities minSolarSystemsToGenerate maxSolarSystemsToGenerate model generateSolarSystem)
+generateGalaxy : GenerationConfig -> World -> Generator World
+generateGalaxy config model =
+    Random.map Tuple.second
+        (generateManyEntities
+            config.minSolarSystemsToGenerate
+            config.maxSolarSystemsToGenerate
+            model
+            (generateSolarSystem config)
+        )
 
 
-generateSolarSystem : ( EntityID, World ) -> Generator ( EntityID, World )
-generateSolarSystem ( solarSystemId, world ) =
+generateSolarSystem : GenerationConfig -> ( EntityID, World ) -> Generator ( EntityID, World )
+generateSolarSystem config ( solarSystemId, world ) =
     Random.andThen
         (\( starIds, starWorld ) ->
             Random.map2
@@ -1120,7 +1118,12 @@ generateSolarSystem ( solarSystemId, world ) =
                             )
                         )
                 )
-                (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
+                (generateManyEntities
+                    config.minPlanetsPerSolarSystemToGenerate
+                    config.maxPlanetsPerSolarSystemToGenerate
+                    starWorld
+                    (generatePlanet solarSystemId)
+                )
                 generateGalacticPosition
         )
         (Random.andThen (\starCount -> generateManyEntities starCount starCount world (generateStar solarSystemId)) (Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]))
