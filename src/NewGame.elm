@@ -2,8 +2,6 @@ module NewGame exposing
     ( InnerPage(..)
     , Model
     , Msg
-    , ObserveModel
-    , ParticipateModel
     , baseModel
     , init
     , subscriptions
@@ -109,13 +107,26 @@ type alias Model =
     , stars : Set EntityID
     , solarSystems : Set EntityID
     , civilizations : Set EntityID
+
+    ---- game stuff
+    , errors : List String
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+
+    -- participate only
+    , civilizationNameSingular : String
+    , civilizationNamePlural : String
+    , hasUniquePluralName : Bool
+    , civilizationNamePossessive : String
+    , hasUniquePossessiveName : Bool
+    , homePlanetName : String
     }
 
 
 type InnerPage
     = MainMenu
-    | Participate ParticipateModel
-    | Observe ObserveModel
+    | Participate -- ParticipateModel
+    | Observe -- ObserveModel
 
 
 baseModel : Model
@@ -138,25 +149,9 @@ baseModel =
     , stars = Set.empty
     , solarSystems = Set.empty
     , civilizations = Set.empty
-    }
 
-
-type alias ParticipateModel =
-    { civilizationNameSingular : String
-    , civilizationNamePlural : String
-    , hasUniquePluralName : Bool
-    , civilizationNamePossessive : String
-    , hasUniquePossessiveName : Bool
-    , homePlanetName : String
-    , errors : List String
-    , minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    }
-
-
-baseParticipateModel : ParticipateModel
-baseParticipateModel =
-    { civilizationNameSingular = ""
+    -- game stuff
+    , civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
@@ -164,19 +159,6 @@ baseParticipateModel =
     , homePlanetName = ""
     , errors = []
     , minSolarSystemsToGenerate = 40
-    , maxSolarSystemsToGenerate = 80
-    }
-
-
-type alias ObserveModel =
-    { minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    }
-
-
-baseObserveModel : ObserveModel
-baseObserveModel =
-    { minSolarSystemsToGenerate = 40
     , maxSolarSystemsToGenerate = 80
     }
 
@@ -194,219 +176,157 @@ subscriptions _ =
 
 
 type Msg
-    = MainMenuMessage MainMenuMsg
-    | ParticipateMessage ParticipateMsg
-    | ObserveMessage ObserveMsg
+    = ViewParticipate
+    | ViewObserve
     | Tick Float
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotSettingsVisible Visible
     | GotLocalSharedMessage SharedMsg
     | ViewMain
-
-
-type MainMenuMsg
-    = ViewParticipate
-    | ViewObserve
-
-
-type ParticipateMsg
-    = SetNameSingular String
+      -- form stuff
+    | SetNameSingular String
     | SetNamePlural String
     | ToggleNamePlural Bool
     | SetNamePossessive String
     | ToggleNamePossessive Bool
-    | StartGame
+    | StartSimulation
     | SetHomePlanetName String
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
 
 
-type ObserveMsg
-    = OGotMinSolarSystemCount Int
-    | OGotMaxSolarSystemCount Int
-    | BeginSimulation
-
-
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
 update _ msg model =
-    case ( msg, model.page ) of
-        ( MainMenuMessage message, MainMenu ) ->
-            updateMainMenu model message
+    case msg of
+        ViewParticipate ->
+            ( { model | page = Participate }, SubCmd.none )
 
-        ( ParticipateMessage message, Participate mod ) ->
-            updateParticipate model message mod
+        ViewObserve ->
+            ( { model | page = Observe }, SubCmd.none )
 
-        ( ObserveMessage message, Observe mod ) ->
-            updateObserve model message mod
-
-        ( Tick deltaMs, _ ) ->
+        -- ( ObserveMessage message, Observe mod ) ->
+        --     updateObserve model message mod
+        Tick deltaMs ->
             ( { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
 
-        ( WindowResized, _ ) ->
+        WindowResized ->
             ( model, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
-        ( GotGalaxyViewport (Ok { viewport }), _ ) ->
+        GotGalaxyViewport (Ok { viewport }) ->
             ( { model | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
             , SubCmd.none
             )
 
-        ( GotGalaxyViewport (Err _), _ ) ->
+        GotGalaxyViewport (Err _) ->
             ( model, SubCmd.none )
 
-        ( GotSettingsVisible visible, _ ) ->
+        GotSettingsVisible visible ->
             ( { model | settingsVisible = visible }, SubCmd.none )
 
-        ( GotLocalSharedMessage settingsChange, _ ) ->
+        GotLocalSharedMessage settingsChange ->
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
 
-        ( ViewMain, _ ) ->
+        ViewMain ->
             ( { model | page = MainMenu }, SubCmd.none )
 
-        _ ->
-            ( model, SubCmd.none )
-
-
-updateMainMenu : Model -> MainMenuMsg -> ( Model, SubCmd Msg Effect )
-updateMainMenu mainModel msg =
-    case msg of
-        ViewParticipate ->
-            ( { mainModel | page = Participate baseParticipateModel }, SubCmd.none )
-
-        ViewObserve ->
-            ( { mainModel | page = Observe baseObserveModel }, SubCmd.none )
-
-
-updateParticipate : Model -> ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Effect )
-updateParticipate mainModel msg model =
-    case msg of
+        -- form stuff
         SetNameSingular singular ->
-            ( { mainModel | page = Participate { model | civilizationNameSingular = singular } }
+            ( { model | civilizationNameSingular = singular }
             , SubCmd.none
             )
 
         SetNamePlural plural ->
-            ( { mainModel | page = Participate { model | civilizationNamePlural = plural } }
+            ( { model | civilizationNamePlural = plural }
             , SubCmd.none
             )
 
         ToggleNamePlural enabled ->
-            ( { mainModel | page = Participate { model | hasUniquePluralName = enabled } }
+            ( { model | hasUniquePluralName = enabled }
             , SubCmd.none
             )
 
         SetNamePossessive possessive ->
-            ( { mainModel | page = Participate { model | civilizationNamePossessive = possessive } }
+            ( { model | civilizationNamePossessive = possessive }
             , SubCmd.none
             )
 
         ToggleNamePossessive enabled ->
-            ( { mainModel | page = Participate { model | hasUniquePossessiveName = enabled } }
+            ( { model | hasUniquePossessiveName = enabled }
             , SubCmd.none
             )
 
         SetHomePlanetName name ->
-            ( { mainModel | page = Participate { model | homePlanetName = name } }
+            ( { model | homePlanetName = name }
             , SubCmd.none
             )
 
         GotMinSolarSystemCount minCount ->
-            ( { mainModel
-                | page =
-                    Participate
-                        { model
-                            | minSolarSystemsToGenerate = minCount
-                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                        }
+            ( { model
+                | minSolarSystemsToGenerate = minCount
+                , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
               }
             , SubCmd.none
             )
 
         GotMaxSolarSystemCount maxCount ->
-            ( { mainModel
-                | page =
-                    Participate
-                        { model
-                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                            , maxSolarSystemsToGenerate = maxCount
-                        }
+            ( { model
+                | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
+                , maxSolarSystemsToGenerate = maxCount
               }
             , SubCmd.none
             )
 
-        StartGame ->
-            case Validator.run createGameValidator model of
-                Ok ( validName, validHomeName ) ->
-                    ( mainModel
+        StartSimulation ->
+            case model.page of
+                MainMenu ->
+                    ( model, SubCmd.none )
+
+                Observe ->
+                    ( model
                     , SubCmd.effect
                         (Shared.CreateGame
-                            Participation
-                            { name = validName
-                            , homePlanetName = validHomeName
+                            Observation
+                            { name = { singular = "", many = Nothing, possessive = Nothing }
+                            , homePlanetName = ""
                             , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
                             , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
                             }
                         )
                     )
 
-                Err errs ->
-                    ( { mainModel | page = Participate { model | errors = errs } }, SubCmd.none )
+                Participate ->
+                    case Validator.run createGameValidator model of
+                        Ok ( validName, validHomeName ) ->
+                            ( model
+                            , SubCmd.effect
+                                (Shared.CreateGame
+                                    Participation
+                                    { name = validName
+                                    , homePlanetName = validHomeName
+                                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                                    }
+                                )
+                            )
+
+                        Err errs ->
+                            ( { model | errors = errs }, SubCmd.none )
 
 
-updateObserve : Model -> ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
-updateObserve mainModel msg model =
-    case msg of
-        OGotMinSolarSystemCount minCount ->
-            ( { mainModel
-                | page =
-                    Observe
-                        { model
-                            | minSolarSystemsToGenerate = minCount
-                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                        }
-              }
-            , SubCmd.none
-            )
-
-        OGotMaxSolarSystemCount maxCount ->
-            ( { mainModel
-                | page =
-                    Observe
-                        { model
-                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                            , maxSolarSystemsToGenerate = maxCount
-                        }
-              }
-            , SubCmd.none
-            )
-
-        BeginSimulation ->
-            ( mainModel
-            , SubCmd.effect
-                (Shared.CreateGame
-                    Observation
-                    { name = { singular = "", many = Nothing, possessive = Nothing }
-                    , homePlanetName = ""
-                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                    }
-                )
-            )
-
-
-createGameValidator : Validator ParticipateModel String ( CivilizationName, String )
+createGameValidator : Validator Model String ( CivilizationName, String )
 createGameValidator =
     Validator.map2 Tuple.pair
         civNameValidator
         homeNameValidator
 
 
-homeNameValidator : Validator ParticipateModel String String
+homeNameValidator : Validator Model String String
 homeNameValidator =
     Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok) (Validator.succeed identity)
 
 
-civNameValidator : Validator ParticipateModel String CivilizationName
+civNameValidator : Validator Model String CivilizationName
 civNameValidator =
     Validator.required identity
         (\_ -> False)
@@ -432,7 +352,7 @@ civNameValidator =
         )
 
 
-pluralNameValidator : ParticipateModel -> Result (List String) (Maybe String)
+pluralNameValidator : Model -> Result (List String) (Maybe String)
 pluralNameValidator model =
     if model.hasUniquePluralName then
         if String.isEmpty model.civilizationNamePlural then
@@ -445,7 +365,7 @@ pluralNameValidator model =
         Ok Nothing
 
 
-possessiveNameValidator : ParticipateModel -> Result (List String) (Maybe String)
+possessiveNameValidator : Model -> Result (List String) (Maybe String)
 possessiveNameValidator model =
     if model.hasUniquePossessiveName then
         if String.isEmpty model.civilizationNamePossessive then
@@ -471,11 +391,11 @@ view sharedModel model =
                 MainMenu ->
                     viewMainMenu
 
-                Participate m ->
-                    viewParticipate m
+                Participate ->
+                    viewParticipate model
 
-                Observe m ->
-                    viewObserve m
+                Observe ->
+                    viewObserve model
     in
     { title = options.title
     , body =
@@ -557,72 +477,68 @@ viewMainMenu : View Msg
 viewMainMenu =
     { title = "Hello Space!"
     , body =
-        map MainMenuMessage
-            (el
-                [ padding 16
-                , width fill
-                , height fill
-                ]
-                (column
-                    [ centerX
-                    , centerY
-                    , spacing 64
-                    ]
-                    [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
-                    , column
-                        [ centerX, spacing 16 ]
-                        [ el [ centerX ]
-                            (Ui.Button.default
-                                { onPress = Just ViewParticipate
-                                , label = text "Participate"
-                                }
-                            )
-                        , el [ centerX ]
-                            (Ui.Button.default
-                                { onPress = Just ViewObserve
-                                , label = text "Observe"
-                                }
-                            )
-                        , el [ centerX, Font.strike ]
-                            (Ui.Button.default
-                                { onPress = Nothing
-                                , label = text "Load Simulation"
-                                }
-                            )
-                        ]
-                    ]
-                )
-            )
-    }
-
-
-viewParticipate : ParticipateModel -> View Msg
-viewParticipate model =
-    { title = "Hello Space! - Participate"
-    , body =
-        map ParticipateMessage
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            ]
             (column
                 [ centerX
                 , centerY
                 , spacing 64
                 ]
-                [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
-                , wrappedRow
-                    [ centerX
-                    , centerY
-                    , spacing 16
-                    , padding 16
-                    , width shrink
-                    ]
-                    [ viewPlayerCivForm model
-                    , viewExample model
+                [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
+                , column
+                    [ centerX, spacing 16 ]
+                    [ el [ centerX ]
+                        (Ui.Button.default
+                            { onPress = Just ViewParticipate
+                            , label = text "Participate"
+                            }
+                        )
+                    , el [ centerX ]
+                        (Ui.Button.default
+                            { onPress = Just ViewObserve
+                            , label = text "Observe"
+                            }
+                        )
+                    , el [ centerX, Font.strike ]
+                        (Ui.Button.default
+                            { onPress = Nothing
+                            , label = text "Load Simulation"
+                            }
+                        )
                     ]
                 ]
             )
     }
 
 
-viewPlayerCivForm : ParticipateModel -> Element ParticipateMsg
+viewParticipate : Model -> View Msg
+viewParticipate model =
+    { title = "Hello Space! - Participate"
+    , body =
+        column
+            [ centerX
+            , centerY
+            , spacing 64
+            ]
+            [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
+            , wrappedRow
+                [ centerX
+                , centerY
+                , spacing 16
+                , padding 16
+                , width shrink
+                ]
+                [ viewPlayerCivForm model
+                , viewExample model
+                ]
+            ]
+    }
+
+
+viewPlayerCivForm : Model -> Element Msg
 viewPlayerCivForm model =
     column
         [ spacing 16
@@ -706,7 +622,7 @@ viewPlayerCivForm model =
         , el [ centerX ]
             (Ui.Button.default
                 { label = text "Start Game"
-                , onPress = Just StartGame
+                , onPress = Just StartSimulation
                 }
             )
         ]
@@ -723,7 +639,7 @@ viewError error =
         (text error)
 
 
-viewExample : ParticipateModel -> Element ParticipateMsg
+viewExample : Model -> Element Msg
 viewExample model =
     el [ alignTop ]
         (contrastingBackground
@@ -771,45 +687,43 @@ displayGameValue id value =
         (text value)
 
 
-viewObserve : ObserveModel -> View Msg
+viewObserve : Model -> View Msg
 viewObserve model =
     { title = "Hello Space! - Observe"
     , body =
-        map ObserveMessage
-            (el
-                [ padding 16
-                , width fill
-                , height fill
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            ]
+            (column
+                [ centerX
+                , centerY
+                , spacing 64
                 ]
-                (column
+                [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
+                , wrappedRow
                     [ centerX
                     , centerY
-                    , spacing 64
+                    , spacing 16
+                    , padding 16
+                    , width shrink
                     ]
-                    [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
-                    , wrappedRow
-                        [ centerX
-                        , centerY
-                        , spacing 16
-                        , padding 16
-                        , width shrink
-                        ]
-                        [ viewObserveForm model
-                        ]
+                    [ viewObserveForm model
                     ]
-                )
+                ]
             )
     }
 
 
-viewObserveForm : ObserveModel -> Element ObserveMsg
+viewObserveForm : Model -> Element Msg
 viewObserveForm model =
     column
         [ spacing 16
         , width fill
         ]
         [ Ui.Slider.int
-            { onChange = OGotMinSolarSystemCount
+            { onChange = GotMinSolarSystemCount
             , label =
                 Input.labelAbove []
                     (paragraph []
@@ -823,7 +737,7 @@ viewObserveForm model =
             , step = Just 10
             }
         , Ui.Slider.int
-            { onChange = OGotMaxSolarSystemCount
+            { onChange = GotMaxSolarSystemCount
             , label =
                 Input.labelAbove []
                     (paragraph []
@@ -839,7 +753,7 @@ viewObserveForm model =
         , el [ centerX ]
             (Ui.Button.default
                 { label = text "Begin Simulation"
-                , onPress = Just BeginSimulation
+                , onPress = Just StartSimulation
                 }
             )
         ]
