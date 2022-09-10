@@ -1,7 +1,4 @@
-module List.Nonempty exposing (..)
-
-import Html exposing (a)
-import Html.Attributes exposing (list)
+module List.Nonempty exposing (Nonempty(..), appendList, head, indexedMap, length, singleton, tail, toList)
 
 
 type Nonempty a
