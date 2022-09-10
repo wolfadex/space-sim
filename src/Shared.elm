@@ -14,7 +14,7 @@ module Shared exposing
     , viewSettings
     )
 
-import Data.Names exposing (CivilizationName)
+import Data.Civilization exposing (CivilizationName)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border

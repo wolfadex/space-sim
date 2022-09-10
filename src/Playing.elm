@@ -7,8 +7,9 @@ module Playing exposing
 
 import Array exposing (Array)
 import Browser.Events
+import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge(..))
-import Data.Names exposing (CivilizationName)
+import Data.Names
 import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)
@@ -1061,7 +1062,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                                     ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
                                     , Just
                                         { time = world.starDate
-                                        , description = Data.Names.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                        , description = Data.Civilization.enhancedEventDescription civName personName ++ " gained new knowledge."
                                         , civilizationId = index
                                         }
                                     )

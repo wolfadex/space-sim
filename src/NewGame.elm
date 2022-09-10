@@ -11,7 +11,7 @@ module NewGame exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
-import Data.Names exposing (CivilizationName)
+import Data.Civilization exposing (CivilizationName)
 import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)

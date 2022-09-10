@@ -32,8 +32,8 @@ module Game.Components exposing
     )
 
 import Browser.Dom exposing (Viewport)
+import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
-import Data.Names exposing (CivilizationName)
 import Dict exposing (Dict)
 import Json.Decode exposing (Value)
 import Length exposing (Meters)
@@ -139,7 +139,7 @@ emptyWorld =
     , solarSystems = Set.empty
     , playerCiv = Nothing
     , civilizations = Set.empty
-    , availableCivilizationNames = Data.Names.allCivilizationNames
+    , availableCivilizationNames = Data.Civilization.allNames
     , starDate = 0
     , eventLog = []
     , knowledgeTree = Data.Knowledge.baseKnowledgeTree
