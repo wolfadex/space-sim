@@ -1,6 +1,13 @@
-module Data.Civilization exposing (CivilizationName, allNames, enhancedEventDescription)
+module Data.Civilization exposing
+    ( CivilizationName
+    , Style
+    , allNames
+    , enhancedEventDescription
+    , styleSpec
+    )
 
 import Data.Names exposing (PersonName)
+import Logic.Component exposing (Spec)
 
 
 type alias CivilizationName =
@@ -8,6 +15,22 @@ type alias CivilizationName =
     , possessive : Maybe String
     , many : Maybe String
     }
+
+
+{-| Characteristics of a civilization
+
+cooperationVsCompetition:
+Whether the civ lean towards copperation or competition. 0.0 being 100% cooperative, like The Borg, and 1.0 being 100% competitive like The Gorn
+
+-}
+type alias Style =
+    { cooperationVsCompetition : Float
+    }
+
+
+styleSpec : Spec Style { world | civilizationStyle : Logic.Component.Set Style }
+styleSpec =
+    Logic.Component.Spec .civilizationStyle (\comps world -> { world | civilizationStyle = comps })
 
 
 allNames : List CivilizationName

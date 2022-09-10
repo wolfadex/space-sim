@@ -1009,6 +1009,15 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
                         _ ->
                             { singular = "", many = Nothing, possessive = Nothing }
 
+                civStyle : Data.Civilization.Style
+                civStyle =
+                    case Array.get index world.civilizationStyle of
+                        Just (Just style) ->
+                            style
+
+                        _ ->
+                            { cooperationVsCompetition = 0.5 }
+
                 ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
                     gainRandomKnowledge
                         civKnowledge
@@ -1018,6 +1027,7 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
                         seed
                         world
                         civName
+                        civStyle
             in
             { updates
                 | index = index + 1
@@ -1041,8 +1051,9 @@ gainRandomKnowledge :
     -> Seed
     -> World
     -> CivilizationName
+    -> Data.Civilization.Style
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName =
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civStyle =
     Random.step
         (Random.andThen
             (\gainsKnowledge ->
@@ -1073,7 +1084,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                 else
                     Random.constant ( Array.set index maybeCivKnowledge allCivsKnowledge, Nothing )
             )
-            (Random.Extra.oneIn 100)
+            (Random.Extra.oneIn (100 - floor (civStyle.cooperationVsCompetition * 5)))
         )
         seed
 
@@ -1252,21 +1263,23 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> CivilizationName -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.map5
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity ->
+    Random.Extra.map6
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp ->
             let
                 ( civId, worldWithNewCiv ) =
-                    Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
-                        (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                            (Logic.Entity.with
-                                ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                                (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                                    (Logic.Entity.with ( Game.Components.namedSpec, name )
-                                        (Logic.Entity.with
-                                            ( Game.Components.civilizationPopulationSpec
-                                            , Dict.singleton planetId (Population.millions initialPopulationSize)
+                    Logic.Entity.with ( Data.Civilization.styleSpec, { cooperationVsCompetition = coopVsComp } )
+                        (Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
+                            (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                                (Logic.Entity.with
+                                    ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                                    (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                                        (Logic.Entity.with ( Game.Components.namedSpec, name )
+                                            (Logic.Entity.with
+                                                ( Game.Components.civilizationPopulationSpec
+                                                , Dict.singleton planetId (Population.millions initialPopulationSize)
+                                                )
+                                                (Logic.Entity.Extra.create worldWithFewerNames)
                                             )
-                                            (Logic.Entity.Extra.create worldWithFewerNames)
                                         )
                                     )
                                 )
@@ -1291,6 +1304,7 @@ generateCivilization worldWithFewerNames planetId name =
         (Rate.random 0.1 0.2)
         (Percent.random 90.0 100.0)
         (Random.float 0.7 1.3)
+        (Random.float 0.0 1.0)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
@@ -1879,6 +1893,33 @@ viewCivilizationDetailed world civId =
                     }
                 , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
+                , case Logic.Component.get civId world.civilizationStyle of
+                    Nothing ->
+                        none
+
+                    Just civStyle ->
+                        column
+                            [ spacing 4, width (px 400) ]
+                            [ row [ spacing 64, width fill ]
+                                [ text "Cooperative"
+                                , el [ centerX ] (text "or")
+                                , el [ alignRight ] (text "Competitive")
+                                ]
+                            , el
+                                [ Border.width 1
+                                , width fill
+                                , inFront
+                                    (el
+                                        [ height (px 16)
+                                        , Border.width 2
+                                        , moveUp 8
+                                        , moveRight (civStyle.cooperationVsCompetition * 400)
+                                        ]
+                                        none
+                                    )
+                                ]
+                                none
+                            ]
                 , text "They occupy planets:"
                 , column []
                     (List.map

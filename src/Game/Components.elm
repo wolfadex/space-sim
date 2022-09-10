@@ -74,6 +74,7 @@ type alias World =
     , civilizationDensity : Logic.Component.Set Float
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
+    , civilizationStyle : Logic.Component.Set Data.Civilization.Style
     , named : Logic.Component.Set CivilizationName
 
     -- Other
@@ -131,6 +132,7 @@ emptyWorld =
     , civilizationPopulations = Logic.Component.empty
     , civilizationHappiness = Logic.Component.empty
     , civilizationKnowledge = Logic.Component.empty
+    , civilizationStyle = Logic.Component.empty
     , galaxyPositions = Logic.Component.empty
 
     --
@@ -221,13 +223,13 @@ civilizationReproductionRateSpec =
     Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
 
 
+type Reproduction
+    = Reproduction Never
+
+
 civilizationMortalityRateSpec : Spec (Rate Mortality) { world | civilizationMortalityRates : Logic.Component.Set (Rate Mortality) }
 civilizationMortalityRateSpec =
     Logic.Component.Spec .civilizationMortalityRates (\comps world -> { world | civilizationMortalityRates = comps })
-
-
-type Reproduction
-    = Reproduction Never
 
 
 type Mortality
