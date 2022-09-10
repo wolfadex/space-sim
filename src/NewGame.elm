@@ -2,8 +2,6 @@ module NewGame exposing
     ( InnerPage(..)
     , Model
     , Msg
-    , ObserveModel
-    , ParticipateModel
     , baseModel
     , init
     , subscriptions
@@ -25,8 +23,10 @@ import Element.Input as Input
 import Galaxy3d
 import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Visible(..), Water)
 import Length exposing (Meters)
+import List.Nonempty exposing (Nonempty)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
+import Numeral
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -109,13 +109,29 @@ type alias Model =
     , stars : Set EntityID
     , solarSystems : Set EntityID
     , civilizations : Set EntityID
+
+    ---- game stuff
+    , errors : List String
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
+
+    -- participate only
+    , civilizationNameSingular : String
+    , civilizationNamePlural : String
+    , hasUniquePluralName : Bool
+    , civilizationNamePossessive : String
+    , hasUniquePossessiveName : Bool
+    , homePlanetName : String
     }
 
 
 type InnerPage
     = MainMenu
-    | Participate ParticipateModel
-    | Observe ObserveModel
+    | Participate -- ParticipateModel
+    | Observe -- ObserveModel
 
 
 baseModel : Model
@@ -138,25 +154,9 @@ baseModel =
     , stars = Set.empty
     , solarSystems = Set.empty
     , civilizations = Set.empty
-    }
 
-
-type alias ParticipateModel =
-    { civilizationNameSingular : String
-    , civilizationNamePlural : String
-    , hasUniquePluralName : Bool
-    , civilizationNamePossessive : String
-    , hasUniquePossessiveName : Bool
-    , homePlanetName : String
-    , errors : List String
-    , minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    }
-
-
-baseParticipateModel : ParticipateModel
-baseParticipateModel =
-    { civilizationNameSingular = ""
+    -- game stuff
+    , civilizationNameSingular = ""
     , civilizationNamePlural = ""
     , hasUniquePluralName = True
     , civilizationNamePossessive = ""
@@ -165,19 +165,12 @@ baseParticipateModel =
     , errors = []
     , minSolarSystemsToGenerate = 40
     , maxSolarSystemsToGenerate = 80
-    }
-
-
-type alias ObserveModel =
-    { minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    }
-
-
-baseObserveModel : ObserveModel
-baseObserveModel =
-    { minSolarSystemsToGenerate = 40
-    , maxSolarSystemsToGenerate = 80
+    , minPlanetsPerSolarSystemToGenerate = 1
+    , maxPlanetsPerSolarSystemToGenerate = 12
+    , starCounts =
+        List.Nonempty.appendList
+            [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
+            (List.Nonempty.singleton ( 0.56, 1 ))
     }
 
 
@@ -194,219 +187,207 @@ subscriptions _ =
 
 
 type Msg
-    = MainMenuMessage MainMenuMsg
-    | ParticipateMessage ParticipateMsg
-    | ObserveMessage ObserveMsg
+    = ViewParticipate
+    | ViewObserve
     | Tick Float
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotSettingsVisible Visible
     | GotLocalSharedMessage SharedMsg
     | ViewMain
-
-
-type MainMenuMsg
-    = ViewParticipate
-    | ViewObserve
-
-
-type ParticipateMsg
-    = SetNameSingular String
+      -- form stuff
+    | SetNameSingular String
     | SetNamePlural String
     | ToggleNamePlural Bool
     | SetNamePossessive String
     | ToggleNamePossessive Bool
-    | StartGame
+    | StartSimulation
     | SetHomePlanetName String
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
-
-
-type ObserveMsg
-    = OGotMinSolarSystemCount Int
-    | OGotMaxSolarSystemCount Int
-    | BeginSimulation
+    | GotMinPlanetCount Int
+    | GotMaxPlanetCount Int
+    | GotStarCountChange Int Float
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
 update _ msg model =
-    case ( msg, model.page ) of
-        ( MainMenuMessage message, MainMenu ) ->
-            updateMainMenu model message
+    case msg of
+        ViewParticipate ->
+            ( { model | page = Participate }, SubCmd.none )
 
-        ( ParticipateMessage message, Participate mod ) ->
-            updateParticipate model message mod
+        ViewObserve ->
+            ( { model | page = Observe }, SubCmd.none )
 
-        ( ObserveMessage message, Observe mod ) ->
-            updateObserve model message mod
-
-        ( Tick deltaMs, _ ) ->
+        Tick deltaMs ->
             ( { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
 
-        ( WindowResized, _ ) ->
+        WindowResized ->
             ( model, Galaxy3d.getGalaxyViewport GotGalaxyViewport )
 
-        ( GotGalaxyViewport (Ok { viewport }), _ ) ->
+        GotGalaxyViewport (Ok { viewport }) ->
             ( { model | galaxyViewSize = { width = viewport.width, height = viewport.height - 1 } }
             , SubCmd.none
             )
 
-        ( GotGalaxyViewport (Err _), _ ) ->
+        GotGalaxyViewport (Err _) ->
             ( model, SubCmd.none )
 
-        ( GotSettingsVisible visible, _ ) ->
+        GotSettingsVisible visible ->
             ( { model | settingsVisible = visible }, SubCmd.none )
 
-        ( GotLocalSharedMessage settingsChange, _ ) ->
+        GotLocalSharedMessage settingsChange ->
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
 
-        ( ViewMain, _ ) ->
+        ViewMain ->
             ( { model | page = MainMenu }, SubCmd.none )
 
-        _ ->
-            ( model, SubCmd.none )
-
-
-updateMainMenu : Model -> MainMenuMsg -> ( Model, SubCmd Msg Effect )
-updateMainMenu mainModel msg =
-    case msg of
-        ViewParticipate ->
-            ( { mainModel | page = Participate baseParticipateModel }, SubCmd.none )
-
-        ViewObserve ->
-            ( { mainModel | page = Observe baseObserveModel }, SubCmd.none )
-
-
-updateParticipate : Model -> ParticipateMsg -> ParticipateModel -> ( Model, SubCmd Msg Effect )
-updateParticipate mainModel msg model =
-    case msg of
+        -- form stuff
         SetNameSingular singular ->
-            ( { mainModel | page = Participate { model | civilizationNameSingular = singular } }
+            ( { model | civilizationNameSingular = singular }
             , SubCmd.none
             )
 
         SetNamePlural plural ->
-            ( { mainModel | page = Participate { model | civilizationNamePlural = plural } }
+            ( { model | civilizationNamePlural = plural }
             , SubCmd.none
             )
 
         ToggleNamePlural enabled ->
-            ( { mainModel | page = Participate { model | hasUniquePluralName = enabled } }
+            ( { model | hasUniquePluralName = enabled }
             , SubCmd.none
             )
 
         SetNamePossessive possessive ->
-            ( { mainModel | page = Participate { model | civilizationNamePossessive = possessive } }
+            ( { model | civilizationNamePossessive = possessive }
             , SubCmd.none
             )
 
         ToggleNamePossessive enabled ->
-            ( { mainModel | page = Participate { model | hasUniquePossessiveName = enabled } }
+            ( { model | hasUniquePossessiveName = enabled }
             , SubCmd.none
             )
 
         SetHomePlanetName name ->
-            ( { mainModel | page = Participate { model | homePlanetName = name } }
+            ( { model | homePlanetName = name }
             , SubCmd.none
             )
 
         GotMinSolarSystemCount minCount ->
-            ( { mainModel
-                | page =
-                    Participate
-                        { model
-                            | minSolarSystemsToGenerate = minCount
-                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                        }
+            ( { model
+                | minSolarSystemsToGenerate = minCount
+                , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
               }
             , SubCmd.none
             )
 
         GotMaxSolarSystemCount maxCount ->
-            ( { mainModel
-                | page =
-                    Participate
-                        { model
-                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                            , maxSolarSystemsToGenerate = maxCount
-                        }
+            ( { model
+                | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
+                , maxSolarSystemsToGenerate = maxCount
               }
             , SubCmd.none
             )
 
-        StartGame ->
-            case Validator.run createGameValidator model of
-                Ok ( validName, validHomeName ) ->
-                    ( mainModel
+        GotMinPlanetCount minCount ->
+            ( { model
+                | minPlanetsPerSolarSystemToGenerate = minCount
+                , maxPlanetsPerSolarSystemToGenerate = max minCount model.maxPlanetsPerSolarSystemToGenerate
+              }
+            , SubCmd.none
+            )
+
+        GotMaxPlanetCount maxCount ->
+            ( { model
+                | minPlanetsPerSolarSystemToGenerate = min model.minPlanetsPerSolarSystemToGenerate maxCount
+                , maxPlanetsPerSolarSystemToGenerate = maxCount
+              }
+            , SubCmd.none
+            )
+
+        GotStarCountChange index newPercent ->
+            let
+                originalPercent : Float
+                originalPercent =
+                    Maybe.withDefault newPercent (Maybe.map Tuple.first (List.head (List.drop index (List.Nonempty.toList model.starCounts))))
+
+                otherStarChange : Float
+                otherStarChange =
+                    (originalPercent - newPercent) / toFloat (List.Nonempty.length model.starCounts - 1)
+            in
+            ( { model
+                | starCounts =
+                    List.Nonempty.indexedMap
+                        (\i ( percent, count ) ->
+                            ( if i == index then
+                                newPercent
+
+                              else
+                                min 1 (max 0 (percent + otherStarChange))
+                            , count
+                            )
+                        )
+                        model.starCounts
+              }
+            , SubCmd.none
+            )
+
+        StartSimulation ->
+            case model.page of
+                MainMenu ->
+                    ( model, SubCmd.none )
+
+                Observe ->
+                    ( model
                     , SubCmd.effect
                         (Shared.CreateGame
-                            Participation
-                            { name = validName
-                            , homePlanetName = validHomeName
+                            Observation
+                            { name = { singular = "", many = Nothing, possessive = Nothing }
+                            , homePlanetName = ""
                             , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
                             , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                            , starCounts = model.starCounts
                             }
                         )
                     )
 
-                Err errs ->
-                    ( { mainModel | page = Participate { model | errors = errs } }, SubCmd.none )
+                Participate ->
+                    case Validator.run createGameValidator model of
+                        Ok ( validName, validHomeName ) ->
+                            ( model
+                            , SubCmd.effect
+                                (Shared.CreateGame
+                                    Participation
+                                    { name = validName
+                                    , homePlanetName = validHomeName
+                                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                                    , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                                    , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                                    , starCounts = model.starCounts
+                                    }
+                                )
+                            )
+
+                        Err errs ->
+                            ( { model | errors = errs }, SubCmd.none )
 
 
-updateObserve : Model -> ObserveMsg -> ObserveModel -> ( Model, SubCmd Msg Effect )
-updateObserve mainModel msg model =
-    case msg of
-        OGotMinSolarSystemCount minCount ->
-            ( { mainModel
-                | page =
-                    Observe
-                        { model
-                            | minSolarSystemsToGenerate = minCount
-                            , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-                        }
-              }
-            , SubCmd.none
-            )
-
-        OGotMaxSolarSystemCount maxCount ->
-            ( { mainModel
-                | page =
-                    Observe
-                        { model
-                            | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                            , maxSolarSystemsToGenerate = maxCount
-                        }
-              }
-            , SubCmd.none
-            )
-
-        BeginSimulation ->
-            ( mainModel
-            , SubCmd.effect
-                (Shared.CreateGame
-                    Observation
-                    { name = { singular = "", many = Nothing, possessive = Nothing }
-                    , homePlanetName = ""
-                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                    }
-                )
-            )
-
-
-createGameValidator : Validator ParticipateModel String ( CivilizationName, String )
+createGameValidator : Validator Model String ( CivilizationName, String )
 createGameValidator =
     Validator.map2 Tuple.pair
         civNameValidator
         homeNameValidator
 
 
-homeNameValidator : Validator ParticipateModel String String
+homeNameValidator : Validator Model String String
 homeNameValidator =
     Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok) (Validator.succeed identity)
 
 
-civNameValidator : Validator ParticipateModel String CivilizationName
+civNameValidator : Validator Model String CivilizationName
 civNameValidator =
     Validator.required identity
         (\_ -> False)
@@ -432,7 +413,7 @@ civNameValidator =
         )
 
 
-pluralNameValidator : ParticipateModel -> Result (List String) (Maybe String)
+pluralNameValidator : Model -> Result (List String) (Maybe String)
 pluralNameValidator model =
     if model.hasUniquePluralName then
         if String.isEmpty model.civilizationNamePlural then
@@ -445,7 +426,7 @@ pluralNameValidator model =
         Ok Nothing
 
 
-possessiveNameValidator : ParticipateModel -> Result (List String) (Maybe String)
+possessiveNameValidator : Model -> Result (List String) (Maybe String)
 possessiveNameValidator model =
     if model.hasUniquePossessiveName then
         if String.isEmpty model.civilizationNamePossessive then
@@ -471,11 +452,11 @@ view sharedModel model =
                 MainMenu ->
                     viewMainMenu
 
-                Participate m ->
-                    viewParticipate m
+                Participate ->
+                    viewParticipate model
 
-                Observe m ->
-                    viewObserve m
+                Observe ->
+                    viewObserve model
     in
     { title = options.title
     , body =
@@ -547,7 +528,7 @@ contrastingBackground : Element msg -> Element msg
 contrastingBackground =
     el
         [ Font.color Ui.Theme.nearlyWhite
-        , Background.color (rgba 0 0 0 0.4)
+        , Background.color (rgba 0.3 0.3 0.3 0.7)
         , padding 8
         , Border.rounded 8
         ]
@@ -557,159 +538,148 @@ viewMainMenu : View Msg
 viewMainMenu =
     { title = "Hello Space!"
     , body =
-        map MainMenuMessage
-            (el
-                [ padding 16
-                , width fill
-                , height fill
-                ]
-                (column
-                    [ centerX
-                    , centerY
-                    , spacing 64
-                    ]
-                    [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
-                    , column
-                        [ centerX, spacing 16 ]
-                        [ el [ centerX ]
-                            (Ui.Button.default
-                                { onPress = Just ViewParticipate
-                                , label = text "Participate"
-                                }
-                            )
-                        , el [ centerX ]
-                            (Ui.Button.default
-                                { onPress = Just ViewObserve
-                                , label = text "Observe"
-                                }
-                            )
-                        , el [ centerX, Font.strike ]
-                            (Ui.Button.default
-                                { onPress = Nothing
-                                , label = text "Load Simulation"
-                                }
-                            )
-                        ]
-                    ]
-                )
-            )
-    }
-
-
-viewParticipate : ParticipateModel -> View Msg
-viewParticipate model =
-    { title = "Hello Space! - Participate"
-    , body =
-        map ParticipateMessage
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            ]
             (column
                 [ centerX
                 , centerY
                 , spacing 64
                 ]
-                [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
-                , wrappedRow
-                    [ centerX
-                    , centerY
-                    , spacing 16
-                    , padding 16
-                    , width shrink
-                    ]
-                    [ viewPlayerCivForm model
-                    , viewExample model
+                [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
+                , column
+                    [ centerX, spacing 16 ]
+                    [ el [ centerX ]
+                        (Ui.Button.default
+                            { onPress = Just ViewParticipate
+                            , label = text "Participate"
+                            }
+                        )
+                    , el [ centerX ]
+                        (Ui.Button.default
+                            { onPress = Just ViewObserve
+                            , label = text "Observe"
+                            }
+                        )
+                    , el [ centerX, Font.strike ]
+                        (Ui.Button.default
+                            { onPress = Nothing
+                            , label = text "Load Simulation"
+                            }
+                        )
                     ]
                 ]
             )
     }
 
 
-viewPlayerCivForm : ParticipateModel -> Element ParticipateMsg
+viewParticipate : Model -> View Msg
+viewParticipate model =
+    { title = "Hello Space! - Participate"
+    , body =
+        column
+            [ centerX
+            , centerY
+            , spacing 64
+            ]
+            [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
+            , wrappedRow
+                [ centerX
+                , centerY
+                , spacing 16
+                , padding 16
+                , width shrink
+                ]
+                [ column
+                    [ centerY
+                    , width fill
+                    , spacing 16
+                    , padding 16
+                    ]
+                    [ contrastingBackground (viewPlayerCivForm model)
+                    , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
+                    , startSimulationButton "Start Game"
+                    ]
+                , viewExample model
+                ]
+            ]
+    }
+
+
+viewPlayerCivForm : Model -> Element Msg
 viewPlayerCivForm model =
     column
         [ spacing 16
         , width fill
+        , height (px 600)
+        , scrollbarY
         ]
-        [ Ui.Text.default
-            []
-            { onChange = SetNameSingular
-            , text = model.civilizationNameSingular
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Singular:"))
-            }
-        , Ui.Text.default
-            []
-            { onChange = SetNamePlural
-            , text = model.civilizationNamePlural
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Plural:"))
-            }
-        , Ui.Button.default
-            { label =
-                text
-                    (if model.hasUniquePluralName then
-                        "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
+        (List.intersperse formSpacer
+            [ inputGroup "Civilization"
+                [ Ui.Text.default
+                    []
+                    { onChange = SetNameSingular
+                    , text = model.civilizationNameSingular
+                    , label = Input.labelLeft [ width fill ] (text "Name Singular:")
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetNamePlural
+                    , text = model.civilizationNamePlural
+                    , label = Input.labelLeft [ width fill ] (text "Name Plural:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text
+                            (if model.hasUniquePluralName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
 
-                     else
-                        "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
-                    )
-            , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
-            }
-        , Ui.Text.default
-            []
-            { onChange = SetNamePossessive
-            , text = model.civilizationNamePossessive
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Possessive:"))
-            }
-        , Ui.Button.default
-            { label =
-                text
-                    (if model.hasUniquePossessiveName then
-                        "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
+                             else
+                                "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
+                            )
+                    , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetNamePossessive
+                    , text = model.civilizationNamePossessive
+                    , label = Input.labelLeft [ width fill ] (text "Name Possessive:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text
+                            (if model.hasUniquePossessiveName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
 
-                     else
-                        "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
-                    )
-            , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
+                             else
+                                "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
+                            )
+                    , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetHomePlanetName
+                    , text = model.homePlanetName
+                    , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
+                    }
+                ]
+            , inputSolarSystems model
+            , inputPlanets model
+            , inputStarCounts model
+            ]
+        )
+
+
+startSimulationButton : String -> Element Msg
+startSimulationButton label =
+    el [ centerX ]
+        (Ui.Button.default
+            { label = text label
+            , onPress = Just StartSimulation
             }
-        , Ui.Text.default
-            []
-            { onChange = SetHomePlanetName
-            , text = model.homePlanetName
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Home Planet Name:"))
-            }
-        , Ui.Slider.int
-            { onChange = GotMinSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Min Solar System Count: ")
-                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.minSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , Ui.Slider.int
-            { onChange = GotMaxSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ contrastingBackground (text "Max Solar System Count: ")
-                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.maxSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
-        , el [ centerX ]
-            (Ui.Button.default
-                { label = text "Start Game"
-                , onPress = Just StartGame
-                }
-            )
-        ]
+        )
 
 
 viewError : String -> Element msg
@@ -723,7 +693,7 @@ viewError error =
         (text error)
 
 
-viewExample : ParticipateModel -> Element ParticipateMsg
+viewExample : Model -> Element Msg
 viewExample model =
     el [ alignTop ]
         (contrastingBackground
@@ -765,55 +735,98 @@ viewExample model =
 displayGameValue : String -> String -> Element msg
 displayGameValue id value =
     el
-        [ Font.color (rgb 1 0 1)
+        [ Font.color (rgb 0.4 0.8 0.8)
         , Element.Extra.id id
         ]
         (text value)
 
 
-viewObserve : ObserveModel -> View Msg
+viewObserve : Model -> View Msg
 viewObserve model =
     { title = "Hello Space! - Observe"
     , body =
-        map ObserveMessage
-            (el
-                [ padding 16
-                , width fill
-                , height fill
+        el
+            [ padding 16
+            , width fill
+            , height fill
+            ]
+            (column
+                [ centerX
+                , centerY
+                , spacing 64
                 ]
-                (column
+                [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
+                , column
                     [ centerX
                     , centerY
-                    , spacing 64
+                    , spacing 16
+                    , padding 16
+                    , width shrink
                     ]
-                    [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
-                    , wrappedRow
-                        [ centerX
-                        , centerY
-                        , spacing 16
-                        , padding 16
-                        , width shrink
-                        ]
-                        [ viewObserveForm model
-                        ]
+                    [ contrastingBackground (viewObserveForm model)
+                    , startSimulationButton "Begin Simulation"
                     ]
-                )
+                ]
             )
     }
 
 
-viewObserveForm : ObserveModel -> Element ObserveMsg
+viewObserveForm : Model -> Element Msg
 viewObserveForm model =
     column
-        [ spacing 16
+        [ width fill
+        , height (px 600)
+        , scrollbarY
+        ]
+        (List.intersperse formSpacer
+            [ inputSolarSystems model
+            , inputPlanets model
+            , inputStarCounts model
+            ]
+        )
+
+
+formSpacer : Element msg
+formSpacer =
+    el
+        [ Border.width 1
+        , Border.color (rgb 0.6 0.6 0.4)
         , width fill
         ]
-        [ Ui.Slider.int
-            { onChange = OGotMinSolarSystemCount
+        none
+
+
+inputGroup : String -> List (Element Msg) -> Element Msg
+inputGroup label inputs =
+    column
+        [ spacing 8
+        , width fill
+        , padding 16
+        ]
+        [ text (label ++ ":")
+        , column
+            [ spacing 8
+            , paddingEach
+                { left = 16
+                , top = 0
+                , right = 0
+                , bottom = 0
+                }
+            , width fill
+            ]
+            inputs
+        ]
+
+
+inputSolarSystems : Model -> Element Msg
+inputSolarSystems model =
+    inputGroup "Solar System to Generate"
+        [ Ui.Slider.int []
+            { onChange = GotMinSolarSystemCount
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ contrastingBackground (text "Min Solar System Count: ")
+                        [ text "Min: "
                         , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
                         ]
                     )
@@ -822,12 +835,12 @@ viewObserveForm model =
             , value = model.minSolarSystemsToGenerate
             , step = Just 10
             }
-        , Ui.Slider.int
-            { onChange = OGotMaxSolarSystemCount
+        , Ui.Slider.int []
+            { onChange = GotMaxSolarSystemCount
             , label =
                 Input.labelAbove []
                     (paragraph []
-                        [ contrastingBackground (text "Max Solar System Count: ")
+                        [ text "Max : "
                         , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
@@ -836,10 +849,62 @@ viewObserveForm model =
             , value = model.maxSolarSystemsToGenerate
             , step = Just 10
             }
-        , el [ centerX ]
-            (Ui.Button.default
-                { label = text "Begin Simulation"
-                , onPress = Just BeginSimulation
-                }
-            )
         ]
+
+
+inputPlanets : Model -> Element Msg
+inputPlanets model =
+    inputGroup "Planets per Solar System"
+        [ Ui.Slider.int []
+            { onChange = GotMinPlanetCount
+            , label =
+                Input.labelAbove []
+                    (paragraph []
+                        [ text "Min: "
+                        , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
+                        ]
+                    )
+            , min = 0
+            , max = 40
+            , value = model.minPlanetsPerSolarSystemToGenerate
+            , step = Just 1
+            }
+        , Ui.Slider.int []
+            { onChange = GotMaxPlanetCount
+            , label =
+                Input.labelAbove []
+                    (paragraph []
+                        [ text "Max: "
+                        , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
+                        ]
+                    )
+            , min = 1
+            , max = 40
+            , value = model.maxPlanetsPerSolarSystemToGenerate
+            , step = Just 1
+            }
+        ]
+
+
+inputStarCounts : Model -> Element Msg
+inputStarCounts model =
+    inputGroup "Odds that a Solar System has"
+        (List.indexedMap
+            (\index ( percent, count ) ->
+                Ui.Slider.float []
+                    { onChange = GotStarCountChange index
+                    , label =
+                        Input.labelAbove []
+                            (paragraph []
+                                [ text (String.fromInt count ++ " Stars: ")
+                                , displayGameValue (String.fromInt count ++ "-star-count") (Numeral.format "0.00[%]" percent)
+                                ]
+                            )
+                    , min = 0
+                    , max = 1
+                    , value = percent
+                    , step = Just 0.0005
+                    }
+            )
+            (List.Nonempty.toList model.starCounts)
+        )

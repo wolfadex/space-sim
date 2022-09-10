@@ -355,21 +355,22 @@ viewSolarSystem options settings world =
         angle =
             Angle.degrees 0.0
 
-        planetVertices2d : List ( EntityID, Length, Point2d.Point2d Pixels.Pixels ScaledViewPoint )
+        planetVertices2d : List { id : EntityID, size : Length, vertex : Point2d.Point2d Pixels.Pixels ScaledViewPoint, type_ : CelestialBodyForm }
         planetVertices2d =
             List.map
                 (\details ->
-                    ( details.id
-                    , details.size
-                    , Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
-                    )
+                    { id = details.id
+                    , size = details.size
+                    , vertex = Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
+                    , type_ = details.type_
+                    }
                 )
                 planetDetails
 
         planetLabels : List (Svg.Svg msg)
         planetLabels =
             List.map
-                (\( planetId, size, vertex ) ->
+                (\planet ->
                     let
                         highlightPlanet : Bool
                         highlightPlanet =
@@ -378,7 +379,7 @@ viewSolarSystem options settings world =
                                     Maybe.withDefault False
                                         (Maybe.map
                                             (\dictPlanetPopulatiopns ->
-                                                Dict.member planetId dictPlanetPopulatiopns && Just civId == options.focusedCivilization
+                                                Dict.member planet.id dictPlanetPopulatiopns && Just civId == options.focusedCivilization
                                             )
                                             (Logic.Component.get civId world.civilizationPopulations)
                                         )
@@ -396,8 +397,6 @@ viewSolarSystem options settings world =
                              else
                                 "galactic-label"
                             )
-
-                        --"galactic-label"
                         ]
                         [ -- Planet highlight
                           Geometry.Svg.circle2d
@@ -409,20 +408,33 @@ viewSolarSystem options settings world =
                                     "rgb(255, 255, 0)"
                                 )
                             , Svg.Attributes.strokeWidth "2"
-                            , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
+                            , Svg.Attributes.fill "rgba(0, 0, 255, 0)"
                             , case options.onPressPlanet of
                                 Nothing ->
                                     Svg.Attributes.style ""
 
                                 Just onPressPlanet ->
-                                    Svg.Events.onClick (onPressPlanet planetId)
+                                    Svg.Events.onClick (onPressPlanet planet.id)
 
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
                             ]
                             (Circle2d.withRadius
-                                (Pixels.float (250 * Length.inKilometers size / 1000000))
-                                vertex
+                                (Pixels.float
+                                    (Length.inKilometers planet.size
+                                        / ((case planet.type_ of
+                                                Rocky ->
+                                                    0.000000001
+
+                                                Gas ->
+                                                    0.000000005
+                                           )
+                                            * world.zoom
+                                          )
+                                    )
+                                )
+                                --
+                                planet.vertex
                             )
                         , Geometry.Svg.lineSegment2d
                             [ Svg.Attributes.stroke "white"
@@ -430,27 +442,27 @@ viewSolarSystem options settings world =
                             , Svg.Attributes.strokeDashoffset "5 5"
                             , Svg.Attributes.class "galactic-label-ignore"
                             ]
-                            (LineSegment2d.from vertex
+                            (LineSegment2d.from planet.vertex
                                 (Point2d.pixels
-                                    (Pixels.toFloat (Point2d.xCoordinate vertex))
-                                    (Pixels.toFloat (Point2d.yCoordinate vertex) + 40)
+                                    (Pixels.toFloat (Point2d.xCoordinate planet.vertex))
+                                    (Pixels.toFloat (Point2d.yCoordinate planet.vertex) + 40)
                                 )
                             )
                         , -- Hack: flip the text upside down since our later
                           -- 'Svg.relativeTo topLeftFrame' call will flip it
                           -- back right side up
-                          Geometry.Svg.mirrorAcross (Axis2d.through vertex Direction2d.x)
+                          Geometry.Svg.mirrorAcross (Axis2d.through planet.vertex Direction2d.x)
                             (Svg.text_
                                 [ Svg.Attributes.fill "white"
                                 , Svg.Attributes.fontSize "25px"
                                 , Svg.Attributes.stroke "black"
                                 , Svg.Attributes.strokeWidth "1px"
                                 , Svg.Attributes.fontFamily "sans-serif"
-                                , Svg.Attributes.y (String.fromFloat (Pixels.toFloat (Point2d.yCoordinate vertex) - 40))
-                                , Svg.Attributes.x (String.fromFloat (Pixels.toFloat (Point2d.xCoordinate vertex)))
+                                , Svg.Attributes.y (String.fromFloat (Pixels.toFloat (Point2d.yCoordinate planet.vertex) - 40))
+                                , Svg.Attributes.x (String.fromFloat (Pixels.toFloat (Point2d.xCoordinate planet.vertex)))
                                 , Svg.Attributes.class "galactic-label-ignore"
                                 ]
-                                [ Svg.text ("P_" ++ String.fromInt planetId) ]
+                                [ Svg.text ("P_" ++ String.fromInt planet.id) ]
                             )
                         ]
                 )
@@ -477,7 +489,7 @@ viewSolarSystem options settings world =
                         [ Geometry.Svg.circle2d
                             [ Svg.Attributes.stroke "rgb(255, 255, 0)"
                             , Svg.Attributes.strokeWidth "2"
-                            , Svg.Attributes.fill "rgba(0, 0, 0, 0)"
+                            , Svg.Attributes.fill "rgba(255, 0, 0, 0)"
                             , case options.onPressStar of
                                 Nothing ->
                                     Svg.Attributes.style ""
@@ -490,12 +502,7 @@ viewSolarSystem options settings world =
                             ]
                             (Circle2d.withRadius
                                 (Pixels.float
-                                    ((190 + -world.zoom)
-                                        * Length.inKilometers
-                                            (Quantity.divideBy 1000000
-                                                (Data.Star.temperatureToRadius temperature)
-                                            )
-                                    )
+                                    (Length.inKilometers (Data.Star.temperatureToRadius temperature) / (0.00000001 * world.zoom))
                                 )
                                 vertex
                             )
@@ -900,6 +907,7 @@ type alias PlanetRenderDetails =
     , color : Color.Color
     , position : Point3d Meters AstronomicalUnit
     , size : Length
+    , type_ : CelestialBodyForm
     }
 
 
@@ -949,6 +957,7 @@ getPlanetDetails settings world planetId =
 
                     Gas ->
                         Length.kilometers 69911
+            , type_ = planetType_
             }
         )
         (Logic.Component.get planetId world.orbits)

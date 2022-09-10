@@ -41,7 +41,7 @@ suite =
                                 [ Html.text singularName ]
                         )
                         (ProgramTest.fillIn ""
-                            "Civilization Name Singular:"
+                            "Name Singular:"
                             singularName
                             (ProgramTest.ensureView
                                 (Query.find [ Html.id "singular-name-example" ]
@@ -77,10 +77,10 @@ suite =
                                         [ Html.text pluralName ]
                                 )
                                 (ProgramTest.fillIn ""
-                                    "Civilization Name Plural:"
+                                    "Name Plural:"
                                     pluralName
                                     (ProgramTest.fillIn ""
-                                        "Civilization Name Singular:"
+                                        "Name Singular:"
                                         singularName
                                         (ProgramTest.ensureView
                                             (Query.find [ Html.id "plural-name-example" ]
@@ -119,10 +119,10 @@ suite =
                                         [ Html.text possessiveName ]
                                 )
                                 (ProgramTest.fillIn ""
-                                    "Civilization Name Possessive:"
+                                    "Name Possessive:"
                                     possessiveName
                                     (ProgramTest.fillIn ""
-                                        "Civilization Name Singular:"
+                                        "Name Singular:"
                                         singularName
                                         (ProgramTest.ensureView
                                             (Query.find [ Html.id "possessive-name-example" ]

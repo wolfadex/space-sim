@@ -36,6 +36,7 @@ import Game.Components
         )
 import Json.Decode
 import Length exposing (Meters)
+import List.Nonempty
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -55,6 +56,7 @@ import Set.Any exposing (AnySet)
 import Shared
     exposing
         ( Effect(..)
+        , GenerationConfig
         , PlayType(..)
         , Settings
         , SharedModel
@@ -72,16 +74,7 @@ import View exposing (View)
 ---- INIT ----
 
 
-init :
-    SharedModel
-    -> PlayType
-    ->
-        { name : CivilizationName
-        , homePlanetName : String
-        , minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
-    -> ( World, SubCmd PlayingMsg Effect )
+init : SharedModel -> PlayType -> GenerationConfig -> ( World, SubCmd PlayingMsg Effect )
 init sharedModel playType generationConfig =
     let
         ( generatedWorld, seed ) =
@@ -331,11 +324,16 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 
 
 subscriptions : World -> Sub PlayingMsg
-subscriptions _ =
-    Sub.batch
-        [ Browser.Events.onAnimationFrameDelta Tick
-        , Browser.Events.onResize (\_ _ -> WindowResized)
-        ]
+subscriptions world =
+    case world.buildingKnowledge of
+        Just _ ->
+            Sub.none
+
+        Nothing ->
+            Sub.batch
+                [ Browser.Events.onAnimationFrameDelta Tick
+                , Browser.Events.onResize (\_ _ -> WindowResized)
+                ]
 
 
 zoomMultiplier : SpaceFocus -> Float
@@ -615,6 +613,8 @@ update sharedModel msg world =
                                         Game.Components.civilizationReproductionRateSpec
                                         Game.Components.civilizationMortalityRateSpec
                                         Game.Components.civilizationPopulationSpec
+                                        Game.Components.civilizationDensitySpec
+                                        Data.Knowledge.spec
                                         updatedWorld
                                     )
                                 )
@@ -657,7 +657,12 @@ expansionSystem ( world, initialSeed ) =
             let
                 totalPopulationSize : Population
                 totalPopulationSize =
-                    List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0) (Dict.toList (Maybe.withDefault Dict.empty (Logic.Component.get civ.id world.civilizationPopulations)))
+                    List.foldl
+                        (\( _, planetPupulationCount ) ->
+                            Population.plus planetPupulationCount
+                        )
+                        (Population.millions 0)
+                        (Dict.toList (Maybe.withDefault Dict.empty (Logic.Component.get civ.id world.civilizationPopulations)))
             in
             if Quantity.lessThan Population.trillion totalPopulationSize then
                 ( nextWorld, nextSeed )
@@ -1079,10 +1084,16 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
         seed
 
 
-birthAndDeathSystem : Spec (Rate Reproduction) world -> Spec (Rate Mortality) world -> Spec (Dict EntityID Population) world -> System world
+birthAndDeathSystem :
+    Spec (Rate Reproduction) world
+    -> Spec (Rate Mortality) world
+    -> Spec (Dict EntityID Population) world
+    -> Spec Float world
+    -> Spec (AnySet String Knowledge) world
+    -> System world
 birthAndDeathSystem =
-    Logic.System.step3
-        (\( reproductionRate, _ ) ( mortalityRate, _ ) ( populationSizes, setPopulationSize ) ->
+    Logic.System.step5
+        (\( reproductionRate, _ ) ( mortalityRate, _ ) ( populationSizes, setPopulationSize ) ( civDensity, _ ) ( knowledge, _ ) ->
             setPopulationSize
                 (Dict.map
                     (\_ populationSize ->
@@ -1095,20 +1106,39 @@ birthAndDeathSystem =
                             deaths =
                                 Population.multiplyBy (Rate.toFloat mortalityRate) populationSize
                         in
-                        Population.plus (Population.difference populationSize deaths) births
+                        Quantity.min
+                            (if Data.Knowledge.knows knowledge MegaCities then
+                                Population.trillions (10 * civDensity)
+
+                             else if Data.Knowledge.knows knowledge Cities then
+                                Population.billions (10 * civDensity)
+
+                             else if Data.Knowledge.knows knowledge Villages then
+                                Population.millions (10 * civDensity)
+
+                             else
+                                Population.millions civDensity
+                            )
+                            (Population.plus (Population.difference populationSize deaths) births)
                     )
                     populationSizes
                 )
         )
 
 
-generateGalaxy : { r | minSolarSystemsToGenerate : Int, maxSolarSystemsToGenerate : Int } -> World -> Generator World
-generateGalaxy { minSolarSystemsToGenerate, maxSolarSystemsToGenerate } model =
-    Random.map Tuple.second (generateManyEntities minSolarSystemsToGenerate maxSolarSystemsToGenerate model generateSolarSystem)
+generateGalaxy : GenerationConfig -> World -> Generator World
+generateGalaxy config model =
+    Random.map Tuple.second
+        (generateManyEntities
+            config.minSolarSystemsToGenerate
+            config.maxSolarSystemsToGenerate
+            model
+            (generateSolarSystem config)
+        )
 
 
-generateSolarSystem : ( EntityID, World ) -> Generator ( EntityID, World )
-generateSolarSystem ( solarSystemId, world ) =
+generateSolarSystem : GenerationConfig -> ( EntityID, World ) -> Generator ( EntityID, World )
+generateSolarSystem config ( solarSystemId, world ) =
     Random.andThen
         (\( starIds, starWorld ) ->
             Random.map2
@@ -1120,10 +1150,24 @@ generateSolarSystem ( solarSystemId, world ) =
                             )
                         )
                 )
-                (generateManyEntities 1 12 starWorld (generatePlanet solarSystemId))
+                (generateManyEntities
+                    config.minPlanetsPerSolarSystemToGenerate
+                    config.maxPlanetsPerSolarSystemToGenerate
+                    starWorld
+                    (generatePlanet solarSystemId)
+                )
                 generateGalacticPosition
         )
-        (Random.andThen (\starCount -> generateManyEntities starCount starCount world (generateStar solarSystemId)) (Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]))
+        (Random.andThen
+            (\starCount ->
+                generateManyEntities
+                    starCount
+                    starCount
+                    world
+                    (generateStar solarSystemId)
+            )
+            (Random.weighted (List.Nonempty.head config.starCounts) (List.Nonempty.tail config.starCounts))
+        )
 
 
 generateGalacticPosition : Generator (Point3d Meters LightYear)
@@ -1214,20 +1258,22 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> CivilizationName -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.map4
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness ->
+    Random.map5
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity ->
             let
                 ( civId, worldWithNewCiv ) =
-                    Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                        (Logic.Entity.with
-                            ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                            (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                                (Logic.Entity.with ( Game.Components.namedSpec, name )
-                                    (Logic.Entity.with
-                                        ( Game.Components.civilizationPopulationSpec
-                                        , Dict.singleton planetId (Population.millions initialPopulationSize)
+                    Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
+                        (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                            (Logic.Entity.with
+                                ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                                (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                                    (Logic.Entity.with ( Game.Components.namedSpec, name )
+                                        (Logic.Entity.with
+                                            ( Game.Components.civilizationPopulationSpec
+                                            , Dict.singleton planetId (Population.millions initialPopulationSize)
+                                            )
+                                            (Logic.Entity.Extra.create worldWithFewerNames)
                                         )
-                                        (Logic.Entity.Extra.create worldWithFewerNames)
                                     )
                                 )
                             )
@@ -1244,12 +1290,13 @@ generateCivilization worldWithFewerNames planetId name =
                         )
                         ( civId, worldWithNewCiv )
             in
-            { worldWithNewCiv | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
+            { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
         )
-        (Random.float 3 10)
-        (Rate.random 0.002 0.003)
+        (Random.float 0.3 0.8)
+        (Rate.random 0.2 0.3)
         (Rate.random 0.1 0.2)
         (Percent.random 90.0 100.0)
+        (Random.float 0.7 1.3)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
@@ -1449,13 +1496,20 @@ viewPlaying sharedModel world =
                     , spacing 8
                     ]
                     [ el
-                        [ alignTop
-                        , width fill
-                        , height fill
-                        , scrollbarY
-                        , Border.solid
-                        , Border.width 1
-                        ]
+                        ((case world.viewStyle of
+                            ThreeD ->
+                                []
+
+                            TwoD ->
+                                [ scrollbarY ]
+                         )
+                            ++ [ alignTop
+                               , width fill
+                               , height fill
+                               , Border.solid
+                               , Border.width 1
+                               ]
+                        )
                         (case world.spaceFocus of
                             FGalaxy ->
                                 viewGalaxy world

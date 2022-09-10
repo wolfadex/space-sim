@@ -16,6 +16,7 @@ module Game.Components exposing
     , Water
     , World
     , childrenSpec
+    , civilizationDensitySpec
     , civilizationHappinessSpec
     , civilizationMortalityRateSpec
     , civilizationPopulationSpec
@@ -70,6 +71,7 @@ type alias World =
     , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , civilizationReproductionRates : Logic.Component.Set (Rate Reproduction)
     , civilizationMortalityRates : Logic.Component.Set (Rate Mortality)
+    , civilizationDensity : Logic.Component.Set Float
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , named : Logic.Component.Set CivilizationName
@@ -118,6 +120,7 @@ emptyWorld =
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
     , civilizationMortalityRates = Logic.Component.empty
+    , civilizationDensity = Logic.Component.empty
     , planetTypes = Logic.Component.empty
     , starTemperature = Logic.Component.empty
     , parents = Logic.Component.empty
@@ -291,6 +294,11 @@ civilizationHappinessSpec =
 
 type Happiness
     = Happiness Never
+
+
+civilizationDensitySpec : Spec Float { world | civilizationDensity : Logic.Component.Set Float }
+civilizationDensitySpec =
+    Logic.Component.Spec .civilizationDensity (\comps world -> { world | civilizationDensity = comps })
 
 
 positionSpec : Spec (Point3d Meters coordinates) { world | galaxyPositions : Logic.Component.Set (Point3d Meters coordinates) }

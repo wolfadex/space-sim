@@ -2,6 +2,7 @@ module Shared exposing
     ( Effect(..)
     , Enabled(..)
     , Flags
+    , GenerationConfig
     , PlayType(..)
     , Settings
     , SharedModel
@@ -21,6 +22,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
+import List.Nonempty exposing (Nonempty)
 import Random exposing (Seed)
 import Ui.Theme
 
@@ -56,16 +58,21 @@ type PlayType
 
 
 type Effect
-    = CreateGame
-        PlayType
-        { name : CivilizationName
-        , homePlanetName : String
-        , minSolarSystemsToGenerate : Int
-        , maxSolarSystemsToGenerate : Int
-        }
+    = CreateGame PlayType GenerationConfig
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg
+
+
+type alias GenerationConfig =
+    { name : CivilizationName
+    , homePlanetName : String
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
+    }
 
 
 type SharedMsg

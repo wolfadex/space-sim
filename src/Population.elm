@@ -2,6 +2,7 @@ module Population exposing
     ( Population
     , PopulationInTrillions
     , billion
+    , billions
     , difference
     , inBillions
     , inMillions
@@ -11,6 +12,7 @@ module Population exposing
     , multiplyBy
     , plus
     , trillion
+    , trillions
     )
 
 import Quantity exposing (Quantity(..))
@@ -34,9 +36,19 @@ inMillions (Quantity population) =
     population * 1000000
 
 
+billions : Float -> Population
+billions population =
+    Quantity (population / 1000)
+
+
 inBillions : Population -> Float
 inBillions (Quantity population) =
     population * 1000
+
+
+trillions : Float -> Population
+trillions population =
+    Quantity population
 
 
 inTrillions : Population -> Float
