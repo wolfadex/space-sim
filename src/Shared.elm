@@ -22,6 +22,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
+import List.Nonempty exposing (Nonempty)
 import Random exposing (Seed)
 import Ui.Theme
 
@@ -70,6 +71,7 @@ type alias GenerationConfig =
     , maxSolarSystemsToGenerate : Int
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
     }
 
 

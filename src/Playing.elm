@@ -36,6 +36,7 @@ import Game.Components
         )
 import Json.Decode
 import Length exposing (Meters)
+import List.Nonempty
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
@@ -1126,7 +1127,16 @@ generateSolarSystem config ( solarSystemId, world ) =
                 )
                 generateGalacticPosition
         )
-        (Random.andThen (\starCount -> generateManyEntities starCount starCount world (generateStar solarSystemId)) (Random.weighted ( 56.0, 1 ) [ ( 33.0, 2 ), ( 8.0, 3 ), ( 1.0, 4 ), ( 1.0, 5 ), ( 1.0, 6 ), ( 1.0, 7 ) ]))
+        (Random.andThen
+            (\starCount ->
+                generateManyEntities
+                    starCount
+                    starCount
+                    world
+                    (generateStar solarSystemId)
+            )
+            (Random.weighted (List.Nonempty.head config.starCounts) (List.Nonempty.tail config.starCounts))
+        )
 
 
 generateGalacticPosition : Generator (Point3d Meters LightYear)

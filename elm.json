@@ -15,6 +15,7 @@
             "elm/random": "1.0.0",
             "elm/svg": "1.0.1",
             "elm-community/random-extra": "3.2.0",
+            "ggb/numeral-elm": "1.5.0",
             "ianmackenzie/elm-3d-camera": "3.1.0",
             "ianmackenzie/elm-3d-scene": "1.0.1",
             "ianmackenzie/elm-geometry": "3.9.1",
@@ -27,6 +28,7 @@
             "uncover-co/elm-submodules": "1.0.3"
         },
         "indirect": {
+            "elm/regex": "1.0.0",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm/virtual-dom": "1.0.2",

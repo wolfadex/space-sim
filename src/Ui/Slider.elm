@@ -1,4 +1,4 @@
-module Ui.Slider exposing (int)
+module Ui.Slider exposing (float, int)
 
 import Element exposing (..)
 import Element.Background as Background
@@ -28,4 +28,28 @@ int options =
         , value = toFloat options.value
         , thumb = Input.defaultThumb
         , step = Maybe.map toFloat options.step
+        }
+
+
+float : { onChange : Float -> msg, label : Input.Label msg, min : Float, max : Float, value : Float, step : Maybe Float } -> Element msg
+float options =
+    Input.slider
+        [ behindContent
+            (el
+                [ width fill
+                , height (px 2)
+                , centerY
+                , Background.color Ui.Theme.darkGray
+                , Border.rounded 2
+                ]
+                none
+            )
+        ]
+        { onChange = options.onChange
+        , label = options.label
+        , min = options.min
+        , max = options.max
+        , value = options.value
+        , thumb = Input.defaultThumb
+        , step = options.step
         }

@@ -23,8 +23,10 @@ import Element.Input as Input
 import Galaxy3d
 import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Visible(..), Water)
 import Length exposing (Meters)
+import List.Nonempty exposing (Nonempty)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
+import Numeral
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -114,6 +116,7 @@ type alias Model =
     , maxSolarSystemsToGenerate : Int
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
 
     -- participate only
     , civilizationNameSingular : String
@@ -164,6 +167,10 @@ baseModel =
     , maxSolarSystemsToGenerate = 80
     , minPlanetsPerSolarSystemToGenerate = 1
     , maxPlanetsPerSolarSystemToGenerate = 12
+    , starCounts =
+        List.Nonempty.appendList
+            [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
+            (List.Nonempty.singleton ( 0.56, 1 ))
     }
 
 
@@ -200,6 +207,7 @@ type Msg
     | GotMaxSolarSystemCount Int
     | GotMinPlanetCount Int
     | GotMaxPlanetCount Int
+    | GotStarCountChange Int Float
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -211,8 +219,6 @@ update _ msg model =
         ViewObserve ->
             ( { model | page = Observe }, SubCmd.none )
 
-        -- ( ObserveMessage message, Observe mod ) ->
-        --     updateObserve model message mod
         Tick deltaMs ->
             ( { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
 
@@ -299,6 +305,33 @@ update _ msg model =
             , SubCmd.none
             )
 
+        GotStarCountChange index newPercent ->
+            let
+                originalPercent : Float
+                originalPercent =
+                    Maybe.withDefault newPercent (Maybe.map Tuple.first (List.head (List.drop index (List.Nonempty.toList model.starCounts))))
+
+                otherStarChange : Float
+                otherStarChange =
+                    (originalPercent - newPercent) / toFloat (List.Nonempty.length model.starCounts - 1)
+            in
+            ( { model
+                | starCounts =
+                    List.Nonempty.indexedMap
+                        (\i ( percent, count ) ->
+                            ( if i == index then
+                                newPercent
+
+                              else
+                                min 1 (max 0 (percent + otherStarChange))
+                            , count
+                            )
+                        )
+                        model.starCounts
+              }
+            , SubCmd.none
+            )
+
         StartSimulation ->
             case model.page of
                 MainMenu ->
@@ -315,6 +348,7 @@ update _ msg model =
                             , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
                             , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
                             , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                            , starCounts = model.starCounts
                             }
                         )
                     )
@@ -332,6 +366,7 @@ update _ msg model =
                                     , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
                                     , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
                                     , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                                    , starCounts = model.starCounts
                                     }
                                 )
                             )
@@ -493,7 +528,7 @@ contrastingBackground : Element msg -> Element msg
 contrastingBackground =
     el
         [ Font.color Ui.Theme.nearlyWhite
-        , Background.color (rgba 0 0 0 0.4)
+        , Background.color (rgba 0.3 0.3 0.3 0.8)
         , padding 8
         , Border.rounded 8
         ]
@@ -557,7 +592,16 @@ viewParticipate model =
                 , padding 16
                 , width shrink
                 ]
-                [ viewPlayerCivForm model
+                [ column
+                    [ centerY
+                    , width fill
+                    , spacing 16
+                    , padding 16
+                    ]
+                    [ viewPlayerCivForm model
+                    , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
+                    , startSimulationButton "Start Game"
+                    ]
                 , viewExample model
                 ]
             ]
@@ -569,6 +613,8 @@ viewPlayerCivForm model =
     column
         [ spacing 16
         , width fill
+        , height (px 600)
+        , scrollbarY
         ]
         [ Ui.Text.default
             []
@@ -620,8 +666,7 @@ viewPlayerCivForm model =
         , inputMaxSolarSystemCount model
         , inputMinPlanetCount model
         , inputMaxPlanetCount model
-        , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
-        , startSimulationButton "Start Game"
+        , inputStarCounts model
         ]
 
 
@@ -709,7 +754,7 @@ viewObserve model =
                 , spacing 64
                 ]
                 [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
-                , wrappedRow
+                , column
                     [ centerX
                     , centerY
                     , spacing 16
@@ -717,6 +762,7 @@ viewObserve model =
                     , width shrink
                     ]
                     [ viewObserveForm model
+                    , startSimulationButton "Begin Simulation"
                     ]
                 ]
             )
@@ -727,13 +773,16 @@ viewObserveForm : Model -> Element Msg
 viewObserveForm model =
     column
         [ spacing 16
+        , padding 16
         , width fill
+        , height (px 600)
+        , scrollbarY
         ]
         [ inputMinSolarSystemCount model
         , inputMaxSolarSystemCount model
         , inputMinPlanetCount model
         , inputMaxPlanetCount model
-        , startSimulationButton "Begin Simulation"
+        , inputStarCounts model
         ]
 
 
@@ -743,10 +792,12 @@ inputMinSolarSystemCount model =
         { onChange = GotMinSolarSystemCount
         , label =
             Input.labelAbove []
-                (paragraph []
-                    [ contrastingBackground (text "Min Solar System Count: ")
-                    , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
-                    ]
+                (contrastingBackground
+                    (paragraph []
+                        [ text "Min Solar System Count: "
+                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
+                        ]
+                    )
                 )
         , min = 10
         , max = 800
@@ -761,10 +812,12 @@ inputMaxSolarSystemCount model =
         { onChange = GotMaxSolarSystemCount
         , label =
             Input.labelAbove []
-                (paragraph []
-                    [ contrastingBackground (text "Max Solar System Count: ")
-                    , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
-                    ]
+                (contrastingBackground
+                    (paragraph []
+                        [ text "Max Solar System Count: "
+                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
+                        ]
+                    )
                 )
         , min = 10
         , max = 800
@@ -779,15 +832,17 @@ inputMinPlanetCount model =
         { onChange = GotMinPlanetCount
         , label =
             Input.labelAbove []
-                (paragraph []
-                    [ contrastingBackground (text "Min Planets per Solar System: ")
-                    , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
-                    ]
+                (contrastingBackground
+                    (paragraph []
+                        [ text "Min Planets per Solar System: "
+                        , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
+                        ]
+                    )
                 )
-        , min = 10
-        , max = 800
+        , min = 0
+        , max = 40
         , value = model.minPlanetsPerSolarSystemToGenerate
-        , step = Just 10
+        , step = Just 1
         }
 
 
@@ -797,13 +852,42 @@ inputMaxPlanetCount model =
         { onChange = GotMaxPlanetCount
         , label =
             Input.labelAbove []
-                (paragraph []
-                    [ contrastingBackground (text "Max Planets per Solar System: ")
-                    , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
-                    ]
+                (contrastingBackground
+                    (paragraph []
+                        [ text "Max Planets per Solar System: "
+                        , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
+                        ]
+                    )
                 )
-        , min = 10
-        , max = 800
+        , min = 1
+        , max = 40
         , value = model.maxPlanetsPerSolarSystemToGenerate
-        , step = Just 10
+        , step = Just 1
         }
+
+
+inputStarCounts : Model -> Element Msg
+inputStarCounts model =
+    column [ spacing 8, width fill ]
+        (contrastingBackground (text "Odds that a Solar System has:")
+            :: List.indexedMap
+                (\index ( percent, count ) ->
+                    Ui.Slider.float
+                        { onChange = GotStarCountChange index
+                        , label =
+                            Input.labelAbove []
+                                (contrastingBackground
+                                    (paragraph []
+                                        [ text (String.fromInt count ++ " Stars: ")
+                                        , displayGameValue (String.fromInt count ++ "-star-count") (Numeral.format "0.00[%]" percent)
+                                        ]
+                                    )
+                                )
+                        , min = 0
+                        , max = 1
+                        , value = percent
+                        , step = Just 0.0005
+                        }
+                )
+                (List.Nonempty.toList model.starCounts)
+        )
