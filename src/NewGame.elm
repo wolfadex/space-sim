@@ -528,7 +528,7 @@ contrastingBackground : Element msg -> Element msg
 contrastingBackground =
     el
         [ Font.color Ui.Theme.nearlyWhite
-        , Background.color (rgba 0.3 0.3 0.3 0.8)
+        , Background.color (rgba 0.3 0.3 0.3 0.7)
         , padding 8
         , Border.rounded 8
         ]
@@ -598,7 +598,7 @@ viewParticipate model =
                     , spacing 16
                     , padding 16
                     ]
-                    [ viewPlayerCivForm model
+                    [ contrastingBackground (viewPlayerCivForm model)
                     , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
                     , startSimulationButton "Start Game"
                     ]
@@ -616,58 +616,60 @@ viewPlayerCivForm model =
         , height (px 600)
         , scrollbarY
         ]
-        [ Ui.Text.default
-            []
-            { onChange = SetNameSingular
-            , text = model.civilizationNameSingular
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Singular:"))
-            }
-        , Ui.Text.default
-            []
-            { onChange = SetNamePlural
-            , text = model.civilizationNamePlural
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Plural:"))
-            }
-        , Ui.Button.default
-            { label =
-                text
-                    (if model.hasUniquePluralName then
-                        "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
+        (List.intersperse formSpacer
+            [ inputGroup "Civilization"
+                [ Ui.Text.default
+                    []
+                    { onChange = SetNameSingular
+                    , text = model.civilizationNameSingular
+                    , label = Input.labelLeft [ width fill ] (text "Name Singular:")
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetNamePlural
+                    , text = model.civilizationNamePlural
+                    , label = Input.labelLeft [ width fill ] (text "Name Plural:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text
+                            (if model.hasUniquePluralName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
 
-                     else
-                        "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
-                    )
-            , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
-            }
-        , Ui.Text.default
-            []
-            { onChange = SetNamePossessive
-            , text = model.civilizationNamePossessive
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Civilization Name Possessive:"))
-            }
-        , Ui.Button.default
-            { label =
-                text
-                    (if model.hasUniquePossessiveName then
-                        "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
+                             else
+                                "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
+                            )
+                    , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetNamePossessive
+                    , text = model.civilizationNamePossessive
+                    , label = Input.labelLeft [ width fill ] (text "Name Possessive:")
+                    }
+                , Ui.Button.default
+                    { label =
+                        text
+                            (if model.hasUniquePossessiveName then
+                                "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
 
-                     else
-                        "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
-                    )
-            , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
-            }
-        , Ui.Text.default
-            []
-            { onChange = SetHomePlanetName
-            , text = model.homePlanetName
-            , label = Input.labelLeft [ width fill ] (contrastingBackground (text "Home Planet Name:"))
-            }
-        , inputMinSolarSystemCount model
-        , inputMaxSolarSystemCount model
-        , inputMinPlanetCount model
-        , inputMaxPlanetCount model
-        , inputStarCounts model
-        ]
+                             else
+                                "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
+                            )
+                    , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
+                    }
+                , Ui.Text.default
+                    []
+                    { onChange = SetHomePlanetName
+                    , text = model.homePlanetName
+                    , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
+                    }
+                ]
+            , inputSolarSystems model
+            , inputPlanets model
+            , inputStarCounts model
+            ]
+        )
 
 
 startSimulationButton : String -> Element Msg
@@ -733,7 +735,7 @@ viewExample model =
 displayGameValue : String -> String -> Element msg
 displayGameValue id value =
     el
-        [ Font.color (rgb 1 0 1)
+        [ Font.color (rgb 0.4 0.8 0.8)
         , Element.Extra.id id
         ]
         (text value)
@@ -761,7 +763,7 @@ viewObserve model =
                     , padding 16
                     , width shrink
                     ]
-                    [ viewObserveForm model
+                    [ contrastingBackground (viewObserveForm model)
                     , startSimulationButton "Begin Simulation"
                     ]
                 ]
@@ -772,122 +774,137 @@ viewObserve model =
 viewObserveForm : Model -> Element Msg
 viewObserveForm model =
     column
-        [ spacing 16
-        , padding 16
-        , width fill
+        [ width fill
         , height (px 600)
         , scrollbarY
         ]
-        [ inputMinSolarSystemCount model
-        , inputMaxSolarSystemCount model
-        , inputMinPlanetCount model
-        , inputMaxPlanetCount model
-        , inputStarCounts model
+        (List.intersperse formSpacer
+            [ inputSolarSystems model
+            , inputPlanets model
+            , inputStarCounts model
+            ]
+        )
+
+
+formSpacer : Element msg
+formSpacer =
+    el
+        [ Border.width 1
+        , Border.color (rgb 0.6 0.6 0.4)
+        , width fill
+        ]
+        none
+
+
+inputGroup : String -> List (Element Msg) -> Element Msg
+inputGroup label inputs =
+    column
+        [ spacing 8
+        , width fill
+        , padding 16
+        ]
+        [ text (label ++ ":")
+        , column
+            [ spacing 8
+            , paddingEach
+                { left = 16
+                , top = 0
+                , right = 0
+                , bottom = 0
+                }
+            , width fill
+            ]
+            inputs
         ]
 
 
-inputMinSolarSystemCount : Model -> Element Msg
-inputMinSolarSystemCount model =
-    Ui.Slider.int
-        { onChange = GotMinSolarSystemCount
-        , label =
-            Input.labelAbove []
-                (contrastingBackground
+inputSolarSystems : Model -> Element Msg
+inputSolarSystems model =
+    inputGroup "Solar System to Generate"
+        [ Ui.Slider.int []
+            { onChange = GotMinSolarSystemCount
+            , label =
+                Input.labelAbove []
                     (paragraph []
-                        [ text "Min Solar System Count: "
+                        [ text "Min: "
                         , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
                         ]
                     )
-                )
-        , min = 10
-        , max = 800
-        , value = model.minSolarSystemsToGenerate
-        , step = Just 10
-        }
-
-
-inputMaxSolarSystemCount : Model -> Element Msg
-inputMaxSolarSystemCount model =
-    Ui.Slider.int
-        { onChange = GotMaxSolarSystemCount
-        , label =
-            Input.labelAbove []
-                (contrastingBackground
+            , min = 10
+            , max = 800
+            , value = model.minSolarSystemsToGenerate
+            , step = Just 10
+            }
+        , Ui.Slider.int []
+            { onChange = GotMaxSolarSystemCount
+            , label =
+                Input.labelAbove []
                     (paragraph []
-                        [ text "Max Solar System Count: "
+                        [ text "Max : "
                         , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
                         ]
                     )
-                )
-        , min = 10
-        , max = 800
-        , value = model.maxSolarSystemsToGenerate
-        , step = Just 10
-        }
+            , min = 10
+            , max = 800
+            , value = model.maxSolarSystemsToGenerate
+            , step = Just 10
+            }
+        ]
 
 
-inputMinPlanetCount : Model -> Element Msg
-inputMinPlanetCount model =
-    Ui.Slider.int
-        { onChange = GotMinPlanetCount
-        , label =
-            Input.labelAbove []
-                (contrastingBackground
+inputPlanets : Model -> Element Msg
+inputPlanets model =
+    inputGroup "Planets per Solar System"
+        [ Ui.Slider.int []
+            { onChange = GotMinPlanetCount
+            , label =
+                Input.labelAbove []
                     (paragraph []
-                        [ text "Min Planets per Solar System: "
+                        [ text "Min: "
                         , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
                         ]
                     )
-                )
-        , min = 0
-        , max = 40
-        , value = model.minPlanetsPerSolarSystemToGenerate
-        , step = Just 1
-        }
-
-
-inputMaxPlanetCount : Model -> Element Msg
-inputMaxPlanetCount model =
-    Ui.Slider.int
-        { onChange = GotMaxPlanetCount
-        , label =
-            Input.labelAbove []
-                (contrastingBackground
+            , min = 0
+            , max = 40
+            , value = model.minPlanetsPerSolarSystemToGenerate
+            , step = Just 1
+            }
+        , Ui.Slider.int []
+            { onChange = GotMaxPlanetCount
+            , label =
+                Input.labelAbove []
                     (paragraph []
-                        [ text "Max Planets per Solar System: "
+                        [ text "Max: "
                         , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
                         ]
                     )
-                )
-        , min = 1
-        , max = 40
-        , value = model.maxPlanetsPerSolarSystemToGenerate
-        , step = Just 1
-        }
+            , min = 1
+            , max = 40
+            , value = model.maxPlanetsPerSolarSystemToGenerate
+            , step = Just 1
+            }
+        ]
 
 
 inputStarCounts : Model -> Element Msg
 inputStarCounts model =
-    column [ spacing 8, width fill ]
-        (contrastingBackground (text "Odds that a Solar System has:")
-            :: List.indexedMap
-                (\index ( percent, count ) ->
-                    Ui.Slider.float
-                        { onChange = GotStarCountChange index
-                        , label =
-                            Input.labelAbove []
-                                (contrastingBackground
-                                    (paragraph []
-                                        [ text (String.fromInt count ++ " Stars: ")
-                                        , displayGameValue (String.fromInt count ++ "-star-count") (Numeral.format "0.00[%]" percent)
-                                        ]
-                                    )
-                                )
-                        , min = 0
-                        , max = 1
-                        , value = percent
-                        , step = Just 0.0005
-                        }
-                )
-                (List.Nonempty.toList model.starCounts)
+    inputGroup "Odds that a Solar System has"
+        (List.indexedMap
+            (\index ( percent, count ) ->
+                Ui.Slider.float []
+                    { onChange = GotStarCountChange index
+                    , label =
+                        Input.labelAbove []
+                            (paragraph []
+                                [ text (String.fromInt count ++ " Stars: ")
+                                , displayGameValue (String.fromInt count ++ "-star-count") (Numeral.format "0.00[%]" percent)
+                                ]
+                            )
+                    , min = 0
+                    , max = 1
+                    , value = percent
+                    , step = Just 0.0005
+                    }
+            )
+            (List.Nonempty.toList model.starCounts)
         )

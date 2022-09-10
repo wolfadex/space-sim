@@ -7,20 +7,20 @@ import Element.Input as Input
 import Ui.Theme
 
 
-int : { onChange : Int -> msg, label : Input.Label msg, min : Int, max : Int, value : Int, step : Maybe Int } -> Element msg
-int options =
-    Input.slider
-        [ behindContent
-            (el
-                [ width fill
-                , height (px 2)
-                , centerY
-                , Background.color Ui.Theme.darkGray
-                , Border.rounded 2
-                ]
-                none
-            )
-        ]
+int :
+    List (Attribute msg)
+    ->
+        { onChange : Int -> msg
+        , label :
+            Input.Label msg
+        , min : Int
+        , max : Int
+        , value : Int
+        , step : Maybe Int
+        }
+    -> Element msg
+int attributes options =
+    common attributes
         { onChange = \i -> options.onChange (floor i)
         , label = options.label
         , min = toFloat options.min
@@ -31,20 +31,20 @@ int options =
         }
 
 
-float : { onChange : Float -> msg, label : Input.Label msg, min : Float, max : Float, value : Float, step : Maybe Float } -> Element msg
-float options =
-    Input.slider
-        [ behindContent
-            (el
-                [ width fill
-                , height (px 2)
-                , centerY
-                , Background.color Ui.Theme.darkGray
-                , Border.rounded 2
-                ]
-                none
-            )
-        ]
+float :
+    List (Attribute msg)
+    ->
+        { onChange : Float -> msg
+        , label :
+            Input.Label msg
+        , min : Float
+        , max : Float
+        , value : Float
+        , step : Maybe Float
+        }
+    -> Element msg
+float attributes options =
+    common attributes
         { onChange = options.onChange
         , label = options.label
         , min = options.min
@@ -53,3 +53,31 @@ float options =
         , thumb = Input.defaultThumb
         , step = options.step
         }
+
+
+common :
+    List (Attribute msg)
+    ->
+        { onChange : Float -> msg
+        , label : Input.Label msg
+        , min : Float
+        , max : Float
+        , value : Float
+        , thumb : Input.Thumb
+        , step : Maybe Float
+        }
+    -> Element msg
+common attributes =
+    Input.slider
+        (behindContent
+            (el
+                [ width fill
+                , height (px 2)
+                , centerY
+                , Background.color Ui.Theme.nearlyWhite
+                , Border.rounded 2
+                ]
+                none
+            )
+            :: attributes
+        )
