@@ -12,6 +12,7 @@ module Data.Knowledge exposing
 import Dict.Any exposing (AnyDict)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
+import Serialize exposing (Codec)
 import Set.Any exposing (AnySet)
 
 
@@ -29,8 +30,91 @@ type
     | BasicAgriculture
     | BasicMetalWorking
     | Optics
+    | Villages
+    | Cities
+    | MegaCities
       -- Things in the universe
     | KnowsOf EntityID
+
+
+codec : Codec e Knowledge
+codec =
+    Serialize.finishCustomType
+        (Serialize.variant1 KnowsOf
+            Serialize.int
+            (Serialize.variant0 MegaCities
+                (Serialize.variant0 Cities
+                    (Serialize.variant0 Villages
+                        (Serialize.variant0 Optics
+                            (Serialize.variant0 BasicMetalWorking
+                                (Serialize.variant0 BasicAgriculture
+                                    (Serialize.variant0 FTLSpaceTravel
+                                        (Serialize.variant0 InterplanetarySpaceTravel
+                                            (Serialize.variant0 PlanetarySpaceTravel
+                                                (Serialize.variant0 Flight
+                                                    (Serialize.variant0 UnderwaterTravel
+                                                        (Serialize.variant0 WaterSurfaceTravel
+                                                            (Serialize.variant0 LandTravel
+                                                                (Serialize.customType
+                                                                    (\landTravelE waterSurfaceTravelE underwaterTravelE flightE planetarySpaceTravelE interplanetarySpaceTravelE fTLSpaceTravelE basicAgricultureE basicMetalWorkingE opticsE villagesE citiesE megaCitiesE knowsOfE val ->
+                                                                        case val of
+                                                                            LandTravel ->
+                                                                                landTravelE
+
+                                                                            WaterSurfaceTravel ->
+                                                                                waterSurfaceTravelE
+
+                                                                            UnderwaterTravel ->
+                                                                                underwaterTravelE
+
+                                                                            Flight ->
+                                                                                flightE
+
+                                                                            PlanetarySpaceTravel ->
+                                                                                planetarySpaceTravelE
+
+                                                                            InterplanetarySpaceTravel ->
+                                                                                interplanetarySpaceTravelE
+
+                                                                            FTLSpaceTravel ->
+                                                                                fTLSpaceTravelE
+
+                                                                            BasicAgriculture ->
+                                                                                basicAgricultureE
+
+                                                                            BasicMetalWorking ->
+                                                                                basicMetalWorkingE
+
+                                                                            Optics ->
+                                                                                opticsE
+
+                                                                            Villages ->
+                                                                                villagesE
+
+                                                                            Cities ->
+                                                                                citiesE
+
+                                                                            MegaCities ->
+                                                                                megaCitiesE
+
+                                                                            KnowsOf e ->
+                                                                                knowsOfE e
+                                                                    )
+                                                                )
+                                                            )
+                                                        )
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
 
 
 knows : AnySet String Knowledge -> Knowledge -> Bool
@@ -40,85 +124,15 @@ knows civKnowledge k =
 
 comparableConfig : { toComparable : Knowledge -> String, fromComparable : String -> Knowledge }
 comparableConfig =
-    { toComparable =
-        \knowledge ->
-            case knowledge of
-                LandTravel ->
-                    "LandTravel"
-
-                WaterSurfaceTravel ->
-                    "WaterSurfaceTravel"
-
-                UnderwaterTravel ->
-                    "UnderwaterTravel"
-
-                Flight ->
-                    "Flight"
-
-                PlanetarySpaceTravel ->
-                    "PlanetarySpaceTravel"
-
-                InterplanetarySpaceTravel ->
-                    "InterplanetarySpaceTravel"
-
-                FTLSpaceTravel ->
-                    "FTLSpaceTravel"
-
-                BasicAgriculture ->
-                    "BasicAgriculture"
-
-                BasicMetalWorking ->
-                    "BasicMetalWorking"
-
-                Optics ->
-                    "Optics"
-
-                KnowsOf id ->
-                    "KnowsOf__" ++ String.fromInt id
+    { toComparable = Serialize.encodeToString codec
     , fromComparable =
         \str ->
-            case str of
-                "LandTravel" ->
-                    LandTravel
+            case Serialize.decodeFromString codec str of
+                Ok k ->
+                    k
 
-                "WaterSurfaceTravel" ->
-                    WaterSurfaceTravel
-
-                "UnderwaterTravel" ->
-                    UnderwaterTravel
-
-                "Flight" ->
-                    Flight
-
-                "PlanetarySpaceTravel" ->
-                    PlanetarySpaceTravel
-
-                "InterplanetarySpaceTravel" ->
-                    InterplanetarySpaceTravel
-
-                "FTLSpaceTravel" ->
-                    FTLSpaceTravel
-
-                "BasicAgriculture" ->
+                Err _ ->
                     BasicAgriculture
-
-                "BasicMetalWorking" ->
-                    BasicMetalWorking
-
-                "Optics" ->
-                    Optics
-
-                other ->
-                    if String.startsWith "KnowsOf__" other then
-                        case String.toInt (String.dropLeft 9 other) of
-                            Just id ->
-                                KnowsOf id
-
-                            Nothing ->
-                                BasicAgriculture
-
-                    else
-                        BasicAgriculture
     }
 
 
@@ -158,6 +172,9 @@ baseKnowledgeTree =
              , ( UnderwaterTravel, [] )
              , ( BasicAgriculture, [] )
              , ( BasicMetalWorking, [] )
+             , ( Villages, [] )
+             , ( Cities, [ Set.Any.singleton comparableConfig Villages ] )
+             , ( MegaCities, [ Set.Any.singleton comparableConfig Cities ] )
              , ( Optics, [ Set.Any.singleton comparableConfig BasicMetalWorking ] )
              , ( Flight
                , [ Set.Any.singleton comparableConfig LandTravel
