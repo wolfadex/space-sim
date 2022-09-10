@@ -324,11 +324,16 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
 
 
 subscriptions : World -> Sub PlayingMsg
-subscriptions _ =
-    Sub.batch
-        [ Browser.Events.onAnimationFrameDelta Tick
-        , Browser.Events.onResize (\_ _ -> WindowResized)
-        ]
+subscriptions world =
+    case world.buildingKnowledge of
+        Just _ ->
+            Sub.none
+
+        Nothing ->
+            Sub.batch
+                [ Browser.Events.onAnimationFrameDelta Tick
+                , Browser.Events.onResize (\_ _ -> WindowResized)
+                ]
 
 
 zoomMultiplier : SpaceFocus -> Float
@@ -1462,13 +1467,20 @@ viewPlaying sharedModel world =
                     , spacing 8
                     ]
                     [ el
-                        [ alignTop
-                        , width fill
-                        , height fill
-                        , scrollbarY
-                        , Border.solid
-                        , Border.width 1
-                        ]
+                        ((case world.viewStyle of
+                            ThreeD ->
+                                []
+
+                            TwoD ->
+                                [ scrollbarY ]
+                         )
+                            ++ [ alignTop
+                               , width fill
+                               , height fill
+                               , Border.solid
+                               , Border.width 1
+                               ]
+                        )
                         (case world.spaceFocus of
                             FGalaxy ->
                                 viewGalaxy world
