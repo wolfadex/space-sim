@@ -25,7 +25,7 @@ viewGalaxy onPress world =
         , spacing 8
         , Background.color Ui.Theme.darkGray
         ]
-        (List.map (viewSolarSystemSimple onPress world) (Set.toList world.solarSystems))
+        (List.map (viewSolarSystemSimple onPress world) (Dict.keys (Logic.Component.toDict world.solarSystems)))
 
 
 viewSolarSystemSimple :

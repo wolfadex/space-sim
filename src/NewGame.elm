@@ -21,7 +21,15 @@ import Element.Extra
 import Element.Font as Font
 import Element.Input as Input
 import Galaxy3d
-import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Visible(..), Water)
+import Game.Components
+    exposing
+        ( CelestialBodyForm(..)
+        , LightYear
+        , Orbit
+        , SolarSystem(..)
+        , Visible(..)
+        , Water
+        )
 import Length exposing (Meters)
 import List.Nonempty exposing (Nonempty)
 import Logic.Component
@@ -76,7 +84,10 @@ init =
             Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 80 ) (Logic.Entity.with ( Game.Components.orbitSpec, 4 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky ) (Logic.Entity.create 4 m3)))))
 
         ( _, m5 ) =
-            Tuple.mapSecond (\m -> { m | solarSystems = Set.singleton 5 }) (Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin ) (Logic.Entity.create 5 m4))
+            Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
+                (Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
+                    (Logic.Entity.create 5 m4)
+                )
 
         zoomDist : Float
         zoomDist =
@@ -105,9 +116,9 @@ type alias Model =
     , planetSize : Logic.Component.Set Float
     , parents : Logic.Component.Set EntityID
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+    , solarSystems : Logic.Component.Set SolarSystem
     , planets : Set EntityID
     , stars : Set EntityID
-    , solarSystems : Set EntityID
     , civilizations : Set EntityID
 
     ---- game stuff
@@ -150,9 +161,9 @@ baseModel =
     , planetSize = Logic.Component.empty
     , parents = Logic.Component.empty
     , galaxyPositions = Logic.Component.empty
+    , solarSystems = Logic.Component.empty
     , planets = Set.empty
     , stars = Set.empty
-    , solarSystems = Set.empty
     , civilizations = Set.empty
 
     -- game stuff

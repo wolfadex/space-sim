@@ -8,6 +8,7 @@ module Game.Components exposing
     , Orbit
     , PlayingMsg(..)
     , Reproduction
+    , SolarSystem(..)
     , SpaceFocus(..)
     , TickRate(..)
     , ViewStyle(..)
@@ -27,6 +28,7 @@ module Game.Components exposing
     , planetSizeSpec
     , planetTypeSpec
     , positionSpec
+    , solarSystemSpec
     , waterSpec
     )
 
@@ -88,11 +90,11 @@ type alias World =
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+    , solarSystems : Logic.Component.Set SolarSystem
 
     ---- Book keeping
     , planets : Set EntityID
     , stars : Set EntityID
-    , solarSystems : Set EntityID
     , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
     , availableCivilizationNames : List CivilizationName
@@ -137,11 +139,11 @@ emptyWorld =
     , civilizationStyle = Logic.Component.empty
     , galaxyPositions = Logic.Component.empty
     , civilizationStructures = Logic.Component.empty
+    , solarSystems = Logic.Component.empty
 
     --
     , planets = Set.empty
     , stars = Set.empty
-    , solarSystems = Set.empty
     , playerCiv = Nothing
     , civilizations = Set.empty
     , availableCivilizationNames = Data.Civilization.allNames
@@ -224,6 +226,15 @@ civilizationReproductionRateSpec =
 
 type Reproduction
     = Reproduction Never
+
+
+solarSystemSpec : Spec SolarSystem { world | solarSystems : Logic.Component.Set SolarSystem }
+solarSystemSpec =
+    Logic.Component.Spec .solarSystems (\comps world -> { world | solarSystems = comps })
+
+
+type SolarSystem
+    = SolarSystem
 
 
 civilizationMortalityRateSpec : Spec (Rate Mortality) { world | civilizationMortalityRates : Logic.Component.Set (Rate Mortality) }

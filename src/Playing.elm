@@ -30,6 +30,7 @@ import Game.Components
         , Orbit
         , PlayingMsg(..)
         , Reproduction
+        , SolarSystem(..)
         , SpaceFocus(..)
         , TickRate(..)
         , ViewStyle(..)
@@ -256,7 +257,7 @@ init sharedModel playType generationConfig =
                                             )
                                             (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
                                     )
-                                    (Set.toList worldWithPlayerCiv.solarSystems)
+                                    (Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems))
                                 )
                             )
                         )
@@ -452,7 +453,7 @@ update sharedModel msg world =
                                                             )
                                                             (Logic.Component.get solarSystemId world.galaxyPositions)
                                                     )
-                                                    (Set.toList world.solarSystems)
+                                                    (Dict.keys (Logic.Component.toDict world.solarSystems))
                                                 )
                                             )
                                         )
@@ -1192,10 +1193,12 @@ generateSolarSystem config ( solarSystemId, world ) =
         (\( starIds, starWorld ) ->
             Random.map2
                 (\( planetIds, finalWorld ) galacticPosition ->
-                    Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
-                        (Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
-                            ( solarSystemId
-                            , { finalWorld | solarSystems = Set.insert solarSystemId finalWorld.solarSystems }
+                    Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
+                        (Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
+                            (Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
+                                ( solarSystemId
+                                , finalWorld
+                                )
                             )
                         )
                 )
@@ -1451,18 +1454,21 @@ filterWorldByKnowledge world =
                         knownStars =
                             Set.intersect knowsOfIds world.stars
 
-                        knownParents : List EntityID
+                        knownParents : Set EntityID
                         knownParents =
-                            List.filterMap (\id -> Logic.Component.get id world.parents)
-                                (Set.toList (Set.union knownPlanets knownStars))
+                            Set.fromList
+                                (List.filterMap (\id -> Logic.Component.get id world.parents)
+                                    (Set.toList (Set.union knownPlanets knownStars))
+                                )
                     in
                     { world
                         | planets = knownPlanets
                         , stars = knownStars
                         , solarSystems =
-                            List.foldl (\id result -> Set.insert id result)
-                                (Set.intersect knowsOfIds world.solarSystems)
-                                knownParents
+                            Logic.Component.fromDict
+                                (Dict.filter (\id _ -> Set.member id knowsOfIds || Set.member id knownParents)
+                                    (Logic.Component.toDict world.solarSystems)
+                                )
                         , civilizations = Set.intersect knowsOfIds world.civilizations
                     }
 
@@ -1572,17 +1578,18 @@ viewPlaying sharedModel world =
                                 viewGalaxy world
 
                             FSolarSystem id ->
-                                if Set.member id world.solarSystems then
-                                    viewSlice
-                                        [ Ui.Button.default
-                                            { label = text "View Galaxy"
-                                            , onPress = Just (SetSpaceFocus FGalaxy)
-                                            }
-                                        ]
-                                        (viewSolarSystemDetailed sharedModel.settings world id)
+                                case Logic.Component.get id world.solarSystems of
+                                    Just SolarSystem ->
+                                        viewSlice
+                                            [ Ui.Button.default
+                                                { label = text "View Galaxy"
+                                                , onPress = Just (SetSpaceFocus FGalaxy)
+                                                }
+                                            ]
+                                            (viewSolarSystemDetailed sharedModel.settings world id)
 
-                                else
-                                    text "Missing solar system"
+                                    Nothing ->
+                                        text "Missing solar system"
 
                             FStar starId ->
                                 if Set.member starId world.stars then

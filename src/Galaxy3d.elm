@@ -20,7 +20,7 @@ import Direction3d
 import Element exposing (..)
 import Element.Extra
 import Frame2d
-import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, Water)
+import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, SolarSystem, Water)
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
@@ -77,9 +77,9 @@ type alias MinRenderableWorld r =
         , planetSize : Logic.Component.Set Float
         , parents : Logic.Component.Set EntityID
         , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+        , solarSystems : Logic.Component.Set SolarSystem
         , planets : Set EntityID
         , stars : Set EntityID
-        , solarSystems : Set EntityID
         , civilizations : Set EntityID
     }
 
@@ -101,8 +101,13 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
     let
         solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
         solarSystemPoints =
-            List.filterMap (solarSystemPoint world)
-                (Set.toList world.solarSystems)
+            Dict.merge
+                (\_ _ res -> res)
+                (\id _ point res -> ( id, point ) :: res)
+                (\_ _ res -> res)
+                (Logic.Component.toDict world.solarSystems)
+                (Logic.Component.toDict world.galaxyPositions)
+                []
 
         solarSystems : List (Scene3d.Entity ScaledViewPoint)
         solarSystems =
@@ -818,12 +823,6 @@ renderSolarSystem position =
     Scene3d.sphere
         (Material.color Color.gray)
         (Sphere3d.atPoint (scalePointInLightYearsToOne position) (Length.lightYears 300))
-
-
-solarSystemPoint : MinRenderableWorld r -> EntityID -> Maybe ( EntityID, Point3d Meters LightYear )
-solarSystemPoint world solarSystemId =
-    Maybe.map (Tuple.pair solarSystemId)
-        (Logic.Component.get solarSystemId world.galaxyPositions)
 
 
 type ScaledViewPoint
