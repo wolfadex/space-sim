@@ -6,7 +6,7 @@ module Data.Civilization exposing
     , styleSpec
     )
 
-import Data.Names exposing (PersonName)
+import Data.Name exposing (PersonName)
 import Data.StarDate exposing (StarDate)
 import Logic.Component exposing (Spec)
 

@@ -9,7 +9,7 @@ import Array exposing (Array)
 import Browser.Events
 import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge(..))
-import Data.Names
+import Data.Name
 import Data.Star
 import Data.StarDate
 import Data.Structure
@@ -639,21 +639,26 @@ structureSystem ( originalWorld, originalSeed ) =
                                     Random.constant world
 
                                 planetId :: _ ->
-                                    Random.map
-                                        (\structureType ->
-                                            Tuple.second
-                                                (Logic.Entity.with
-                                                    ( Data.Structure.civilizationStructuresSpec
-                                                    , { creators = civId
-                                                      , creationDate = world.starDate
-                                                      , type_ = structureType
-                                                      , planet = planetId
-                                                      }
-                                                    )
-                                                    (Logic.Entity.Extra.create world)
+                                    Random.andThen
+                                        (\personName ->
+                                            Random.map
+                                                (\( structureType, name ) ->
+                                                    Tuple.second
+                                                        (Logic.Entity.with
+                                                            ( Data.Structure.civilizationStructuresSpec
+                                                            , { creators = civId
+                                                              , creationDate = world.starDate
+                                                              , type_ = structureType
+                                                              , planet = planetId
+                                                              , name = name
+                                                              }
+                                                            )
+                                                            (Logic.Entity.Extra.create world)
+                                                        )
                                                 )
+                                                (Data.Structure.random personName)
                                         )
-                                        Data.Structure.random
+                                        Data.Name.randomPerson
 
                         else
                             Random.constant world
@@ -1118,7 +1123,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                                         }
                                     )
                                 )
-                                Data.Names.randomPerson
+                                Data.Name.randomPerson
                                 (Random.uniform first rest)
 
                 else

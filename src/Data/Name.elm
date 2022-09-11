@@ -1,4 +1,4 @@
-module Data.Names exposing
+module Data.Name exposing
     ( PersonName
     , randomPerson
     )

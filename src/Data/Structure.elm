@@ -6,6 +6,7 @@ module Data.Structure exposing
     , toString
     )
 
+import Data.Name exposing (PersonName)
 import Data.StarDate exposing (StarDate)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
@@ -22,6 +23,7 @@ type alias Structure =
     , creationDate : StarDate
     , type_ : Type
     , planet : EntityID
+    , name : String
     }
 
 
@@ -32,26 +34,26 @@ type Type
     | TimeCapsule
 
 
-random : Generator Type
-random =
-    Random.uniform Monument
-        [ City
-        , Excavation
-        , TimeCapsule
-        ]
+random : PersonName -> Generator ( Type, String )
+random name =
+    Random.andThen
+        (\( type_, nameGen ) ->
+            Random.map (Tuple.pair type_)
+                nameGen
+        )
+        (Random.uniform ( Monument, Random.constant ("Tower of " ++ name) )
+            [ ( City, Random.constant ("City of " ++ name) )
+            , ( Excavation
+              , Random.uniform (name ++ " Canal")
+                    [ name ++ " Island"
+                    , "Plateau of " ++ name
+                    ]
+              )
+            , ( TimeCapsule, Random.constant ("A time capsule belonging to " ++ name) )
+            ]
+        )
 
 
 toString : Structure -> String
 toString structure =
-    case structure.type_ of
-        Monument ->
-            "Monument"
-
-        City ->
-            "City"
-
-        Excavation ->
-            "Excavation"
-
-        TimeCapsule ->
-            "TimeCapsule"
+    structure.name
