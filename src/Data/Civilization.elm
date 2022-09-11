@@ -30,7 +30,6 @@ TODO: language/communication (written, sound/spoken, smell, taste, signed, etc)
 TODO: culture: things like sculptures, music, literature
 
 (separate from this)
-TODO: monuments
 TODO: trade
 
 -}
