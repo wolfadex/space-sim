@@ -7,6 +7,7 @@ module Data.Civilization exposing
     )
 
 import Data.Names exposing (PersonName)
+import Data.StarDate exposing (StarDate)
 import Logic.Component exposing (Spec)
 
 
@@ -35,6 +36,7 @@ TODO: trade
 -}
 type alias Characteristics =
     { cooperationVsCompetition : Float
+    , timeSinceLastMonument : StarDate
     }
 
 

@@ -1,5 +1,6 @@
 module Data.StarDate exposing
     ( StarDate
+    , distance
     , increment
     , init
     , toString
@@ -27,3 +28,8 @@ increment (StarDate d) =
 toString : StarDate -> String
 toString (StarDate d) =
     "Star Date " ++ Numeral.format "0,0.0" (toFloat d / 10)
+
+
+distance : StarDate -> StarDate -> Int
+distance (StarDate left) (StarDate right) =
+    abs (left - right)

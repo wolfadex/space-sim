@@ -12,6 +12,7 @@ import Data.Knowledge exposing (Knowledge(..))
 import Data.Names
 import Data.Star
 import Data.StarDate
+import Data.Structure
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -607,17 +608,12 @@ update sharedModel msg world =
             in
             if doTick then
                 Tuple.mapSecond (\seed -> SubCmd.effect (UpdateSeed seed))
-                    (civilUnrestSystem
-                        (expansionSystem
-                            (discoverySystem Data.Knowledge.spec
-                                ((\w -> ( w, sharedModel.seed ))
-                                    (birthAndDeathSystem
-                                        Game.Components.civilizationReproductionRateSpec
-                                        Game.Components.civilizationMortalityRateSpec
-                                        Game.Components.civilizationPopulationSpec
-                                        Game.Components.civilizationDensitySpec
-                                        Data.Knowledge.spec
-                                        updatedWorld
+                    (structureSystem
+                        (civilUnrestSystem
+                            (expansionSystem
+                                (discoverySystem Data.Knowledge.spec
+                                    ((\w -> ( w, sharedModel.seed ))
+                                        (birthAndDeathSystem updatedWorld)
                                     )
                                 )
                             )
@@ -628,6 +624,47 @@ update sharedModel msg world =
                 ( updatedWorld
                 , SubCmd.none
                 )
+
+
+structureSystem : ( World, Seed ) -> ( World, Seed )
+structureSystem ( originalWorld, originalSeed ) =
+    Logic.System.indexedFoldl2
+        (\civId civPopulations civCharacteristics ( world, seed ) ->
+            Random.step
+                (Random.andThen
+                    (\createMonument ->
+                        if createMonument then
+                            case Dict.keys civPopulations of
+                                [] ->
+                                    Random.constant world
+
+                                planetId :: _ ->
+                                    Random.map
+                                        (\structureType ->
+                                            Tuple.second
+                                                (Logic.Entity.with
+                                                    ( Data.Structure.civilizationStructuresSpec
+                                                    , { creators = civId
+                                                      , creationDate = world.starDate
+                                                      , type_ = structureType
+                                                      , planet = planetId
+                                                      }
+                                                    )
+                                                    (Logic.Entity.Extra.create world)
+                                                )
+                                        )
+                                        Data.Structure.random
+
+                        else
+                            Random.constant world
+                    )
+                    (Random.Extra.oneIn (200 - Data.StarDate.distance world.starDate civCharacteristics.timeSinceLastMonument))
+                )
+                seed
+        )
+        originalWorld.civilizationPopulations
+        originalWorld.civilizationStyle
+        ( originalWorld, originalSeed )
 
 
 setZoom : World -> Float -> ( World, SubCmd PlayingMsg Effect )
@@ -1017,7 +1054,9 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
                             style
 
                         _ ->
-                            { cooperationVsCompetition = 0.5 }
+                            { cooperationVsCompetition = 0.5
+                            , timeSinceLastMonument = world.starDate
+                            }
 
                 ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
                     gainRandomKnowledge
@@ -1090,13 +1129,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
         seed
 
 
-birthAndDeathSystem :
-    Spec (Rate Reproduction) world
-    -> Spec (Rate Mortality) world
-    -> Spec (Dict EntityID Population) world
-    -> Spec Float world
-    -> Spec (AnySet String Knowledge) world
-    -> System world
+birthAndDeathSystem : System World
 birthAndDeathSystem =
     Logic.System.step5
         (\( reproductionRate, _ ) ( mortalityRate, _ ) ( populationSizes, setPopulationSize ) ( civDensity, _ ) ( knowledge, _ ) ->
@@ -1130,6 +1163,11 @@ birthAndDeathSystem =
                     populationSizes
                 )
         )
+        Game.Components.civilizationReproductionRateSpec
+        Game.Components.civilizationMortalityRateSpec
+        Game.Components.civilizationPopulationSpec
+        Game.Components.civilizationDensitySpec
+        Data.Knowledge.spec
 
 
 generateGalaxy : GenerationConfig -> World -> Generator World
@@ -1268,7 +1306,12 @@ generateCivilization worldWithFewerNames planetId name =
         (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp ->
             let
                 ( civId, worldWithNewCiv ) =
-                    Logic.Entity.with ( Data.Civilization.styleSpec, { cooperationVsCompetition = coopVsComp } )
+                    Logic.Entity.with
+                        ( Data.Civilization.styleSpec
+                        , { cooperationVsCompetition = coopVsComp
+                          , timeSinceLastMonument = worldWithFewerNames.starDate
+                          }
+                        )
                         (Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
                             (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
                                 (Logic.Entity.with
@@ -1831,6 +1874,18 @@ viewPlanetDetailed world planetId =
                                 )
                                 civs
                             )
+                , text "Structures:"
+                , column []
+                    (List.filterMap
+                        (\( _, structure ) ->
+                            if structure.planet == planetId then
+                                Just (text (Data.Structure.toString structure))
+
+                            else
+                                Nothing
+                        )
+                        (Logic.Component.toList world.civilizationStructures)
+                    )
                 ]
 
 

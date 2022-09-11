@@ -34,6 +34,7 @@ import Browser.Dom exposing (Viewport)
 import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
 import Data.StarDate exposing (StarDate)
+import Data.Structure exposing (Structure)
 import Dict exposing (Dict)
 import Json.Decode exposing (Value)
 import Length exposing (Meters)
@@ -76,6 +77,7 @@ type alias World =
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
     , named : Logic.Component.Set CivilizationName
+    , civilizationStructures : Logic.Component.Set Structure
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -134,6 +136,7 @@ emptyWorld =
     , civilizationKnowledge = Logic.Component.empty
     , civilizationStyle = Logic.Component.empty
     , galaxyPositions = Logic.Component.empty
+    , civilizationStructures = Logic.Component.empty
 
     --
     , planets = Set.empty
