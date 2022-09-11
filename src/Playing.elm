@@ -11,6 +11,7 @@ import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Names
 import Data.Star
+import Data.StarDate
 import Dict exposing (Dict)
 import Element exposing (..)
 import Element.Background as Background
@@ -570,28 +571,28 @@ update sharedModel msg world =
 
                         HalfSpeed ->
                             if remaining - baseTickTime * 2 >= 0 then
-                                ( True, remaining - baseTickTime * 2, world.starDate + 1 )
+                                ( True, remaining - baseTickTime * 2, Data.StarDate.increment world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         Normal ->
                             if remaining - baseTickTime >= 0 then
-                                ( True, remaining - baseTickTime, world.starDate + 1 )
+                                ( True, remaining - baseTickTime, Data.StarDate.increment world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         Fast ->
                             if remaining - baseTickTime / 4 >= 0 then
-                                ( True, remaining - baseTickTime / 4, world.starDate + 1 )
+                                ( True, remaining - baseTickTime / 4, Data.StarDate.increment world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         ExtraFast ->
                             if remaining - baseTickTime / 8 >= 0 then
-                                ( True, remaining - baseTickTime / 8, world.starDate + 1 )
+                                ( True, remaining - baseTickTime / 8, Data.StarDate.increment world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
@@ -1009,7 +1010,7 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
                         _ ->
                             { singular = "", many = Nothing, possessive = Nothing }
 
-                civStyle : Data.Civilization.Style
+                civStyle : Data.Civilization.Characteristics
                 civStyle =
                     case Array.get index world.civilizationStyle of
                         Just (Just style) ->
@@ -1051,7 +1052,7 @@ gainRandomKnowledge :
     -> Seed
     -> World
     -> CivilizationName
-    -> Data.Civilization.Style
+    -> Data.Civilization.Characteristics
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
 gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civStyle =
     Random.step
@@ -1620,7 +1621,7 @@ viewControls world =
             { label = text "Delete"
             , onPress = Just DeleteGalaxy
             }
-        , text ("Star Date: " ++ String.fromInt world.starDate)
+        , text (Data.StarDate.toString world.starDate)
         , Ui.Button.default
             (case world.viewStyle of
                 ThreeD ->
@@ -1980,7 +1981,7 @@ viewLog log =
         , Border.width 1
         , padding 4
         ]
-        [ text ("Star Date: " ++ String.fromInt log.time)
+        [ text (Data.StarDate.toString log.time)
         , paragraph [] [ text log.description ]
         ]
 

@@ -13,10 +13,13 @@ A space game inspired by Dwarf Fortress.
 - Galaxy generation
   - Solar system generation
     - Star generation
-    - Planet generation
+    - Planet (rocky or gas, with water or not) generation
 - Civilizations, with:
   - Population size
   - Reproduction rate
+  - Mortality rate
+  - Population density
+  - Cooperative vs competitive
   - Names
   - Happiness
   - Knowledge (can be gained, not yet lost)

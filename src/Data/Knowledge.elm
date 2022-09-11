@@ -16,9 +16,38 @@ import Serialize exposing (Codec)
 import Set.Any exposing (AnySet)
 
 
+{-| Things that can be learned and used to advance a civilization
+
+Travel: Allows civilizations to expand and grow (TODO: use this to cap population size)
+
+  - LandTravel
+  - WaterSurfaceTravel
+  - UnderwaterTravel
+  - Flight
+  - PlanetarySpaceTravel
+  - InterplanetarySpaceTravel
+  - FTLSpaceTravel
+
+Food: Allows a civilization to expand and grow (TODO: add more nuance)
+
+  - BasicAgriculture
+
+Houseing:
+
+  - Villages
+  - Cities
+  - MegaCities
+
+Other: Things that are precursors to other knowledge
+
+  - BasicMetalWorking
+  - Optics
+  - KnowsOf EntityId
+
+-}
 type
     Knowledge
-    -- Modes of travel
+    -- Travel
     = LandTravel
     | WaterSurfaceTravel
     | UnderwaterTravel
@@ -26,13 +55,15 @@ type
     | PlanetarySpaceTravel
     | InterplanetarySpaceTravel
     | FTLSpaceTravel
-      -- Basics of civilization
+      -- Food
     | BasicAgriculture
-    | BasicMetalWorking
-    | Optics
+      -- Housing
     | Villages
     | Cities
     | MegaCities
+      -- Other
+    | BasicMetalWorking
+    | Optics
       -- Things in the universe
     | KnowsOf EntityID
 

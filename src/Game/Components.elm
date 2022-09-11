@@ -9,7 +9,6 @@ module Game.Components exposing
     , PlayingMsg(..)
     , Reproduction
     , SpaceFocus(..)
-    , StarDate
     , TickRate(..)
     , ViewStyle(..)
     , Visible(..)
@@ -34,6 +33,7 @@ module Game.Components exposing
 import Browser.Dom exposing (Viewport)
 import Data.Civilization exposing (CivilizationName)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
+import Data.StarDate exposing (StarDate)
 import Dict exposing (Dict)
 import Json.Decode exposing (Value)
 import Length exposing (Meters)
@@ -74,7 +74,7 @@ type alias World =
     , civilizationDensity : Logic.Component.Set Float
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
-    , civilizationStyle : Logic.Component.Set Data.Civilization.Style
+    , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
     , named : Logic.Component.Set CivilizationName
 
     -- Other
@@ -142,7 +142,7 @@ emptyWorld =
     , playerCiv = Nothing
     , civilizations = Set.empty
     , availableCivilizationNames = Data.Civilization.allNames
-    , starDate = 0
+    , starDate = Data.StarDate.init
     , eventLog = []
     , knowledgeTree = Data.Knowledge.baseKnowledgeTree
     , buildingKnowledgeState =
@@ -192,10 +192,6 @@ type alias Log =
     , time : StarDate
     , civilizationId : EntityID
     }
-
-
-type alias StarDate =
-    Int
 
 
 type SpaceFocus
