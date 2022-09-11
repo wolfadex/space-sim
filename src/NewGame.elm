@@ -586,8 +586,8 @@ view sharedModel model =
 contrastingBackground : Element msg -> Element msg
 contrastingBackground =
     el
-        [ Font.color Ui.Theme.nearlyWhite
-        , Background.color (rgba 0.3 0.3 0.3 0.7)
+        [ Font.color Ui.Theme.darkGray
+        , Background.color Ui.Theme.nearlyWhiteTransparent
         , padding 8
         , Border.rounded 8
         ]
@@ -765,25 +765,33 @@ viewExample model =
                     []
                     [ text
                         "As the battle rages on between the "
-                    , displayGameValue "plural-name-example"
-                        (if model.hasUniquePluralName then
-                            model.civilizationNamePlural
+                    , el [ Font.underline ]
+                        (displayGameValue "plural-name-example"
+                            (showBlank
+                                (if model.hasUniquePluralName then
+                                    model.civilizationNamePlural
 
-                         else
-                            model.civilizationNameSingular
+                                 else
+                                    model.civilizationNameSingular
+                                )
+                            )
                         )
                     , text " and the Federation, the "
-                    , displayGameValue "singular-name-example" model.civilizationNameSingular
+                    , el [ Font.underline ] (displayGameValue "singular-name-example" (showBlank model.civilizationNameSingular))
                     , text " people begin to question the morality of continuing the war. But the "
-                    , displayGameValue "possessive-name-example"
-                        (if model.hasUniquePossessiveName then
-                            model.civilizationNamePossessive
+                    , el [ Font.underline ]
+                        (displayGameValue "possessive-name-example"
+                            (showBlank
+                                (if model.hasUniquePossessiveName then
+                                    model.civilizationNamePossessive
 
-                         else
-                            model.civilizationNameSingular
+                                 else
+                                    model.civilizationNameSingular
+                                )
+                            )
                         )
                     , text " home planet, "
-                    , displayGameValue "home-planet-name-example" model.homePlanetName
+                    , el [ Font.underline ] (displayGameValue "home-planet-name-example" (showBlank model.homePlanetName))
                     , text ", hangs in the balance."
                     ]
                 ]
@@ -791,10 +799,19 @@ viewExample model =
         )
 
 
+showBlank : String -> String
+showBlank str =
+    if String.isEmpty str then
+        "____"
+
+    else
+        str
+
+
 displayGameValue : String -> String -> Element msg
 displayGameValue id value =
     el
-        [ Font.color (rgb 0.4 0.8 0.8)
+        [ Font.color (rgb 0.2 0.6 0.6)
         , Element.Extra.id id
         ]
         (text value)

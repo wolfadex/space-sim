@@ -1680,10 +1680,6 @@ viewControls world =
             , onPress = Just (SetTickRate ExtraFast)
             , enabled = world.tickRate == ExtraFast
             }
-        , Ui.Button.default
-            { label = text "Delete"
-            , onPress = Just DeleteGalaxy
-            }
         , text (Data.EarthYear.formatAsStarDate world.starDate)
         , Ui.Button.default
             (case world.viewStyle of
@@ -1697,6 +1693,12 @@ viewControls world =
                     , onPress = Just (GotViewStyle ThreeD)
                     }
             )
+        , el [ width fill ] none
+        , Ui.Button.negative
+            { label = text "Delete Galaxy"
+            , onPress = Just DeleteGalaxy
+            }
+        , el [ width fill ] none
         , el [ alignRight ]
             (Ui.Button.default
                 { label = text "⚙"

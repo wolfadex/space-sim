@@ -3,6 +3,7 @@ module Ui.Theme exposing
     , error
     , green
     , nearlyWhite
+    , nearlyWhiteTransparent
     )
 
 import Element exposing (..)
@@ -21,6 +22,11 @@ darkGray =
 nearlyWhite : Color
 nearlyWhite =
     rgb 0.9 0.9 0.9
+
+
+nearlyWhiteTransparent : Color
+nearlyWhiteTransparent =
+    rgba 0.9 0.9 0.9 0.9
 
 
 error : Color
