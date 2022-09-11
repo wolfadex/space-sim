@@ -6,7 +6,7 @@
 
 A space game inspired by Dwarf Fortress.
 
-<img src="./Screenshot 2022-01-25.png" />
+<img src="./media/Screen Recording 2022-09-11.gif" />
 
 ## Features
 
@@ -49,3 +49,8 @@ npm run test-watch
 <br />
 
 Built with ♥ using <a href="https://elm-lang.org/"><img alt="Elm" src="./elm-favicon.ico" width=20></a>
+
+<img src="./media/Screen Shot 2022-09-11 at 4.22.20 PM.png">
+<img src="./media/Screen Shot 2022-09-11 at 4.22.29 PM.png">
+<img src="./media/Screen Shot 2022-09-11 at 4.22.52 PM.png">
+<img src="./media/Screen Shot 2022-09-11 at 4.23.10 PM.png">
