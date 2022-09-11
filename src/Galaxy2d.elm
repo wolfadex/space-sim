@@ -1,9 +1,11 @@
 module Galaxy2d exposing (viewGalaxy, viewSolarSystem)
 
+import Data.Orbit
 import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Game.Components exposing (World)
+import Length
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Set exposing (Set)
@@ -151,7 +153,7 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivili
                             world
                             planetId
                     )
-                    (List.sortBy (\( _, orbit ) -> orbit)
+                    (List.sortBy (\( _, orbit ) -> Length.inAstronomicalUnits (Data.Orbit.distance orbit))
                         (List.filterMap
                             (\planetId ->
                                 Maybe.map

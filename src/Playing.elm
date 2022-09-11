@@ -8,10 +8,11 @@ module Playing exposing
 import Array exposing (Array)
 import Browser.Events
 import Data.Civilization exposing (CivilizationName)
+import Data.EarthYear
 import Data.Knowledge exposing (Knowledge(..))
 import Data.Name
+import Data.Orbit exposing (Orbit)
 import Data.Star
-import Data.StarDate
 import Data.Structure
 import Dict exposing (Dict)
 import Element exposing (..)
@@ -27,7 +28,6 @@ import Game.Components
         , LightYear
         , Log
         , Mortality
-        , Orbit
         , PlayingMsg(..)
         , Reproduction
         , SolarSystem(..)
@@ -131,7 +131,7 @@ init sharedModel playType generationConfig =
         ( playerCivId, worldWithPlayerCiv ) =
             Logic.Entity.with
                 ( Game.Components.civilizationHappinessSpec
-                , Dict.map (\_ _ -> Percent.fromFloat 100.0) inhabitedPlanets
+                , Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets
                 )
                 (Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
                     (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
@@ -290,33 +290,23 @@ getSolarSiblings world child =
             siblings
 
 
+{-| Oribits that are closer to 1AU are preferred
+-}
 planetOrbitPreference : ( EntityID, Orbit ) -> ( EntityID, Orbit ) -> Order
 planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
-    if orbitA == orbitB then
-        EQ
+    let
+        distA : Float
+        distA =
+            Length.inAstronomicalUnits (Quantity.abs (Quantity.difference Length.astronomicalUnit (Data.Orbit.distance orbitA)))
 
-    else if orbitA == 3 then
+        distB : Float
+        distB =
+            Length.inAstronomicalUnits (Quantity.abs (Quantity.difference Length.astronomicalUnit (Data.Orbit.distance orbitB)))
+    in
+    if distA > distB then
         GT
 
-    else if orbitB == 3 then
-        LT
-
-    else if orbitA == 4 then
-        GT
-
-    else if orbitB == 4 then
-        LT
-
-    else if orbitA == 2 then
-        GT
-
-    else if orbitB == 2 then
-        LT
-
-    else if orbitA == 5 then
-        GT
-
-    else if orbitB == 5 then
+    else if distA < distB then
         LT
 
     else
@@ -504,7 +494,7 @@ update sharedModel msg world =
                                                                     (\planetId ->
                                                                         Maybe.map
                                                                             (\orbit ->
-                                                                                Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
+                                                                                Length.inMeters (Data.Orbit.distance orbit)
                                                                             )
                                                                             (Logic.Component.get planetId world.orbits)
                                                                     )
@@ -573,28 +563,28 @@ update sharedModel msg world =
 
                         HalfSpeed ->
                             if remaining - baseTickTime * 2 >= 0 then
-                                ( True, remaining - baseTickTime * 2, Data.StarDate.increment world.starDate )
+                                ( True, remaining - baseTickTime * 2, Quantity.plus (Data.EarthYear.starDates 1) world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         Normal ->
                             if remaining - baseTickTime >= 0 then
-                                ( True, remaining - baseTickTime, Data.StarDate.increment world.starDate )
+                                ( True, remaining - baseTickTime, Quantity.plus (Data.EarthYear.starDates 1) world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         Fast ->
                             if remaining - baseTickTime / 4 >= 0 then
-                                ( True, remaining - baseTickTime / 4, Data.StarDate.increment world.starDate )
+                                ( True, remaining - baseTickTime / 4, Quantity.plus (Data.EarthYear.starDates 1) world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
 
                         ExtraFast ->
                             if remaining - baseTickTime / 8 >= 0 then
-                                ( True, remaining - baseTickTime / 8, Data.StarDate.increment world.starDate )
+                                ( True, remaining - baseTickTime / 8, Quantity.plus (Data.EarthYear.starDates 1) world.starDate )
 
                             else
                                 ( False, remaining, world.starDate )
@@ -664,7 +654,7 @@ structureSystem ( originalWorld, originalSeed ) =
                         else
                             Random.constant world
                     )
-                    (Random.Extra.oneIn (200 - Data.StarDate.distance world.starDate civCharacteristics.timeSinceLastMonument))
+                    (Random.Extra.oneIn (floor (200 - Data.EarthYear.distance world.starDate civCharacteristics.timeSinceLastMonument)))
                 )
                 seed
         )
@@ -841,7 +831,7 @@ civilUnrestSystem ( world, initialSeed ) =
                         (Maybe.map
                             (Dict.foldl
                                 (\planetId planetHappiness planetsRevolting ->
-                                    if Quantity.lessThan (Percent.fromFloat 15.0) planetHappiness then
+                                    if Quantity.lessThan (Percent.fromFloat 0.15) planetHappiness then
                                         ( civId, planetId ) :: planetsRevolting
 
                                     else
@@ -964,14 +954,14 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
                         worldWithNewCivWithKnowledge.civilizationKnowledge
             }
         )
-        (Percent.random 95.0 100.0)
+        (Percent.random 0.95 1.0)
         (Random.andThen
             (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
-            (Percent.random 5.0 25.0)
+            (Percent.random 0.05 0.25)
         )
         (Random.andThen
             (\percent -> dropRandom Data.Knowledge.comparableConfig percent civDetails.knowledge)
-            (Percent.random 1.0 5.0)
+            (Percent.random 0.01 0.05)
         )
 
 
@@ -1262,17 +1252,35 @@ generatePlanet : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World 
 generatePlanet solarSystemId ( planetId, world ) =
     Random.andThen
         (\( planetType, waterPercent ) ->
-            Random.map3
-                (\orbit size updatedWorld ->
-                    Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets }) (Logic.Entity.with ( Game.Components.parentSpec, solarSystemId ) (Logic.Entity.with ( Game.Components.planetSizeSpec, size ) (Logic.Entity.with ( Game.Components.waterSpec, waterPercent ) (Logic.Entity.with ( Game.Components.orbitSpec, orbit ) (Logic.Entity.with ( Game.Components.planetTypeSpec, planetType ) ( planetId, updatedWorld ))))))
+            Random.map4
+                (\orbitDistance orbitPeriod size updatedWorld ->
+                    Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
+                        (Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
+                            (Logic.Entity.with ( Game.Components.planetSizeSpec, size )
+                                (Logic.Entity.with ( Game.Components.waterSpec, waterPercent )
+                                    (Logic.Entity.with
+                                        ( Game.Components.orbitSpec
+                                        , Data.Orbit.create
+                                            { distance = Length.astronomicalUnits orbitDistance
+                                            , period = Data.EarthYear.earthYears orbitPeriod
+                                            }
+                                        )
+                                        (Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
+                                            ( planetId, updatedWorld )
+                                        )
+                                    )
+                                )
+                            )
+                        )
                 )
                 (case planetType of
                     Rocky ->
-                        Random.int 0 7
+                        Random.float 0.25 7
 
                     Gas ->
-                        Random.int 5 12
+                        Random.float 5 40
                 )
+                (Random.float 0.25 3500)
                 (generatePlanetRadius planetType)
                 (attemptToGenerateCivilization planetType planetId world)
         )
@@ -1354,7 +1362,7 @@ generateCivilization worldWithFewerNames planetId name =
         (Random.float 0.3 0.8)
         (Rate.random 0.2 0.3)
         (Rate.random 0.1 0.2)
-        (Percent.random 90.0 100.0)
+        (Percent.random 0.9 1.0)
         (Random.float 0.7 1.3)
         (Random.float 0.0 1.0)
 
@@ -1676,7 +1684,7 @@ viewControls world =
             { label = text "Delete"
             , onPress = Just DeleteGalaxy
             }
-        , text (Data.StarDate.toString world.starDate)
+        , text (Data.EarthYear.formatAsStarDate world.starDate)
         , Ui.Button.default
             (case world.viewStyle of
                 ThreeD ->
@@ -2048,7 +2056,7 @@ viewLog log =
         , Border.width 1
         , padding 4
         ]
-        [ text (Data.StarDate.toString log.time)
+        [ text (Data.EarthYear.formatAsStarDate log.time)
         , paragraph [] [ text log.description ]
         ]
 

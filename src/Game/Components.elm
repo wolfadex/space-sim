@@ -5,7 +5,6 @@ module Game.Components exposing
     , LightYear
     , Log
     , Mortality
-    , Orbit
     , PlayingMsg(..)
     , Reproduction
     , SolarSystem(..)
@@ -34,8 +33,9 @@ module Game.Components exposing
 
 import Browser.Dom exposing (Viewport)
 import Data.Civilization exposing (CivilizationName)
+import Data.EarthYear exposing (EarthYear)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
-import Data.StarDate exposing (StarDate)
+import Data.Orbit exposing (Orbit)
 import Data.Structure exposing (Structure)
 import Dict exposing (Dict)
 import Json.Decode exposing (Value)
@@ -98,7 +98,7 @@ type alias World =
     , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
     , availableCivilizationNames : List CivilizationName
-    , starDate : StarDate
+    , starDate : EarthYear
     , eventLog : List Log
     , knowledgeTree : KnowledgeTree
     , buildingKnowledgeState : Task.Parallel.ListState PlayingMsg (List ( Knowledge, List (AnySet String Knowledge) ))
@@ -147,7 +147,7 @@ emptyWorld =
     , playerCiv = Nothing
     , civilizations = Set.empty
     , availableCivilizationNames = Data.Civilization.allNames
-    , starDate = Data.StarDate.init
+    , starDate = Data.EarthYear.earthYears 0
     , eventLog = []
     , knowledgeTree = Data.Knowledge.baseKnowledgeTree
     , buildingKnowledgeState =
@@ -194,7 +194,7 @@ type ViewStyle
 
 type alias Log =
     { description : String
-    , time : StarDate
+    , time : EarthYear
     , civilizationId : EntityID
     }
 
@@ -264,10 +264,6 @@ type CelestialBodyForm
 orbitSpec : Spec Orbit { world | orbits : Logic.Component.Set Orbit }
 orbitSpec =
     Logic.Component.Spec .orbits (\comps world -> { world | orbits = comps })
-
-
-type alias Orbit =
-    Int
 
 
 parentSpec : Spec EntityID { world | parents : Logic.Component.Set EntityID }

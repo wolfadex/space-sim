@@ -13,6 +13,8 @@ import Camera3d
 import Circle2d
 import Color
 import Cylinder3d
+import Data.EarthYear
+import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
 import Direction2d
@@ -20,7 +22,7 @@ import Direction3d
 import Element exposing (..)
 import Element.Extra
 import Frame2d
-import Game.Components exposing (CelestialBodyForm(..), LightYear, Orbit, SolarSystem, Water)
+import Game.Components exposing (CelestialBodyForm(..), LightYear, SolarSystem, Water)
 import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
@@ -921,7 +923,7 @@ getPlanetDetails settings world planetId =
                     initialPoint =
                         Point3d.fromMeters
                             { x = 0
-                            , y = Length.inMeters (Quantity.multiplyBy (toFloat orbit) Length.astronomicalUnit)
+                            , y = Length.inMeters (Data.Orbit.distance orbit)
                             , z = 0
                             }
                 in
@@ -929,7 +931,12 @@ getPlanetDetails settings world planetId =
                     Enabled ->
                         Point3d.rotateAround
                             Axis3d.z
-                            (Angle.degrees (world.elapsedTime / (100 + toFloat orbit)))
+                            (Angle.degrees
+                                ((world.elapsedTime / 100000)
+                                    * Data.EarthYear.inEarthYears (Data.Orbit.period orbit)
+                                    * Percent.toFloat settings.planetRotationSpeed
+                                )
+                            )
                             initialPoint
 
                     Disabled ->
@@ -937,14 +944,14 @@ getPlanetDetails settings world planetId =
             , color =
                 case planetType_ of
                     Rocky ->
-                        if Quantity.lessThan (Percent.fromFloat 50.0) waterPercent then
+                        if Quantity.lessThan (Percent.fromFloat 0.5) waterPercent then
                             Color.brown
 
                         else
                             Color.blue
 
                     Gas ->
-                        if Quantity.lessThan (Percent.fromFloat 50.0) waterPercent then
+                        if Quantity.lessThan (Percent.fromFloat 0.5) waterPercent then
                             Color.lightGreen
 
                         else

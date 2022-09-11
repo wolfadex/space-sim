@@ -12,6 +12,8 @@ module NewGame exposing
 import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Civilization exposing (CivilizationName)
+import Data.EarthYear exposing (EarthYear)
+import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
 import Element exposing (..)
@@ -25,7 +27,6 @@ import Game.Components
     exposing
         ( CelestialBodyForm(..)
         , LightYear
-        , Orbit
         , SolarSystem(..)
         , Visible(..)
         , Water
@@ -75,13 +76,58 @@ init =
             Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 }) (Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Data.Star.temperatureSpec, starTemp ) (Logic.Entity.create 1 m0)))
 
         ( _, m2 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 75 ) (Logic.Entity.with ( Game.Components.orbitSpec, 6 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas ) (Logic.Entity.create 2 m1)))))
+            Logic.Entity.with ( Game.Components.parentSpec, 5 )
+                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.75 )
+                        (Logic.Entity.with
+                            ( Game.Components.orbitSpec
+                            , Data.Orbit.create
+                                { distance = Length.astronomicalUnits 6
+                                , period = Data.EarthYear.earthYears 1
+                                }
+                            )
+                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                                (Logic.Entity.create 2 m1)
+                            )
+                        )
+                    )
+                )
 
         ( _, m3 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 15 ) (Logic.Entity.with ( Game.Components.orbitSpec, 8 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas ) (Logic.Entity.create 3 m2)))))
+            Logic.Entity.with ( Game.Components.parentSpec, 5 )
+                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.15 )
+                        (Logic.Entity.with
+                            ( Game.Components.orbitSpec
+                            , Data.Orbit.create
+                                { distance = Length.astronomicalUnits 8
+                                , period = Data.EarthYear.earthYears 1.4
+                                }
+                            )
+                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                                (Logic.Entity.create 3 m2)
+                            )
+                        )
+                    )
+                )
 
         ( _, m4 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 ) (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 80 ) (Logic.Entity.with ( Game.Components.orbitSpec, 4 ) (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky ) (Logic.Entity.create 4 m3)))))
+            Logic.Entity.with ( Game.Components.parentSpec, 5 )
+                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.8 )
+                        (Logic.Entity.with
+                            ( Game.Components.orbitSpec
+                            , Data.Orbit.create
+                                { distance = Length.astronomicalUnits 4
+                                , period = Data.EarthYear.earthYears 0.4
+                                }
+                            )
+                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
+                                (Logic.Entity.create 4 m3)
+                            )
+                        )
+                    )
+                )
 
         ( _, m5 ) =
             Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
@@ -105,6 +151,7 @@ type alias Model =
     { page : InnerPage
     , settingsVisible : Visible
     , elapsedTime : Float
+    , starDate : EarthYear
     , galaxyViewSize : { width : Float, height : Float }
     , zoom : Float
     , viewRotation : Float
@@ -150,6 +197,7 @@ baseModel =
     { page = MainMenu
     , settingsVisible = Hidden
     , elapsedTime = 1234345
+    , starDate = Data.EarthYear.starDates 1234345
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = -40
     , viewRotation = 0
@@ -231,7 +279,12 @@ update _ msg model =
             ( { model | page = Observe }, SubCmd.none )
 
         Tick deltaMs ->
-            ( { model | elapsedTime = model.elapsedTime + deltaMs }, SubCmd.none )
+            ( { model
+                | elapsedTime = model.elapsedTime + deltaMs
+                , starDate = Quantity.plus (Data.EarthYear.earthYears 1) model.starDate
+              }
+            , SubCmd.none
+            )
 
         WindowResized ->
             ( model, Galaxy3d.getGalaxyViewport GotGalaxyViewport )

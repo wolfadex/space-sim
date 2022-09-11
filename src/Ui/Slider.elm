@@ -74,7 +74,7 @@ common attributes =
                 [ width fill
                 , height (px 2)
                 , centerY
-                , Background.color Ui.Theme.nearlyWhite
+                , Background.color Ui.Theme.darkGray
                 , Border.rounded 2
                 ]
                 none

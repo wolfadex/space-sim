@@ -6,8 +6,8 @@ module Data.Structure exposing
     , toString
     )
 
+import Data.EarthYear exposing (EarthYear)
 import Data.Name exposing (PersonName)
-import Data.StarDate exposing (StarDate)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Random exposing (Generator)
@@ -20,7 +20,7 @@ civilizationStructuresSpec =
 
 type alias Structure =
     { creators : EntityID
-    , creationDate : StarDate
+    , creationDate : EarthYear
     , type_ : Type
     , planet : EntityID
     , name : String
