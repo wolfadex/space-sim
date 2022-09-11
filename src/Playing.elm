@@ -1280,7 +1280,7 @@ generatePlanet solarSystemId ( planetId, world ) =
                     Gas ->
                         Random.float 5 40
                 )
-                (Random.float 0.25 3500)
+                (Random.float 0.25 350)
                 (generatePlanetRadius planetType)
                 (attemptToGenerateCivilization planetType planetId world)
         )

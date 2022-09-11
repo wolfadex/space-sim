@@ -6,11 +6,13 @@ module Galaxy3d exposing
     )
 
 import Angle
+import Arc3d
 import Axis2d
 import Axis3d
 import Browser.Dom exposing (Viewport)
 import Camera3d
 import Circle2d
+import Circle3d
 import Color
 import Cylinder3d
 import Data.EarthYear
@@ -30,6 +32,7 @@ import Html.Events
 import Json.Decode exposing (Value)
 import Length exposing (Length, Meters)
 import LineSegment2d
+import LineSegment3d.Projection
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Luminance
@@ -39,6 +42,7 @@ import Pixels
 import Point2d
 import Point3d exposing (Point3d)
 import Point3d.Projection
+import Polyline2d
 import Polyline3d
 import Population exposing (Population)
 import Process
@@ -307,8 +311,12 @@ viewSolarSystem options settings world =
     let
         planetDetails : List PlanetRenderDetails
         planetDetails =
-            List.filterMap (getPlanetDetails settings world)
-                (Set.toList options.planets)
+            List.reverse
+                (List.sortBy (\p -> Length.inMeters p.orbitDistance)
+                    (List.filterMap (getPlanetDetails settings world)
+                        (Set.toList options.planets)
+                    )
+                )
 
         starDetails : List StarRenderDetails
         starDetails =
@@ -362,14 +370,44 @@ viewSolarSystem options settings world =
         angle =
             Angle.degrees 0.0
 
-        planetVertices2d : List { id : EntityID, size : Length, vertex : Point2d.Point2d Pixels.Pixels ScaledViewPoint, type_ : CelestialBodyForm }
+        planetVertices2d :
+            List
+                { id : EntityID
+                , size : Length
+                , vertex : Point2d.Point2d Pixels.Pixels ScaledViewPoint
+                , type_ : CelestialBodyForm
+                , arc : List (LineSegment2d.LineSegment2d Pixels.Pixels coordinates)
+                }
         planetVertices2d =
             List.map
                 (\details ->
+                    let
+                        vertex : Point3d Meters ScaledViewPoint
+                        vertex =
+                            Point3d.rotateAround Axis3d.z
+                                angle
+                                (scalePointInAstroUnitsToOne details.position)
+                    in
                     { id = details.id
                     , size = details.size
-                    , vertex = Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
+                    , vertex =
+                        Point3d.Projection.toScreenSpace camera
+                            screenRectangle
+                            vertex
                     , type_ = details.type_
+                    , arc =
+                        List.map (LineSegment3d.Projection.toScreenSpace camera screenRectangle)
+                            (Polyline3d.segments
+                                (Arc3d.segments (max 20 (ceiling (Length.inAstronomicalUnits details.orbitDistance) * 3))
+                                    (Circle3d.toArc
+                                        (Circle3d.withRadius
+                                            details.orbitDistance
+                                            Direction3d.positiveZ
+                                            Point3d.origin
+                                        )
+                                    )
+                                )
+                            )
                     }
                 )
                 planetDetails
@@ -405,18 +443,9 @@ viewSolarSystem options settings world =
                                 "galactic-label"
                             )
                         ]
-                        [ -- Planet highlight
-                          Geometry.Svg.circle2d
-                            [ Svg.Attributes.stroke
-                                (if highlightPlanet then
-                                    "rgb(0, 255, 200)"
-
-                                 else
-                                    "rgb(255, 255, 0)"
-                                )
-                            , Svg.Attributes.strokeWidth "2"
-                            , Svg.Attributes.fill "rgba(0, 0, 255, 0)"
-                            , case options.onPressPlanet of
+                        [ -- Orbit highlight
+                          Geometry.Svg.polyline2d
+                            [ case options.onPressPlanet of
                                 Nothing ->
                                     Svg.Attributes.style ""
 
@@ -425,24 +454,39 @@ viewSolarSystem options settings world =
 
                             -- This isn't working, need to debug for accessibility
                             -- , Html.Attributes.tabindex 0
+                            , Svg.Attributes.strokeWidth "2"
+                            , Svg.Attributes.stroke "rgb(255, 255, 0)"
+                            , Svg.Attributes.fill "rgba(0, 0, 255, 0)"
                             ]
-                            (Circle2d.withRadius
-                                (Pixels.float
-                                    (Length.inKilometers planet.size
-                                        / ((case planet.type_ of
-                                                Rocky ->
-                                                    0.000000001
+                            (Polyline2d.fromVertices (List.concatMap (\seg -> [ LineSegment2d.startPoint seg, LineSegment2d.endPoint seg ]) planet.arc))
 
-                                                Gas ->
-                                                    0.000000005
-                                           )
-                                            * world.zoom
-                                          )
+                        -- Planet highlight
+                        , if highlightPlanet then
+                            Geometry.Svg.circle2d
+                                [ Svg.Attributes.stroke "rgb(0, 255, 200)"
+                                , Svg.Attributes.strokeWidth "2"
+                                , Svg.Attributes.fillOpacity "0"
+                                ]
+                                (Circle2d.withRadius
+                                    (Pixels.float
+                                        (Length.inKilometers planet.size
+                                            / ((case planet.type_ of
+                                                    Rocky ->
+                                                        0.000000001
+
+                                                    Gas ->
+                                                        0.000000005
+                                               )
+                                                * world.zoom
+                                              )
+                                        )
                                     )
+                                    --
+                                    planet.vertex
                                 )
-                                --
-                                planet.vertex
-                            )
+
+                          else
+                            Svg.text ""
                         , Geometry.Svg.lineSegment2d
                             [ Svg.Attributes.stroke "white"
                             , Svg.Attributes.strokeWidth "2"
@@ -554,7 +598,7 @@ viewSolarSystem options settings world =
                 [ Html.Attributes.width (floor world.galaxyViewSize.width)
                 , Html.Attributes.height (floor world.galaxyViewSize.height)
                 ]
-                [ Geometry.Svg.relativeTo topLeftFrame (Svg.g [] (starLabels ++ planetLabels)) ]
+                [ Geometry.Svg.relativeTo topLeftFrame (Svg.g [] (planetLabels ++ starLabels)) ]
 
         solarSystemScene : Html msg
         solarSystemScene =
@@ -773,45 +817,45 @@ spaceCss : Attribute msg
 spaceCss =
     inFront (html (Html.node "style" [] [ Html.text """
 .galactic-label * {
-opacity: 0;
-cursor: pointer;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .galactic-label:active *,
 .galactic-label:focus *,
 .galactic-label:focus-within *,
 .galactic-label:hover * {
-opacity: 1;
+  opacity: 1;
 }
 
 .galactic-label-focus-civ * {
-visibility: hidden;
-cursor: pointer;
+  visibility: hidden;
+  cursor: pointer;
 }
 
 .galactic-label-focus-civ circle {
-visibility: visible;
+  visibility: visible;
 }
 
 .galactic-label-focus-civ:active *,
 .galactic-label-focus-civ:focus *,
 .galactic-label-focus-civ:focus-within *,
 .galactic-label-focus-civ:hover * {
-visibility: visible;
+  visibility: visible;
 }
 
 .galactic-label-ignore {
-pointer-events: none;
+  pointer-events: none;
 }
 
 .galactic-label > .planet-orbit {
-visibility: visible;
-opacity: 1;
-pointer-events: none;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: none;
 }
 
 .galactic-label-no-show {
-    display: none;
+  display: none;
 }
 """ ]))
 
@@ -909,6 +953,7 @@ type alias PlanetRenderDetails =
     , position : Point3d Meters AstronomicalUnit
     , size : Length
     , type_ : CelestialBodyForm
+    , orbitDistance : Length
     }
 
 
@@ -917,6 +962,7 @@ getPlanetDetails settings world planetId =
     Maybe.map3
         (\orbit planetType_ waterPercent ->
             { id = planetId
+            , orbitDistance = Data.Orbit.distance orbit
             , position =
                 let
                     initialPoint : Point3d Meters coordinates
@@ -932,8 +978,7 @@ getPlanetDetails settings world planetId =
                         Point3d.rotateAround
                             Axis3d.z
                             (Angle.degrees
-                                ((world.elapsedTime / 100000)
-                                    * Data.EarthYear.inEarthYears (Data.Orbit.period orbit)
+                                ((world.elapsedTime / Data.EarthYear.inEarthYears (Data.Orbit.period orbit))
                                     * Percent.toFloat settings.planetRotationSpeed
                                 )
                             )

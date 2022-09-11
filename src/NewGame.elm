@@ -12,7 +12,7 @@ module NewGame exposing
 import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.Civilization exposing (CivilizationName)
-import Data.EarthYear exposing (EarthYear)
+import Data.EarthYear
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
@@ -82,8 +82,8 @@ init =
                         (Logic.Entity.with
                             ( Game.Components.orbitSpec
                             , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 6
-                                , period = Data.EarthYear.earthYears 1
+                                { distance = Length.astronomicalUnits 12
+                                , period = Data.EarthYear.earthYears 250
                                 }
                             )
                             (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
@@ -100,8 +100,8 @@ init =
                         (Logic.Entity.with
                             ( Game.Components.orbitSpec
                             , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 8
-                                , period = Data.EarthYear.earthYears 1.4
+                                { distance = Length.astronomicalUnits 6
+                                , period = Data.EarthYear.earthYears 75
                                 }
                             )
                             (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
@@ -118,8 +118,8 @@ init =
                         (Logic.Entity.with
                             ( Game.Components.orbitSpec
                             , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 4
-                                , period = Data.EarthYear.earthYears 0.4
+                                { distance = Length.astronomicalUnits 3
+                                , period = Data.EarthYear.earthYears 50.0
                                 }
                             )
                             (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
@@ -151,7 +151,6 @@ type alias Model =
     { page : InnerPage
     , settingsVisible : Visible
     , elapsedTime : Float
-    , starDate : EarthYear
     , galaxyViewSize : { width : Float, height : Float }
     , zoom : Float
     , viewRotation : Float
@@ -197,7 +196,6 @@ baseModel =
     { page = MainMenu
     , settingsVisible = Hidden
     , elapsedTime = 1234345
-    , starDate = Data.EarthYear.starDates 1234345
     , galaxyViewSize = { width = 800, height = 600 }
     , zoom = -40
     , viewRotation = 0
@@ -279,10 +277,7 @@ update _ msg model =
             ( { model | page = Observe }, SubCmd.none )
 
         Tick deltaMs ->
-            ( { model
-                | elapsedTime = model.elapsedTime + deltaMs
-                , starDate = Quantity.plus (Data.EarthYear.earthYears 1) model.starDate
-              }
+            ( { model | elapsedTime = model.elapsedTime + deltaMs }
             , SubCmd.none
             )
 
