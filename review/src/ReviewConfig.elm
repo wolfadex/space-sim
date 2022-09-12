@@ -71,6 +71,7 @@ config =
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
+        |> Review.Rule.ignoreErrorsForFiles [ "src/Markov.elm", "src/Markov/String.elm" ]
     , NoUnused.Modules.rule
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule

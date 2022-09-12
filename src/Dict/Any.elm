@@ -1,8 +1,12 @@
 module Dict.Any exposing
     ( AnyDict
+    , empty
     , filter
     , fromList
+    , get
+    , insert
     , keys
+    , toList
     , union
     )
 
@@ -13,9 +17,29 @@ type AnyDict comparable key value
     = AnyDict (Dict comparable value)
 
 
+empty : AnyDict comparable key value
+empty =
+    AnyDict Dict.empty
+
+
+get : { r | toComparable : key -> comparable } -> key -> AnyDict comparable key value -> Maybe value
+get config key (AnyDict dict) =
+    Dict.get (config.toComparable key) dict
+
+
 fromList : { r | toComparable : key -> comparable } -> List ( key, value ) -> AnyDict comparable key value
 fromList config list =
     AnyDict (Dict.fromList (List.map (\( k, v ) -> ( config.toComparable k, v )) list))
+
+
+toList : { r | fromComparable : comparable -> key } -> AnyDict comparable key value -> List ( key, value )
+toList config (AnyDict dict) =
+    List.map (Tuple.mapFirst config.fromComparable) (Dict.toList dict)
+
+
+insert : { r | toComparable : key -> comparable } -> key -> value -> AnyDict comparable key value -> AnyDict comparable key value
+insert config key value (AnyDict dict) =
+    AnyDict (Dict.insert (config.toComparable key) value dict)
 
 
 keys : { r | fromComparable : comparable -> key } -> AnyDict comparable key value -> List key

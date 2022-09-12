@@ -3,6 +3,8 @@ module Data.Name exposing
     , randomPerson
     )
 
+import Markov
+import Markov.String
 import Random exposing (Generator)
 
 
@@ -12,7 +14,13 @@ type alias PersonName =
 
 randomPerson : Generator PersonName
 randomPerson =
-    Random.uniform "Wolfgang" allPersonNames
+    -- Random.uniform "Wolfgang" allPersonNames
+    Random.map (\chars -> String.dropRight 1 (String.fromList chars))
+        (Markov.generateSequence
+            Markov.String.comparableConfig
+            { maxLength = 15 }
+            (Markov.String.trainList allPersonNames Markov.empty)
+        )
 
 
 allPersonNames : List PersonName
