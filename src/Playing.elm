@@ -45,6 +45,8 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
+import Markov
+import Markov.String
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -619,8 +621,8 @@ update sharedModel msg world =
 
 structureSystem : ( World, Seed ) -> ( World, Seed )
 structureSystem ( originalWorld, originalSeed ) =
-    Logic.System.indexedFoldl2
-        (\civId civPopulations civCharacteristics ( world, seed ) ->
+    Logic.System.indexedFoldl3
+        (\civId civPopulations civCharacteristics nameSource ( world, seed ) ->
             Random.step
                 (Random.andThen
                     (\createMonument ->
@@ -649,7 +651,7 @@ structureSystem ( originalWorld, originalSeed ) =
                                                 )
                                                 (Data.Structure.random personName)
                                         )
-                                        Data.Name.randomPerson
+                                        (Data.Name.random nameSource)
 
                         else
                             Random.constant world
@@ -660,6 +662,7 @@ structureSystem ( originalWorld, originalSeed ) =
         )
         originalWorld.civilizationPopulations
         originalWorld.civilizationStyle
+        originalWorld.civilizationPersonNameSource
         ( originalWorld, originalSeed )
 
 
@@ -1033,50 +1036,39 @@ possiblyGainKnowledge maybeCivKnowledge ({ index, updatedKnowledge, seed, world 
             { updates | index = index + 1, updatedKnowledge = Array.set index Nothing updatedKnowledge }
 
         Just civKnowledge ->
-            let
-                civName : CivilizationName
-                civName =
-                    case Array.get index world.named of
-                        Just (Just name) ->
-                            name
+            Maybe.withDefault { updates | index = index + 1 }
+                (Maybe.map3
+                    (\civStyle civName civNameSource ->
+                        let
+                            ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
+                                gainRandomKnowledge
+                                    civKnowledge
+                                    index
+                                    updatedKnowledge
+                                    maybeCivKnowledge
+                                    seed
+                                    world
+                                    civName
+                                    civStyle
+                                    civNameSource
+                        in
+                        { updates
+                            | index = index + 1
+                            , updatedKnowledge = updatedCivKnowledge
+                            , seed = newSeed
+                            , logs =
+                                case maybeLog of
+                                    Nothing ->
+                                        updates.logs
 
-                        _ ->
-                            { singular = "", many = Nothing, possessive = Nothing }
-
-                civStyle : Data.Civilization.Characteristics
-                civStyle =
-                    case Array.get index world.civilizationStyle of
-                        Just (Just style) ->
-                            style
-
-                        _ ->
-                            { cooperationVsCompetition = 0.5
-                            , timeSinceLastMonument = world.starDate
-                            }
-
-                ( ( updatedCivKnowledge, maybeLog ), newSeed ) =
-                    gainRandomKnowledge
-                        civKnowledge
-                        index
-                        updatedKnowledge
-                        maybeCivKnowledge
-                        seed
-                        world
-                        civName
-                        civStyle
-            in
-            { updates
-                | index = index + 1
-                , updatedKnowledge = updatedCivKnowledge
-                , seed = newSeed
-                , logs =
-                    case maybeLog of
-                        Nothing ->
-                            updates.logs
-
-                        Just log ->
-                            log :: updates.logs
-            }
+                                    Just log ->
+                                        log :: updates.logs
+                        }
+                    )
+                    (Maybe.andThen identity (Array.get index world.civilizationStyle))
+                    (Maybe.andThen identity (Array.get index world.named))
+                    (Maybe.andThen identity (Array.get index world.civilizationPersonNameSource))
+                )
 
 
 gainRandomKnowledge :
@@ -1088,8 +1080,9 @@ gainRandomKnowledge :
     -> World
     -> CivilizationName
     -> Data.Civilization.Characteristics
+    -> Markov.String.MarkovString
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
-gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civStyle =
+gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civStyle nameSource =
     Random.step
         (Random.andThen
             (\gainsKnowledge ->
@@ -1114,7 +1107,7 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                                         }
                                     )
                                 )
-                                Data.Name.randomPerson
+                                (Data.Name.random nameSource)
                                 (Random.uniform first rest)
 
                 else
@@ -1318,53 +1311,65 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> CivilizationName -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.Extra.map6
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp ->
-            let
-                ( civId, worldWithNewCiv ) =
-                    Logic.Entity.with
-                        ( Data.Civilization.styleSpec
-                        , { cooperationVsCompetition = coopVsComp
-                          , timeSinceLastMonument = worldWithFewerNames.starDate
-                          }
-                        )
-                        (Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
-                            (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                                (Logic.Entity.with
-                                    ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                                    (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                                        (Logic.Entity.with ( Game.Components.namedSpec, name )
-                                            (Logic.Entity.with
-                                                ( Game.Components.civilizationPopulationSpec
-                                                , Dict.singleton planetId (Population.millions initialPopulationSize)
+    Random.Extra.andMap Data.Name.randomSource
+        (Random.Extra.andMap (Random.float 0.0 1.0)
+            (Random.Extra.andMap (Random.float 0.7 1.3)
+                (Random.Extra.andMap (Percent.random 0.9 1.0)
+                    (Random.Extra.andMap (Rate.random 0.1 0.2)
+                        (Random.Extra.andMap (Rate.random 0.2 0.3)
+                            (Random.map
+                                (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource ->
+                                    let
+                                        ( civId, worldWithNewCiv ) =
+                                            Logic.Entity.with
+                                                ( Game.Components.civilizationPersonNameSourceSpec
+                                                , Markov.String.trainList nameSource Markov.empty
                                                 )
-                                                (Logic.Entity.Extra.create worldWithFewerNames)
-                                            )
-                                        )
-                                    )
+                                                (Logic.Entity.with
+                                                    ( Data.Civilization.styleSpec
+                                                    , { cooperationVsCompetition = coopVsComp
+                                                      , timeSinceLastMonument = worldWithFewerNames.starDate
+                                                      }
+                                                    )
+                                                    (Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
+                                                        (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                                                            (Logic.Entity.with
+                                                                ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                                                                (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                                                                    (Logic.Entity.with ( Game.Components.namedSpec, name )
+                                                                        (Logic.Entity.with
+                                                                            ( Game.Components.civilizationPopulationSpec
+                                                                            , Dict.singleton planetId (Population.millions initialPopulationSize)
+                                                                            )
+                                                                            (Logic.Entity.Extra.create worldWithFewerNames)
+                                                                        )
+                                                                    )
+                                                                )
+                                                            )
+                                                        )
+                                                    )
+                                                )
+
+                                        ( _, worldWithNewCivWithKnowledge ) =
+                                            Logic.Entity.with
+                                                ( Data.Knowledge.spec
+                                                , Set.Any.fromList Data.Knowledge.comparableConfig
+                                                    -- All civs know of themselves and their home planet
+                                                    [ KnowsOf planetId
+                                                    , KnowsOf civId
+                                                    ]
+                                                )
+                                                ( civId, worldWithNewCiv )
+                                    in
+                                    { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
                                 )
+                                (Random.float 0.3 0.8)
                             )
                         )
-
-                ( _, worldWithNewCivWithKnowledge ) =
-                    Logic.Entity.with
-                        ( Data.Knowledge.spec
-                        , Set.Any.fromList Data.Knowledge.comparableConfig
-                            -- All civs know of themselves and their home planet
-                            [ KnowsOf planetId
-                            , KnowsOf civId
-                            ]
-                        )
-                        ( civId, worldWithNewCiv )
-            in
-            { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
+                    )
+                )
+            )
         )
-        (Random.float 0.3 0.8)
-        (Rate.random 0.2 0.3)
-        (Rate.random 0.1 0.2)
-        (Percent.random 0.9 1.0)
-        (Random.float 0.7 1.3)
-        (Random.float 0.0 1.0)
 
 
 generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )

@@ -16,5 +16,9 @@ mkShell {
     elmPackages.elm-review
     nodejs-18_x
     git
+    python310
+    python310Packages.beautifulsoup4
+    python310Packages.black
+    python310Packages.requests
   ];
 }

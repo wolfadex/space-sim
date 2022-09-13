@@ -18,6 +18,7 @@ module Game.Components exposing
     , civilizationDensitySpec
     , civilizationHappinessSpec
     , civilizationMortalityRateSpec
+    , civilizationPersonNameSourceSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
@@ -43,6 +44,7 @@ import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
+import Markov.String
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -80,6 +82,7 @@ type alias World =
     , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
     , named : Logic.Component.Set CivilizationName
     , civilizationStructures : Logic.Component.Set Structure
+    , civilizationPersonNameSource : Logic.Component.Set Markov.String.MarkovString
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -140,6 +143,7 @@ emptyWorld =
     , galaxyPositions = Logic.Component.empty
     , civilizationStructures = Logic.Component.empty
     , solarSystems = Logic.Component.empty
+    , civilizationPersonNameSource = Logic.Component.empty
 
     --
     , planets = Set.empty
@@ -217,6 +221,11 @@ type TickRate
     | Fast
     | ExtraFast
     | HalfSpeed
+
+
+civilizationPersonNameSourceSpec : Spec Markov.String.MarkovString { world | civilizationPersonNameSource : Logic.Component.Set Markov.String.MarkovString }
+civilizationPersonNameSourceSpec =
+    Logic.Component.Spec .civilizationPersonNameSource (\comps world -> { world | civilizationPersonNameSource = comps })
 
 
 civilizationReproductionRateSpec : Spec (Rate Reproduction) { world | civilizationReproductionRates : Logic.Component.Set (Rate Reproduction) }
