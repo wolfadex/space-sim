@@ -45,21 +45,42 @@ from bs4 import BeautifulSoup
 
 
 # Afghan names
-url = "https://en.m.wikipedia.org/wiki/Afghan_name"
+# url = "https://en.m.wikipedia.org/wiki/Afghan_name"
+
+# names = set()
+
+# res = requests.get(url)
+# soup = BeautifulSoup(res.text,"lxml")
+# nameTables = soup.find_all(class_="wikitable")[:2]
+
+# for table in nameTables:
+#     for row in table.find_all("tr"):
+#         columns = row.find_all("td")
+#         if columns and columns[1] is not None:
+#             names.add(columns[1].get_text(strip=True))
+
+# with open("data/names/afghan.txt", 'w') as f:
+#     sortedNames = list(names)
+#     namesJoined = ('\n, '.join(map(lambda n: '"' + n + '"', sortedNames)))
+#     f.write('[ ' + namesJoined + '\n]')
+
+
+# Algonquian names
+url = "https://en.wikipedia.org/wiki/List_of_Algonquian_personal_names"
 
 names = set()
 
 res = requests.get(url)
-soup = BeautifulSoup(res.text,"lxml")
-nameTables = soup.find_all(class_="wikitable")[:2]
+soup = BeautifulSoup(res.text, "lxml")
+nameGroups = soup.find_all(name="ul")[1:19]
 
-for table in nameTables:
-    for row in table.find_all("tr"):
-        columns = row.find_all("td")
-        if columns and columns[1] is not None:
-            names.add(columns[1].get_text(strip=True))
+for nameGroup in nameGroups:
+    for nameEl in nameGroup.find_all(name="li"):
+        linkEl = nameEl.find("a")
+        if linkEl is not None:
+            names.add(linkEl.get_text(strip=True))
 
-with open("data/names/afghan.txt", 'w') as f:
+with open("data/names/algonquian.txt", "w") as f:
     sortedNames = list(names)
-    namesJoined = ('\n, '.join(map(lambda n: '"' + n + '"', sortedNames)))
-    f.write('[ ' + namesJoined + '\n]')
+    namesJoined = "\n, ".join(map(lambda n: '"' + n + '"', sortedNames))
+    f.write("[ " + namesJoined + "\n]")
