@@ -1,18 +1,29 @@
 module Data.Name exposing
     ( Name
+    , NameSource
     , allNames
     , enhancedEventDescription
     , fromString
     , plurualize
     , possessive
+    , randomNameSource
     , randomPerson
-    , randomPersonSource
     , toString
     )
 
 import Markov
 import Markov.String
 import Random exposing (Generator)
+
+
+type NameSource
+    = NameSource InternalNameSource
+
+
+type alias InternalNameSource =
+    { persons : Markov.String.MarkovString
+    , places : Markov.String.MarkovString
+    }
 
 
 type Name
@@ -29,24 +40,32 @@ fromString =
     Name
 
 
-randomPerson : Markov.String.MarkovString -> Generator Name
-randomPerson nameSource =
+randomPerson : NameSource -> Generator Name
+randomPerson (NameSource nameSource) =
     Random.map (\chars -> Name (String.dropRight 1 (String.fromList chars)))
         (Markov.generateSequence
             Markov.String.comparableConfig
             { maxLength = 15 }
-            nameSource
+            nameSource.persons
         )
 
 
-randomPersonSource : Generator Markov.String.MarkovString
-randomPersonSource =
+randomNameSource : Generator NameSource
+randomNameSource =
     Random.map
-        (\nameSource -> Markov.String.trainList nameSource Markov.empty)
-        (Random.uniform afghanNames
-            [ algonquianNames
-            , klingonNames
-            , koreanNames
+        (\nameSource ->
+            NameSource
+                { persons = Markov.String.trainList nameSource.persons Markov.empty
+                , places = Markov.String.trainList nameSource.places Markov.empty
+                }
+        )
+        (Random.uniform
+            { persons = afghanNames
+            , places = afghanPlaces
+            }
+            [ { persons = algonquianNames, places = algonquianPlaces }
+            , { persons = klingonNames, places = klingonPlaces }
+            , { persons = koreanNames, places = koreanPlaces }
             ]
         )
 
@@ -122,6 +141,7 @@ allNames =
 
 
 ---- INTERNAL ----
+-- person names
 
 
 {-| From <https://en.wikipedia.org/wiki/List_of_Korean_given_names> column 1 in tables 6-10.
@@ -535,4 +555,226 @@ algonquianNames =
     , "Neaatooshing"
     , "Nahnebahwequa"
     , "Tuhbenahneequay"
+    ]
+
+
+
+-- place names
+
+
+{-| <https://en.wikipedia.org/wiki/Provinces_of_Korea>
+-}
+koreanPlaces : List String
+koreanPlaces =
+    [ "Bukgye"
+    , "Ch'ungch'ŏng"
+    , "Chagang"
+    , "Cheju"
+    , "Cheongju"
+    , "Chŏlla"
+    , "Chungju"
+    , "Donggye"
+    , "Gangju"
+    , "Gangnam"
+    , "Gongju"
+    , "Gwangju"
+    , "Gwannae"
+    , "Gyeonggi"
+    , "Gyeongsang"
+    , "Gyoju"
+    , "Haeju"
+    , "Haeyang"
+    , "Hamgyŏng"
+    , "Hanam"
+    , "Hanju"
+    , "Hwanghae"
+    , "Hwangju"
+    , "Inch'ŏn"
+    , "Jeolla"
+    , "Jeonju"
+    , "Jinju"
+    , "Jungwon"
+    , "Kaesŏng"
+    , "Kangwŏn"
+    , "Kwangju"
+    , "Kyŏnggi"
+    , "Kyŏngsang"
+    , "Muju"
+    , "Myeongju"
+    , "Naju"
+    , "Namp'o"
+    , "P'yŏngan"
+    , "P'yŏngyang"
+    , "Paeseo"
+    , "Pusan"
+    , "Rasŏn"
+    , "Ryanggang"
+    , "Sakbang"
+    , "Sakju"
+    , "Sangju"
+    , "Sannam"
+    , "Sechong"
+    , "Seohae"
+    , "Seungju"
+    , "Sŏul"
+    , "Taegu"
+    , "Taejŏn"
+    , "Ulsan"
+    , "Ungju"
+    , "Yanggwang"
+    , "Yangju"
+    , "Yeongdong"
+    , "Yeongnam"
+    ]
+
+
+{-| <https://en.wikipedia.org/wiki/Provinces_of_Afghanistan>
+-}
+afghanPlaces : List String
+afghanPlaces =
+    [ "Wardak"
+    , "Uruzgan"
+    , "Badghis"
+    , "Badakhshan"
+    , "Kabul"
+    , "Sar-e Pol"
+    , "Paktia"
+    , "Panjshir"
+    , "Herat"
+    , "Nuristan"
+    , "Zabul"
+    , "Faryab"
+    , "Kunduz"
+    , "Kunar"
+    , "Farah"
+    , "Jowzjan"
+    , "Khost"
+    , "Parwan"
+    , "Kapisa"
+    , "Samangan"
+    , "Daykundi"
+    , "Nangarhar"
+    , "Baghlan"
+    , "Takhar"
+    , "Balkh"
+    , "Paktika"
+    , "Logar"
+    , "Nimruz"
+    , "Bamyan"
+    , "Helmand"
+    , "Laghman"
+    , "Ghor"
+    , "Ghazni"
+    , "Kandahar"
+    ]
+
+
+{-| <https://en.wikipedia.org/wiki/Algonquian_peoples>
+
+Used "List of historic Algonquian-speaking peoples" instead as I was struggling to find many place names
+
+-}
+algonquianPlaces : List String
+algonquianPlaces =
+    [ "Algonquin"
+    , "Abenaki"
+    , "Missiquoi"
+    , "Pennacook"
+    , "Arapaho"
+    , "Beothuk"
+    , "Blackfoot"
+    , "Cheyenne"
+    , "Chowanoke"
+    , "Cree"
+    , "Gros Ventre"
+    , "Illinois"
+    , "Kickapoo"
+    , "Lenape"
+    , "Munsee"
+    , "Wappinger"
+    , "Unami"
+    , "Meskwaki"
+    , "Menominee"
+    , "Mahican"
+    , "Maliseet"
+    , "Mascouten"
+    , "Massachusett"
+    , "Mattabesic"
+    , "Mattabessett"
+    , "Podunk"
+    , "Tunxis"
+    , "Paugussett"
+    , "Quinnipiac"
+    , "Unquachog"
+    , "Miami"
+    , "Mi'kmaq"
+    , "Montaukett"
+    , "Mohegan"
+    , "Nanticoke"
+    , "Piscataway"
+    , "Nacotchtank"
+    , "Narragansett"
+    , "Nipissing"
+    , "Nipmuc"
+    , "Odawa"
+    , "Ojibwe"
+    , "Mississauga"
+    , "Passamaquoddy"
+    , "Penobscot"
+    , "Pequot"
+    , "Potawatomi"
+    , "Powhatan"
+    , "Sauk"
+    , "Shawnee"
+    , "Chalahgawtha"
+    , "Hathawekela"
+    , "Kispoko"
+    , "Mekoche"
+    , "Pekowi"
+    , "Secotan"
+    , "Roanoke people"
+    , "Croatan"
+    , "Wampanoag"
+    , "Weapemeoc"
+    , "Plains Cree"
+    ]
+
+
+{-| <https://memory-alpha.fandom.com/wiki/Klingon_planets>
+-}
+klingonPlaces : List String
+klingonPlaces =
+    [ "Archanis IV"
+    , "Boreth"
+    , "H'atoria"
+    , "Khitomer"
+    , "Krios Prime"
+    , "Maranga IV"
+    , "Morska"
+    , "Narendra III"
+    , "N'Vak"
+    , "Ogat"
+    , "Organia"
+    , "Praxis"
+    , "Qo'noS"
+    , "Qu'Vat"
+    , "Raatooras"
+    , "Rura Penthe"
+    , "Ty'Gokor"
+    , "Donatu V"
+    , "Elas"
+    , "Forcas III"
+    , "Galorda Prime"
+    , "Ganalda IV"
+    , "Hitora"
+    , "Korvat"
+    , "Neural"
+    , "Torna IV"
+    , "Troyius"
+    , "Xarantine"
+    , "Lankal"
+    , "Thoridar"
+    , "Eridon"
+    , "Mempa"
+    , "Pheben"
     ]

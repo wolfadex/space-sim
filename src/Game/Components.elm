@@ -36,7 +36,7 @@ import Browser.Dom exposing (Viewport)
 import Data.Civilization
 import Data.EarthYear exposing (EarthYear)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
-import Data.Name exposing (Name)
+import Data.Name exposing (Name, NameSource)
 import Data.Orbit exposing (Orbit)
 import Data.Structure exposing (Structure)
 import Dict exposing (Dict)
@@ -45,7 +45,6 @@ import Length exposing (Meters)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
-import Markov.String
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -83,7 +82,7 @@ type alias World =
     , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
     , named : Logic.Component.Set Name
     , civilizationStructures : Logic.Component.Set Structure
-    , civilizationPersonNameSource : Logic.Component.Set Markov.String.MarkovString
+    , civilizationPersonNameSource : Logic.Component.Set NameSource
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -224,7 +223,7 @@ type TickRate
     | HalfSpeed
 
 
-civilizationPersonNameSourceSpec : Spec Markov.String.MarkovString { world | civilizationPersonNameSource : Logic.Component.Set Markov.String.MarkovString }
+civilizationPersonNameSourceSpec : Spec NameSource { world | civilizationPersonNameSource : Logic.Component.Set NameSource }
 civilizationPersonNameSourceSpec =
     Logic.Component.Spec .civilizationPersonNameSource (\comps world -> { world | civilizationPersonNameSource = comps })
 

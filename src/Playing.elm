@@ -10,7 +10,7 @@ import Browser.Events
 import Data.Civilization
 import Data.EarthYear
 import Data.Knowledge exposing (Knowledge(..))
-import Data.Name exposing (Name)
+import Data.Name exposing (Name, NameSource)
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Data.Structure
@@ -45,7 +45,6 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
-import Markov.String
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -1076,7 +1075,7 @@ gainRandomKnowledge :
     -> World
     -> Name
     -> Data.Civilization.Characteristics
-    -> Markov.String.MarkovString
+    -> NameSource
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
 gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed world civName civStyle nameSource =
     Random.step
@@ -1307,7 +1306,7 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.Extra.andMap Data.Name.randomPersonSource
+    Random.Extra.andMap Data.Name.randomNameSource
         (Random.Extra.andMap (Random.float 0.0 1.0)
             (Random.Extra.andMap (Random.float 0.7 1.3)
                 (Random.Extra.andMap (Percent.random 0.9 1.0)
