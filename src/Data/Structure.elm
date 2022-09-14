@@ -7,7 +7,7 @@ module Data.Structure exposing
     )
 
 import Data.EarthYear exposing (EarthYear)
-import Data.Name exposing (PersonName)
+import Data.Name exposing (Name)
 import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Random exposing (Generator)
@@ -34,22 +34,22 @@ type Type
     | TimeCapsule
 
 
-random : PersonName -> Generator ( Type, String )
+random : Name -> Generator ( Type, String )
 random name =
     Random.andThen
         (\( type_, nameGen ) ->
             Random.map (Tuple.pair type_)
                 nameGen
         )
-        (Random.uniform ( Monument, Random.constant ("Tower of " ++ name) )
-            [ ( City, Random.constant ("City of " ++ name) )
+        (Random.uniform ( Monument, Random.constant ("Tower of " ++ Data.Name.toString name) )
+            [ ( City, Random.constant ("City of " ++ Data.Name.toString name) )
             , ( Excavation
-              , Random.uniform (name ++ " Canal")
-                    [ name ++ " Island"
-                    , "Plateau of " ++ name
+              , Random.uniform (Data.Name.toString name ++ " Canal")
+                    [ Data.Name.toString name ++ " Island"
+                    , "Plateau of " ++ Data.Name.toString name
                     ]
               )
-            , ( TimeCapsule, Random.constant ("A time capsule belonging to " ++ name) )
+            , ( TimeCapsule, Random.constant ("A time capsule belonging to " ++ Data.Name.toString name) )
             ]
         )
 

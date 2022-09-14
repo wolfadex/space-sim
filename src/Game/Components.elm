@@ -33,9 +33,10 @@ module Game.Components exposing
     )
 
 import Browser.Dom exposing (Viewport)
-import Data.Civilization exposing (CivilizationName)
+import Data.Civilization
 import Data.EarthYear exposing (EarthYear)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
+import Data.Name exposing (Name)
 import Data.Orbit exposing (Orbit)
 import Data.Structure exposing (Structure)
 import Dict exposing (Dict)
@@ -80,7 +81,7 @@ type alias World =
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
     , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
-    , named : Logic.Component.Set CivilizationName
+    , named : Logic.Component.Set Name
     , civilizationStructures : Logic.Component.Set Structure
     , civilizationPersonNameSource : Logic.Component.Set Markov.String.MarkovString
 
@@ -100,7 +101,7 @@ type alias World =
     , stars : Set EntityID
     , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
-    , availableCivilizationNames : List CivilizationName
+    , availableCivilizationNames : List Name
     , starDate : EarthYear
     , eventLog : List Log
     , knowledgeTree : KnowledgeTree
@@ -150,7 +151,7 @@ emptyWorld =
     , stars = Set.empty
     , playerCiv = Nothing
     , civilizations = Set.empty
-    , availableCivilizationNames = Data.Civilization.allNames
+    , availableCivilizationNames = Data.Name.allNames
     , starDate = Data.EarthYear.earthYears 0
     , eventLog = []
     , knowledgeTree = Data.Knowledge.baseKnowledgeTree
@@ -255,7 +256,7 @@ type Mortality
     = Mortality Never
 
 
-namedSpec : Spec CivilizationName { world | named : Logic.Component.Set CivilizationName }
+namedSpec : Spec Name { world | named : Logic.Component.Set Name }
 namedSpec =
     Logic.Component.Spec .named (\comps world -> { world | named = comps })
 

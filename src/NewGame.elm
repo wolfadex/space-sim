@@ -11,8 +11,8 @@ module NewGame exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
-import Data.Civilization exposing (CivilizationName)
 import Data.EarthYear
+import Data.Name exposing (Name)
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
@@ -177,10 +177,6 @@ type alias Model =
 
     -- participate only
     , civilizationNameSingular : String
-    , civilizationNamePlural : String
-    , hasUniquePluralName : Bool
-    , civilizationNamePossessive : String
-    , hasUniquePossessiveName : Bool
     , homePlanetName : String
     }
 
@@ -214,10 +210,6 @@ baseModel =
 
     -- game stuff
     , civilizationNameSingular = ""
-    , civilizationNamePlural = ""
-    , hasUniquePluralName = True
-    , civilizationNamePossessive = ""
-    , hasUniquePossessiveName = True
     , homePlanetName = ""
     , errors = []
     , minSolarSystemsToGenerate = 40
@@ -254,10 +246,6 @@ type Msg
     | ViewMain
       -- form stuff
     | SetNameSingular String
-    | SetNamePlural String
-    | ToggleNamePlural Bool
-    | SetNamePossessive String
-    | ToggleNamePossessive Bool
     | StartSimulation
     | SetHomePlanetName String
     | GotMinSolarSystemCount Int
@@ -304,26 +292,6 @@ update _ msg model =
         -- form stuff
         SetNameSingular singular ->
             ( { model | civilizationNameSingular = singular }
-            , SubCmd.none
-            )
-
-        SetNamePlural plural ->
-            ( { model | civilizationNamePlural = plural }
-            , SubCmd.none
-            )
-
-        ToggleNamePlural enabled ->
-            ( { model | hasUniquePluralName = enabled }
-            , SubCmd.none
-            )
-
-        SetNamePossessive possessive ->
-            ( { model | civilizationNamePossessive = possessive }
-            , SubCmd.none
-            )
-
-        ToggleNamePossessive enabled ->
-            ( { model | hasUniquePossessiveName = enabled }
             , SubCmd.none
             )
 
@@ -401,7 +369,7 @@ update _ msg model =
                     , SubCmd.effect
                         (Shared.CreateGame
                             Observation
-                            { name = { singular = "", many = Nothing, possessive = Nothing }
+                            { name = Data.Name.fromString ""
                             , homePlanetName = ""
                             , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
                             , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
@@ -434,7 +402,7 @@ update _ msg model =
                             ( { model | errors = errs }, SubCmd.none )
 
 
-createGameValidator : Validator Model String ( CivilizationName, String )
+createGameValidator : Validator Model String ( Name, String )
 createGameValidator =
     Validator.map2 Tuple.pair
         civNameValidator
@@ -446,56 +414,13 @@ homeNameValidator =
     Validator.required .homePlanetName String.isEmpty "Home planet name is required" (Validator.custom Ok) (Validator.succeed identity)
 
 
-civNameValidator : Validator Model String CivilizationName
+civNameValidator : Validator Model String Name
 civNameValidator =
-    Validator.required identity
-        (\_ -> False)
-        ""
-        (Validator.custom possessiveNameValidator)
-        (Validator.required identity
-            (\_ -> False)
-            ""
-            (Validator.custom pluralNameValidator)
-            (Validator.required .civilizationNameSingular
-                String.isEmpty
-                "Singular name is required"
-                (Validator.custom Ok)
-                (Validator.succeed
-                    (\singular many possessive ->
-                        { singular = singular
-                        , many = many
-                        , possessive = possessive
-                        }
-                    )
-                )
-            )
-        )
-
-
-pluralNameValidator : Model -> Result (List String) (Maybe String)
-pluralNameValidator model =
-    if model.hasUniquePluralName then
-        if String.isEmpty model.civilizationNamePlural then
-            Err [ "Plural name is required when enabled" ]
-
-        else
-            Ok (Just model.civilizationNamePlural)
-
-    else
-        Ok Nothing
-
-
-possessiveNameValidator : Model -> Result (List String) (Maybe String)
-possessiveNameValidator model =
-    if model.hasUniquePossessiveName then
-        if String.isEmpty model.civilizationNamePossessive then
-            Err [ "Possessive name is required when enabled" ]
-
-        else
-            Ok (Just model.civilizationNamePossessive)
-
-    else
-        Ok Nothing
+    Validator.required .civilizationNameSingular
+        String.isEmpty
+        "Name is required"
+        (Validator.custom Ok)
+        (Validator.succeed Data.Name.fromString)
 
 
 
@@ -685,40 +610,6 @@ viewPlayerCivForm model =
                     }
                 , Ui.Text.default
                     []
-                    { onChange = SetNamePlural
-                    , text = model.civilizationNamePlural
-                    , label = Input.labelLeft [ width fill ] (text "Name Plural:")
-                    }
-                , Ui.Button.default
-                    { label =
-                        text
-                            (if model.hasUniquePluralName then
-                                "Use '" ++ model.civilizationNameSingular ++ "' as the plural name"
-
-                             else
-                                "Use '" ++ model.civilizationNamePlural ++ "' as the plural name"
-                            )
-                    , onPress = Just (ToggleNamePlural (not model.hasUniquePluralName))
-                    }
-                , Ui.Text.default
-                    []
-                    { onChange = SetNamePossessive
-                    , text = model.civilizationNamePossessive
-                    , label = Input.labelLeft [ width fill ] (text "Name Possessive:")
-                    }
-                , Ui.Button.default
-                    { label =
-                        text
-                            (if model.hasUniquePossessiveName then
-                                "Use '" ++ model.civilizationNameSingular ++ "' as the possessive name"
-
-                             else
-                                "Use '" ++ model.civilizationNamePossessive ++ "' as the possessive name"
-                            )
-                    , onPress = Just (ToggleNamePossessive (not model.hasUniquePossessiveName))
-                    }
-                , Ui.Text.default
-                    []
                     { onChange = SetHomePlanetName
                     , text = model.homePlanetName
                     , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
@@ -768,12 +659,7 @@ viewExample model =
                     , el [ Font.underline ]
                         (displayGameValue "plural-name-example"
                             (showBlank
-                                (if model.hasUniquePluralName then
-                                    model.civilizationNamePlural
-
-                                 else
-                                    model.civilizationNameSingular
-                                )
+                                (Data.Name.toString (Data.Name.plurualize (Data.Name.fromString model.civilizationNameSingular)))
                             )
                         )
                     , text " and the Federation, the "
@@ -782,12 +668,7 @@ viewExample model =
                     , el [ Font.underline ]
                         (displayGameValue "possessive-name-example"
                             (showBlank
-                                (if model.hasUniquePossessiveName then
-                                    model.civilizationNamePossessive
-
-                                 else
-                                    model.civilizationNameSingular
-                                )
+                                (Data.Name.toString (Data.Name.possessive (Data.Name.fromString model.civilizationNameSingular)))
                             )
                         )
                     , text " home planet, "

@@ -1,7 +1,13 @@
 module Data.Name exposing
-    ( PersonName
-    , random
-    , randomSource
+    ( Name
+    , allNames
+    , enhancedEventDescription
+    , fromString
+    , plurualize
+    , possessive
+    , randomPerson
+    , randomPersonSource
+    , toString
     )
 
 import Markov
@@ -9,13 +15,23 @@ import Markov.String
 import Random exposing (Generator)
 
 
-type alias PersonName =
-    String
+type Name
+    = Name String
 
 
-random : Markov.String.MarkovString -> Generator PersonName
-random nameSource =
-    Random.map (\chars -> String.dropRight 1 (String.fromList chars))
+toString : Name -> String
+toString (Name n) =
+    n
+
+
+fromString : String -> Name
+fromString =
+    Name
+
+
+randomPerson : Markov.String.MarkovString -> Generator Name
+randomPerson nameSource =
+    Random.map (\chars -> Name (String.dropRight 1 (String.fromList chars)))
         (Markov.generateSequence
             Markov.String.comparableConfig
             { maxLength = 15 }
@@ -23,13 +39,85 @@ random nameSource =
         )
 
 
-randomSource : Generator (List PersonName)
-randomSource =
-    Random.uniform afghanNames
-        [ algonquianNames
-        , klingonNames
-        , koreanNames
-        ]
+randomPersonSource : Generator Markov.String.MarkovString
+randomPersonSource =
+    Random.map
+        (\nameSource -> Markov.String.trainList nameSource Markov.empty)
+        (Random.uniform afghanNames
+            [ algonquianNames
+            , klingonNames
+            , koreanNames
+            ]
+        )
+
+
+possessive : Name -> Name
+possessive (Name n) =
+    Name
+        (if String.endsWith "s" n then
+            n ++ "'"
+
+         else
+            n ++ "'s"
+        )
+
+
+plurualize : Name -> Name
+plurualize (Name n) =
+    Name
+        (if String.endsWith "s" n then
+            n ++ "es"
+
+         else
+            n ++ "s"
+        )
+
+
+enhancedEventDescription : Name -> (Name -> String)
+enhancedEventDescription (Name civName) =
+    case civName of
+        "Morlock" ->
+            \(Name personName) ->
+                "High Archbrain " ++ personName ++ " of the Morlocks"
+
+        "Gorn" ->
+            \_ ->
+                "Gorn of the Gorn"
+
+        "Borg" ->
+            \_ ->
+                "The Collective"
+
+        "Empire" ->
+            \(Name personName) -> personName ++ " of the Empire"
+
+        "Federation" ->
+            \(Name personName) -> "Science officer " ++ personName ++ " of the Federation"
+
+        "Klingon" ->
+            \(Name personName) -> personName ++ " of the Klingon Empire"
+
+        "Talonite" ->
+            \(Name personName) -> "Lead " ++ personName ++ " of the United Talonite"
+
+        "Sha' Tao" ->
+            \(Name personName) -> "Most Respected " ++ personName ++ " of the Ancient Sha' Tao"
+
+        _ ->
+            toString
+
+
+allNames : List Name
+allNames =
+    [ Name "Morlock"
+    , Name "Klingon"
+    , Name "Federation"
+    , Name "Borg"
+    , Name "Empire"
+    , Name "Gorn"
+    , Name "Talonite"
+    , Name "Sha' Tao"
+    ]
 
 
 
@@ -38,7 +126,7 @@ randomSource =
 
 {-| From <https://en.wikipedia.org/wiki/List_of_Korean_given_names> column 1 in tables 6-10.
 -}
-koreanNames : List PersonName
+koreanNames : List String
 koreanNames =
     [ "Dal-rae"
     , "Ji"
@@ -208,7 +296,7 @@ koreanNames =
 
 {-| <http://klingon.wiki/En/Names> column 2 in table 2
 -}
-klingonNames : List PersonName
+klingonNames : List String
 klingonNames =
     [ "barot"
     , "DennaS"
@@ -270,7 +358,7 @@ klingonNames =
 
 {-| <https://en.m.wikipedia.org/wiki/Afghan_name> column 1 in tables 1-2
 -}
-afghanNames : List PersonName
+afghanNames : List String
 afghanNames =
     [ "Wawrina"
     , "Khatol"
@@ -344,7 +432,7 @@ afghanNames =
 
 {-| <https://en.wikipedia.org/wiki/List_of_Algonquian_personal_names> all `li` within `ul`s 1-18
 -}
-algonquianNames : List PersonName
+algonquianNames : List String
 algonquianNames =
     [ "Powhatan"
     , "Senachwine"

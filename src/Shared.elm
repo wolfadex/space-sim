@@ -14,7 +14,7 @@ module Shared exposing
     , viewSettings
     )
 
-import Data.Civilization exposing (CivilizationName)
+import Data.Name exposing (Name)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -67,7 +67,7 @@ type Effect
 
 
 type alias GenerationConfig =
-    { name : CivilizationName
+    { name : Name
     , homePlanetName : String
     , minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int

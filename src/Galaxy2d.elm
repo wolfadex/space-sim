@@ -1,5 +1,6 @@
 module Galaxy2d exposing (viewGalaxy, viewSolarSystem)
 
+import Data.Name
 import Data.Orbit
 import Dict
 import Element exposing (..)
@@ -86,7 +87,7 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                     let
                                         civName : String
                                         civName =
-                                            Maybe.withDefault ("CIV_" ++ String.fromInt civId) (Maybe.map .singular (Logic.Component.get civId world.named))
+                                            Maybe.withDefault ("CIV_" ++ String.fromInt civId) (Maybe.map Data.Name.toString (Logic.Component.get civId world.named))
                                     in
                                     Just
                                         (if Just civId == focusedCivilization then
@@ -203,7 +204,7 @@ viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } wor
                                     civName : String
                                     civName =
                                         Maybe.withDefault ("CIV_" ++ String.fromInt civId)
-                                            (Maybe.map .singular (Logic.Component.get civId world.named))
+                                            (Maybe.map Data.Name.toString (Logic.Component.get civId world.named))
                                 in
                                 Just
                                     (if Just civId == focusedCivilization then

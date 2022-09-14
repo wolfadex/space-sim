@@ -7,10 +7,10 @@ module Playing exposing
 
 import Array exposing (Array)
 import Browser.Events
-import Data.Civilization exposing (CivilizationName)
+import Data.Civilization
 import Data.EarthYear
 import Data.Knowledge exposing (Knowledge(..))
-import Data.Name
+import Data.Name exposing (Name)
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Data.Structure
@@ -45,7 +45,6 @@ import Logic.Component exposing (Spec)
 import Logic.Entity exposing (EntityID)
 import Logic.Entity.Extra
 import Logic.System exposing (System)
-import Markov
 import Markov.String
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
@@ -92,7 +91,7 @@ init sharedModel playType generationConfig =
                         Participation ->
                             { emptyWorld
                                 | availableCivilizationNames =
-                                    List.filter (\name -> String.toLower name.singular /= String.toLower generationConfig.name.singular)
+                                    List.filter (\name -> String.toLower (Data.Name.toString name) /= String.toLower (Data.Name.toString generationConfig.name))
                                         emptyWorld.availableCivilizationNames
                             }
 
@@ -651,7 +650,7 @@ structureSystem ( originalWorld, originalSeed ) =
                                                 )
                                                 (Data.Structure.random personName)
                                         )
-                                        (Data.Name.random nameSource)
+                                        (Data.Name.randomPerson nameSource)
 
                         else
                             Random.constant world
@@ -887,10 +886,7 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
                             (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
                                 (Logic.Entity.with
                                     ( Game.Components.namedSpec
-                                    , { singular = "Renegade " ++ civDetails.name.singular
-                                      , possessive = Maybe.map ((++) "Renegade ") civDetails.name.possessive
-                                      , many = Maybe.map ((++) "Renegade ") civDetails.name.many
-                                      }
+                                    , Data.Name.fromString ("Renegade " ++ Data.Name.toString civDetails.name)
                                     )
                                     (Logic.Entity.with
                                         ( Game.Components.civilizationPopulationSpec
@@ -1078,7 +1074,7 @@ gainRandomKnowledge :
     -> Maybe (AnySet String Knowledge)
     -> Seed
     -> World
-    -> CivilizationName
+    -> Name
     -> Data.Civilization.Characteristics
     -> Markov.String.MarkovString
     -> ( ( Array (Maybe (AnySet String Knowledge)), Maybe Log ), Seed )
@@ -1102,12 +1098,12 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                                     ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
                                     , Just
                                         { time = world.starDate
-                                        , description = Data.Civilization.enhancedEventDescription civName personName ++ " gained new knowledge."
+                                        , description = Data.Name.enhancedEventDescription civName personName ++ " gained new knowledge."
                                         , civilizationId = index
                                         }
                                     )
                                 )
-                                (Data.Name.random nameSource)
+                                (Data.Name.randomPerson nameSource)
                                 (Random.uniform first rest)
 
                 else
@@ -1309,9 +1305,9 @@ attemptToGenerateCivilization planetType planetId world =
         Random.constant world
 
 
-generateCivilization : World -> EntityID -> CivilizationName -> Generator World
+generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.Extra.andMap Data.Name.randomSource
+    Random.Extra.andMap Data.Name.randomPersonSource
         (Random.Extra.andMap (Random.float 0.0 1.0)
             (Random.Extra.andMap (Random.float 0.7 1.3)
                 (Random.Extra.andMap (Percent.random 0.9 1.0)
@@ -1323,7 +1319,7 @@ generateCivilization worldWithFewerNames planetId name =
                                         ( civId, worldWithNewCiv ) =
                                             Logic.Entity.with
                                                 ( Game.Components.civilizationPersonNameSourceSpec
-                                                , Markov.String.trainList nameSource Markov.empty
+                                                , nameSource
                                                 )
                                                 (Logic.Entity.with
                                                     ( Data.Civilization.styleSpec
@@ -1372,7 +1368,7 @@ generateCivilization worldWithFewerNames planetId name =
         )
 
 
-generateCivilizationName : World -> Generator ( Maybe CivilizationName, World )
+generateCivilizationName : World -> Generator ( Maybe Name, World )
 generateCivilizationName world =
     Random.map
         (\( chosenName, remainingNames ) ->
@@ -1848,7 +1844,7 @@ viewPlanetDetailed world planetId =
 
         Just planetType ->
             let
-                civsOnPlanet : List ( EntityID, CivilizationName )
+                civsOnPlanet : List ( EntityID, Name )
                 civsOnPlanet =
                     List.filterMap
                         (\civId ->
@@ -1895,7 +1891,7 @@ viewPlanetDetailed world planetId =
                             (List.map
                                 (\( civId, name ) ->
                                     Ui.Button.default
-                                        { label = text name.singular
+                                        { label = text (Data.Name.toString name)
                                         , onPress = Just (SetCivilizationFocus (FOne civId))
                                         }
                                 )
@@ -1942,7 +1938,7 @@ viewCivilizationSimple world civId =
                 ]
                 [ Ui.Button.inspect
                     (Just (SetCivilizationFocus (FOne civId)))
-                , text name.singular
+                , text (Data.Name.toString name)
                 ]
 
 
@@ -1974,7 +1970,7 @@ viewCivilizationDetailed world civId =
                     { label = text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
-                , text ("The " ++ Maybe.withDefault details.name.singular details.name.possessive ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
+                , text ("The " ++ Data.Name.toString (Data.Name.plurualize details.name) ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
                 , text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
                 , case Logic.Component.get civId world.civilizationStyle of
                     Nothing ->
@@ -2097,7 +2093,7 @@ type alias CivilizationDetails =
     , mortalityRate : Rate Mortality
     , knowledge : AnySet String Knowledge
     , logs : List Log
-    , name : CivilizationName
+    , name : Name
     , happiness : Dict EntityID (Percent Happiness)
     }
 
