@@ -23,7 +23,7 @@ type alias Structure =
     , creationDate : EarthYear
     , type_ : Type
     , planet : EntityID
-    , name : String
+    , name : Name
     }
 
 
@@ -34,26 +34,26 @@ type Type
     | TimeCapsule
 
 
-random : Name -> Generator ( Type, String )
+random : Name -> Generator ( Type, Name )
 random name =
     Random.andThen
         (\( type_, nameGen ) ->
             Random.map (Tuple.pair type_)
                 nameGen
         )
-        (Random.uniform ( Monument, Random.constant ("Tower of " ++ Data.Name.toString name) )
-            [ ( City, Random.constant ("City of " ++ Data.Name.toString name) )
+        (Random.uniform ( Monument, Random.constant (Data.Name.fromString ("Tower of " ++ Data.Name.toString name)) )
+            [ ( City, Random.constant (Data.Name.fromString ("City of " ++ Data.Name.toString name)) )
             , ( Excavation
-              , Random.uniform (Data.Name.toString name ++ " Canal")
-                    [ Data.Name.toString name ++ " Island"
-                    , "Plateau of " ++ Data.Name.toString name
+              , Random.uniform (Data.Name.fromString (Data.Name.toString name ++ " Canal"))
+                    [ Data.Name.fromString (Data.Name.toString name ++ " Island")
+                    , Data.Name.fromString ("Plateau of " ++ Data.Name.toString name)
                     ]
               )
-            , ( TimeCapsule, Random.constant ("A time capsule belonging to " ++ Data.Name.toString name) )
+            , ( TimeCapsule, Random.constant (Data.Name.fromString ("A time capsule belonging to " ++ Data.Name.toString name)) )
             ]
         )
 
 
 toString : Structure -> String
 toString structure =
-    structure.name
+    Data.Name.toString structure.name

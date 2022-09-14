@@ -8,6 +8,7 @@ module Data.Name exposing
     , possessive
     , randomNameSource
     , randomPerson
+    , randomPlace
     , toString
     )
 
@@ -47,6 +48,16 @@ randomPerson (NameSource nameSource) =
             Markov.String.comparableConfig
             { maxLength = 15 }
             nameSource.persons
+        )
+
+
+randomPlace : NameSource -> Generator Name
+randomPlace (NameSource nameSource) =
+    Random.map (\chars -> Name (String.dropRight 1 (String.fromList chars)))
+        (Markov.generateSequence
+            Markov.String.comparableConfig
+            { maxLength = 15 }
+            nameSource.places
         )
 
 

@@ -649,7 +649,7 @@ structureSystem ( originalWorld, originalSeed ) =
                                                 )
                                                 (Data.Structure.random personName)
                                         )
-                                        (Data.Name.randomPerson nameSource)
+                                        (Data.Name.randomPlace nameSource)
 
                         else
                             Random.constant world
