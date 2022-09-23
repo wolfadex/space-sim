@@ -1280,7 +1280,7 @@ attemptToGenerateCivilization planetType planetId world =
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
     Random.map
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource senses ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -1297,6 +1297,7 @@ generateCivilization worldWithFewerNames planetId name =
                             ( Data.Civilization.styleSpec
                             , { cooperationVsCompetition = coopVsComp
                               , timeSinceLastMonument = worldWithFewerNames.starDate
+                              , senses = senses
                               }
                             )
                         |> Logic.Entity.with ( Game.Components.civilizationPersonNameSourceSpec, nameSource )
@@ -1321,6 +1322,13 @@ generateCivilization worldWithFewerNames planetId name =
         |> Random.Extra.andMap (Random.float 0.7 1.3)
         |> Random.Extra.andMap (Random.float 0.0 1.0)
         |> Random.Extra.andMap Data.Name.randomNameSource
+        |> Random.Extra.andMap
+            -- Choose a random selection of 2-5 senses
+            (Random.int 2 5
+                |> Random.andThen
+                    (\senseCount -> Random.List.choices senseCount Data.Civilization.allSenses)
+                |> Random.map (\( senses, _ ) -> Set.Any.fromList Data.Civilization.senseComparableConfig senses)
+            )
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )
