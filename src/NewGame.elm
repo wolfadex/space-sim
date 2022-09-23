@@ -59,6 +59,8 @@ import View exposing (View)
 
 
 
+-- import WebAudio
+-- import WebAudio.Property
 ---- INIT ----
 
 
@@ -66,78 +68,72 @@ init : ( Model, SubCmd Msg Effect )
 init =
     let
         ( _, m0 ) =
-            Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 }) (Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million ) (Logic.Entity.create 0 baseModel))
+            Logic.Entity.create 0 baseModel
+                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, Dict.singleton 1 Population.million )
+                |> Tuple.mapSecond (\m -> { m | civilizations = Set.singleton 0 })
 
         starTemp : Temperature
         starTemp =
             Temperature.kelvins 3700
 
         ( _, m1 ) =
-            Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 }) (Logic.Entity.with ( Game.Components.parentSpec, 5 ) (Logic.Entity.with ( Data.Star.temperatureSpec, starTemp ) (Logic.Entity.create 1 m0)))
+            Logic.Entity.create 1 m0
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemp )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
+                |> Tuple.mapSecond (\m -> { m | stars = Set.singleton 1 })
 
         ( _, m2 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 )
-                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.75 )
-                        (Logic.Entity.with
-                            ( Game.Components.orbitSpec
-                            , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 12
-                                , period = Data.EarthYear.earthYears 250
-                                }
-                            )
-                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
-                                (Logic.Entity.create 2 m1)
-                            )
-                        )
+            Logic.Entity.create 2 m1
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                |> Logic.Entity.with
+                    ( Game.Components.orbitSpec
+                    , Data.Orbit.create
+                        { distance = Length.astronomicalUnits 12
+                        , period = Data.EarthYear.earthYears 250
+                        }
                     )
-                )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.75 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
 
         ( _, m3 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 )
-                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.15 )
-                        (Logic.Entity.with
-                            ( Game.Components.orbitSpec
-                            , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 6
-                                , period = Data.EarthYear.earthYears 75
-                                }
-                            )
-                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
-                                (Logic.Entity.create 3 m2)
-                            )
-                        )
+            Logic.Entity.create 3 m2
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Gas )
+                |> Logic.Entity.with
+                    ( Game.Components.orbitSpec
+                    , Data.Orbit.create
+                        { distance = Length.astronomicalUnits 6
+                        , period = Data.EarthYear.earthYears 75
+                        }
                     )
-                )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.15 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
 
         ( _, m4 ) =
-            Logic.Entity.with ( Game.Components.parentSpec, 5 )
-                (Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
-                    (Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.8 )
-                        (Logic.Entity.with
-                            ( Game.Components.orbitSpec
-                            , Data.Orbit.create
-                                { distance = Length.astronomicalUnits 3
-                                , period = Data.EarthYear.earthYears 50.0
-                                }
-                            )
-                            (Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
-                                (Logic.Entity.create 4 m3)
-                            )
-                        )
+            Logic.Entity.create 4 m3
+                |> Logic.Entity.with ( Game.Components.planetTypeSpec, Rocky )
+                |> Logic.Entity.with
+                    ( Game.Components.orbitSpec
+                    , Data.Orbit.create
+                        { distance = Length.astronomicalUnits 3
+                        , period = Data.EarthYear.earthYears 50.0
+                        }
                     )
-                )
+                |> Logic.Entity.with ( Game.Components.waterSpec, Percent.fromFloat 0.8 )
+                |> Logic.Entity.with ( Game.Components.planetSizeSpec, 40000 )
+                |> Logic.Entity.with ( Game.Components.parentSpec, 5 )
 
         ( _, m5 ) =
-            Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
-                (Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
-                    (Logic.Entity.create 5 m4)
-                )
+            Logic.Entity.create 5 m4
+                |> Logic.Entity.with ( Game.Components.positionSpec, Point3d.origin )
+                |> Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
 
         zoomDist : Float
         zoomDist =
-            Length.inMeters (Quantity.multiplyBy (toFloat 8) Length.astronomicalUnit)
+            Length.astronomicalUnit
+                |> Quantity.multiplyBy (toFloat 8)
+                |> Length.inMeters
     in
     ( { m5
         | planets = Set.fromList [ 2, 3, 4 ]
@@ -147,8 +143,30 @@ init =
     )
 
 
+
+-- testSound : { a | frequency : Float } -> List WebAudio.Node
+-- testSound model =
+--     [ WebAudio.oscillator
+--         [ WebAudio.Property.frequency 3
+--         , WebAudio.Property.type_ "sawtooth"
+--         ]
+--         [ WebAudio.gain
+--             [ WebAudio.Property.gain 40
+--             ]
+--             [ WebAudio.oscillator
+--                 [ WebAudio.Property.frequency model.frequency -- 300
+--                 ]
+--                 [ WebAudio.audioDestination
+--                 ]
+--             ]
+--         ]
+--     ]
+
+
 type alias Model =
     { page : InnerPage
+    , frequency : Float
+    , frequencyDirection : Float
     , settingsVisible : Visible
     , elapsedTime : Float
     , galaxyViewSize : { width : Float, height : Float }
@@ -190,6 +208,8 @@ type InnerPage
 baseModel : Model
 baseModel =
     { page = MainMenu
+    , frequency = 500
+    , frequencyDirection = 1
     , settingsVisible = Hidden
     , elapsedTime = 1234345
     , galaxyViewSize = { width = 800, height = 600 }
@@ -259,13 +279,37 @@ update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
 update _ msg model =
     case msg of
         ViewParticipate ->
-            ( { model | page = Participate }, SubCmd.none )
+            ( { model | page = Participate }
+              -- , SubCmd.effect (PlayAudio (testSound model))
+            , SubCmd.none
+            )
 
         ViewObserve ->
-            ( { model | page = Observe }, SubCmd.none )
+            ( { model | page = Observe }
+              -- , SubCmd.effect (PlayAudio (testSound model))
+            , SubCmd.none
+            )
 
         Tick deltaMs ->
-            ( { model | elapsedTime = model.elapsedTime + deltaMs }
+            let
+                newModel : Model
+                newModel =
+                    { model
+                        | elapsedTime = model.elapsedTime + deltaMs
+                        , frequency = model.frequency + deltaMs * model.frequencyDirection
+                        , frequencyDirection =
+                            if model.frequency >= 200 then
+                                -1
+
+                            else if model.frequency <= 10 then
+                                1
+
+                            else
+                                model.frequencyDirection
+                    }
+            in
+            ( newModel
+              -- , SubCmd.effect (PlayAudio (testSound newModel))
             , SubCmd.none
             )
 
@@ -287,7 +331,7 @@ update _ msg model =
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
 
         ViewMain ->
-            ( { model | page = MainMenu }, SubCmd.none )
+            ( { model | page = MainMenu }, SubCmd.effect (PlayAudio []) )
 
         -- form stuff
         SetNameSingular singular ->
