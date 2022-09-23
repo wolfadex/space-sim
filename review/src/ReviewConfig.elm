@@ -82,5 +82,6 @@ config =
         , ReviewPipelineStyles.forbid ReviewPipelineStyles.leftCompositionPipelines
             |> ReviewPipelineStyles.andCallThem "Non-performant left-composition"
         ]
+        |> Review.Rule.ignoreErrorsForDirectories [ "tests" ]
     , Simplify.rule Simplify.defaults
     ]
