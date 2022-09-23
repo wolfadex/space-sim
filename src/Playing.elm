@@ -101,8 +101,8 @@ init sharedModel playType generationConfig =
 
         viableStartingPlanets : List ( EntityID, Orbit )
         viableStartingPlanets =
-            List.sortWith planetOrbitPreference
-                (List.filterMap
+            Set.toList generatedWorld.planets
+                |> List.filterMap
                     (\planetId ->
                         Maybe.andThen
                             (\( type_, orbit ) ->
@@ -115,8 +115,7 @@ init sharedModel playType generationConfig =
                             )
                             (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
                     )
-                    (Set.toList generatedWorld.planets)
-                )
+                |> List.sortWith planetOrbitPreference
 
         ( inhabitedPlanets, finalSeed ) =
             Tuple.mapFirst
@@ -129,25 +128,18 @@ init sharedModel playType generationConfig =
                 (Random.step (Random.List.shuffle viableStartingPlanets) seed)
 
         ( playerCivId, worldWithPlayerCiv ) =
-            Logic.Entity.with
-                ( Game.Components.civilizationHappinessSpec
-                , Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets
-                )
-                (Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
-                    (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
-                        (Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
-                            (Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                                (Logic.Entity.Extra.create generatedWorld)
-                            )
-                        )
-                    )
-                )
+            Logic.Entity.Extra.create generatedWorld
+                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                |> Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
+                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets )
 
         ( playerCiv, worldWithPlayerCivWithKnowledge ) =
             case playType of
                 Participation ->
-                    Tuple.mapFirst Just
-                        (Logic.Entity.with
+                    ( playerCivId, worldWithPlayerCiv )
+                        |> Logic.Entity.with
                             ( Data.Knowledge.spec
                             , Set.Any.fromList Data.Knowledge.comparableConfig
                                 (KnowsOf playerCivId
@@ -168,8 +160,7 @@ init sharedModel playType generationConfig =
                                         (Dict.keys inhabitedPlanets)
                                 )
                             )
-                            ( playerCivId, worldWithPlayerCiv )
-                        )
+                        |> Tuple.mapFirst Just
 
                 Observation ->
                     ( Nothing, generatedWorld )
@@ -244,25 +235,20 @@ init sharedModel playType generationConfig =
                 Just civId ->
                     Set.insert civId worldWithPlayerCiv.civilizations
         , zoom =
-            Maybe.withDefault (25000 + (100 * 9460730000000000))
-                (Maybe.map (\m -> m / 2)
-                    (List.head
-                        (List.reverse
-                            (List.sort
-                                (List.filterMap
-                                    (\solarSystemId ->
-                                        Maybe.map
-                                            (\galacticPosition ->
-                                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
-                                            )
-                                            (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
-                                    )
-                                    (Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems))
-                                )
+            Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems)
+                |> List.filterMap
+                    (\solarSystemId ->
+                        Maybe.map
+                            (\galacticPosition ->
+                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
                             )
-                        )
+                            (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
                     )
-                )
+                |> List.sort
+                |> List.reverse
+                |> List.head
+                |> Maybe.map (\m -> m / 2)
+                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
         , buildingKnowledgeState = buildingKnowledgeState
         , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCiv.planets )
       }
@@ -276,12 +262,12 @@ init sharedModel playType generationConfig =
 getSolarSiblings : World -> EntityID -> Set EntityID
 getSolarSiblings world child =
     case
-        Maybe.andThen
-            (\solarSystemId ->
-                Maybe.map (Set.remove child)
-                    (Logic.Component.get solarSystemId world.children)
-            )
-            (Logic.Component.get child world.parents)
+        Logic.Component.get child world.parents
+            |> Maybe.andThen
+                (\solarSystemId ->
+                    Maybe.map (Set.remove child)
+                        (Logic.Component.get solarSystemId world.children)
+                )
     of
         Nothing ->
             Set.empty
@@ -297,11 +283,17 @@ planetOrbitPreference ( _, orbitA ) ( _, orbitB ) =
     let
         distA : Float
         distA =
-            Length.inAstronomicalUnits (Quantity.abs (Quantity.difference Length.astronomicalUnit (Data.Orbit.distance orbitA)))
+            Data.Orbit.distance orbitA
+                |> Quantity.minus Length.astronomicalUnit
+                |> Quantity.abs
+                |> Length.inAstronomicalUnits
 
         distB : Float
         distB =
-            Length.inAstronomicalUnits (Quantity.abs (Quantity.difference Length.astronomicalUnit (Data.Orbit.distance orbitB)))
+            Data.Orbit.distance orbitB
+                |> Quantity.minus Length.astronomicalUnit
+                |> Quantity.abs
+                |> Length.inAstronomicalUnits
     in
     if distA > distB then
         GT
@@ -430,102 +422,83 @@ update sharedModel msg world =
                 zoomDist =
                     case focus of
                         FGalaxy ->
-                            Maybe.withDefault (25000 + (100 * 9460730000000000))
-                                (Maybe.map (\m -> m / 2)
-                                    (List.head
-                                        (List.reverse
-                                            (List.sort
-                                                (List.filterMap
-                                                    (\solarSystemId ->
-                                                        Maybe.map
-                                                            (\galacticPosition ->
-                                                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
-                                                            )
-                                                            (Logic.Component.get solarSystemId world.galaxyPositions)
-                                                    )
-                                                    (Dict.keys (Logic.Component.toDict world.solarSystems))
-                                                )
+                            Dict.keys (Logic.Component.toDict world.solarSystems)
+                                |> List.filterMap
+                                    (\solarSystemId ->
+                                        Maybe.map
+                                            (\galacticPosition ->
+                                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
                                             )
-                                        )
+                                            (Logic.Component.get solarSystemId world.galaxyPositions)
                                     )
-                                )
+                                |> List.sort
+                                |> List.reverse
+                                |> List.head
+                                |> Maybe.map (\m -> m / 2)
+                                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
 
                         FSolarSystem solarSystemId ->
                             -- a good number
-                            Maybe.withDefault 1196782965600
-                                (Maybe.map
-                                    (\children ->
-                                        let
-                                            largestStarRadius : Float
-                                            largestStarRadius =
-                                                Maybe.withDefault 0
-                                                    (List.head
-                                                        (List.reverse
-                                                            (List.sort
-                                                                (List.filterMap
-                                                                    (\starId ->
-                                                                        Maybe.map
-                                                                            (\starTemp ->
-                                                                                Length.inMeters
-                                                                                    (Point3d.distanceFrom Point3d.origin
-                                                                                        (Point3d.fromMeters
-                                                                                            { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
-                                                                                            , y = 0
-                                                                                            , z = 0
-                                                                                            }
-                                                                                        )
-                                                                                    )
-                                                                            )
-                                                                            (Logic.Component.get starId world.starTemperature)
-                                                                    )
-                                                                    (Set.toList (Set.intersect children world.stars))
-                                                                )
-                                                            )
-                                                        )
-                                                    )
+                            Maybe.map
+                                (\children ->
+                                    let
+                                        findLargest : List number -> number
+                                        findLargest items =
+                                            List.sort items
+                                                |> List.reverse
+                                                |> List.head
+                                                |> Maybe.withDefault 0
 
-                                            largestPlanetOrbit : Float
-                                            largestPlanetOrbit =
-                                                Maybe.withDefault 0
-                                                    (List.head
-                                                        (List.reverse
-                                                            (List.sort
-                                                                (List.filterMap
-                                                                    (\planetId ->
-                                                                        Maybe.map
-                                                                            (\orbit ->
-                                                                                Length.inMeters (Data.Orbit.distance orbit)
-                                                                            )
-                                                                            (Logic.Component.get planetId world.orbits)
-                                                                    )
-                                                                    (Set.toList (Set.intersect children world.planets))
-                                                                )
+                                        largestStarRadius : Float
+                                        largestStarRadius =
+                                            Set.toList (Set.intersect children world.stars)
+                                                |> List.filterMap
+                                                    (\starId ->
+                                                        Maybe.map
+                                                            (\starTemp ->
+                                                                Point3d.fromMeters
+                                                                    { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                                                    , y = 0
+                                                                    , z = 0
+                                                                    }
+                                                                    |> Point3d.distanceFrom Point3d.origin
+                                                                    |> Length.inMeters
                                                             )
-                                                        )
+                                                            (Logic.Component.get starId world.starTemperature)
                                                     )
-                                        in
-                                        max largestStarRadius largestPlanetOrbit
-                                    )
-                                    (Logic.Component.get solarSystemId world.children)
+                                                |> findLargest
+
+                                        largestPlanetOrbit : Float
+                                        largestPlanetOrbit =
+                                            Set.toList (Set.intersect children world.planets)
+                                                |> List.filterMap
+                                                    (\planetId ->
+                                                        Maybe.map
+                                                            (\orbit -> Length.inMeters (Data.Orbit.distance orbit))
+                                                            (Logic.Component.get planetId world.orbits)
+                                                    )
+                                                |> findLargest
+                                    in
+                                    max largestStarRadius largestPlanetOrbit
                                 )
+                                (Logic.Component.get solarSystemId world.children)
+                                |> Maybe.withDefault 1196782965600
 
                         FStar starId ->
-                            -- a good number
-                            Maybe.withDefault 1196782965600
-                                (Maybe.map
+                            Logic.Component.get starId world.starTemperature
+                                |> Maybe.map
                                     (\starTemp ->
-                                        Length.inMeters
-                                            (Point3d.distanceFrom Point3d.origin
-                                                (Point3d.fromMeters
-                                                    { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
-                                                    , y = 0
-                                                    , z = 0
-                                                    }
-                                                )
-                                            )
+                                        (Point3d.fromMeters
+                                            { x = Length.inMeters (Data.Star.temperatureToRadius starTemp)
+                                            , y = 0
+                                            , z = 0
+                                            }
+                                            |> Point3d.distanceFrom Point3d.origin
+                                        )
+                                            |> Length.inMeters
                                     )
-                                    (Logic.Component.get starId world.starTemperature)
-                                )
+                                -- a good number
+                                |> Maybe.withDefault 1196782965600
 
                         FPlanet _ ->
                             1
@@ -598,18 +571,14 @@ update sharedModel msg world =
                     }
             in
             if doTick then
-                Tuple.mapSecond (\seed -> SubCmd.effect (UpdateSeed seed))
-                    (structureSystem
-                        (civilUnrestSystem
-                            (expansionSystem
-                                (discoverySystem Data.Knowledge.spec
-                                    ((\w -> ( w, sharedModel.seed ))
-                                        (birthAndDeathSystem updatedWorld)
-                                    )
-                                )
-                            )
-                        )
-                    )
+                updatedWorld
+                    |> birthAndDeathSystem
+                    |> (\w -> ( w, sharedModel.seed ))
+                    |> discoverySystem Data.Knowledge.spec
+                    |> expansionSystem
+                    |> civilUnrestSystem
+                    |> structureSystem
+                    |> Tuple.mapSecond (\seed -> SubCmd.effect (UpdateSeed seed))
 
             else
                 ( updatedWorld
@@ -634,8 +603,8 @@ structureSystem ( originalWorld, originalSeed ) =
                                         (\personName ->
                                             Random.map
                                                 (\( structureType, name ) ->
-                                                    Tuple.second
-                                                        (Logic.Entity.with
+                                                    (Logic.Entity.Extra.create world
+                                                        |> Logic.Entity.with
                                                             ( Data.Structure.civilizationStructuresSpec
                                                             , { creators = civId
                                                               , creationDate = world.starDate
@@ -644,8 +613,8 @@ structureSystem ( originalWorld, originalSeed ) =
                                                               , name = name
                                                               }
                                                             )
-                                                            (Logic.Entity.Extra.create world)
-                                                        )
+                                                    )
+                                                        |> Tuple.second
                                                 )
                                                 (Data.Structure.random personName)
                                         )
@@ -711,13 +680,12 @@ expansionSystem ( world, initialSeed ) =
                             (\solarSystemId ->
                                 Maybe.map
                                     (\childIds ->
-                                        Set.toList
-                                            (Set.filter
+                                        childIds
+                                            |> Set.filter
                                                 (\childId ->
                                                     (childId /= planetId) && Set.member childId world.planets
                                                 )
-                                                childIds
-                                            )
+                                            |> Set.toList
                                     )
                                     (Logic.Component.get solarSystemId world.children)
                             )
@@ -880,25 +848,21 @@ generateRevoltingCivilization world oldCivId planetId civDetails =
         (\initialHappiness knowledge oldCivNewKnowledge ->
             let
                 ( civId, worldWithNewCiv ) =
-                    Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                        (Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, civDetails.mortalityRate )
-                            (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
-                                (Logic.Entity.with
-                                    ( Game.Components.namedSpec
-                                    , Data.Name.fromString ("Renegade " ++ Data.Name.toString civDetails.name)
-                                    )
-                                    (Logic.Entity.with
-                                        ( Game.Components.civilizationPopulationSpec
-                                        , Dict.singleton planetId
-                                            (Maybe.withDefault (Population.millions 3)
-                                                (Dict.get planetId civDetails.occupiedPlanets)
-                                            )
-                                        )
-                                        (Logic.Entity.Extra.create world)
-                                    )
-                                )
+                    Logic.Entity.Extra.create world
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationPopulationSpec
+                            , civDetails.occupiedPlanets
+                                |> Dict.get planetId
+                                |> Maybe.withDefault (Population.millions 3)
+                                |> Dict.singleton planetId
                             )
-                        )
+                        |> Logic.Entity.with
+                            ( Game.Components.namedSpec
+                            , Data.Name.fromString ("Renegade " ++ Data.Name.toString civDetails.name)
+                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, civDetails.reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, civDetails.mortalityRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
 
                 ( _, worldWithNewCivWithKnowledge ) =
                     Logic.Entity.with
@@ -972,7 +936,11 @@ dropRandom anySetConfig percent set =
 
         toDrop : Int
         toDrop =
-            floor (Percent.toFloat (Quantity.divideBy (toFloat (List.length setList)) (Quantity.multiplyBy 100.0 percent)))
+            percent
+                |> Quantity.multiplyBy 100.0
+                |> Quantity.divideBy (toFloat (List.length setList))
+                |> Percent.toFloat
+                |> floor
     in
     Random.map (\a -> Set.Any.fromList anySetConfig (List.drop toDrop a))
         (Random.List.shuffle setList)
@@ -1085,7 +1053,11 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                     let
                         canBeLearned : List Knowledge
                         canBeLearned =
-                            Set.Any.toList Data.Knowledge.comparableConfig (Data.Knowledge.canBeLearned world.knowledgeTree civKnowledge)
+                            Set.Any.toList Data.Knowledge.comparableConfig
+                                (Data.Knowledge.canBeLearned
+                                    world.knowledgeTree
+                                    civKnowledge
+                                )
                     in
                     case canBeLearned of
                         [] ->
@@ -1094,7 +1066,14 @@ gainRandomKnowledge civKnowledge index allCivsKnowledge maybeCivKnowledge seed w
                         first :: rest ->
                             Random.map2
                                 (\personName knowledgeGained ->
-                                    ( Array.set index (Just (Set.Any.insert Data.Knowledge.comparableConfig knowledgeGained civKnowledge)) allCivsKnowledge
+                                    ( Array.set index
+                                        (Just
+                                            (Set.Any.insert Data.Knowledge.comparableConfig
+                                                knowledgeGained
+                                                civKnowledge
+                                            )
+                                        )
+                                        allCivsKnowledge
                                     , Just
                                         { time = world.starDate
                                         , description = Data.Name.enhancedEventDescription civName personName ++ " gained new knowledge."
@@ -1171,14 +1150,10 @@ generateSolarSystem config ( solarSystemId, world ) =
         (\( starIds, starWorld ) ->
             Random.map2
                 (\( planetIds, finalWorld ) galacticPosition ->
-                    Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
-                        (Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
-                            (Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
-                                ( solarSystemId
-                                , finalWorld
-                                )
-                            )
-                        )
+                    ( solarSystemId, finalWorld )
+                        |> Logic.Entity.with ( Game.Components.childrenSpec, Set.union planetIds starIds )
+                        |> Logic.Entity.with ( Game.Components.positionSpec, galacticPosition )
+                        |> Logic.Entity.with ( Game.Components.solarSystemSpec, SolarSystem )
                 )
                 (generateManyEntities
                     config.minPlanetsPerSolarSystemToGenerate
@@ -1231,7 +1206,10 @@ generateStar : EntityID -> ( EntityID, World ) -> Generator ( EntityID, World )
 generateStar solarSystemId ( starId, world ) =
     Random.map
         (\starTemperature ->
-            Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars }) (Logic.Entity.with ( Game.Components.parentSpec, solarSystemId ) (Logic.Entity.with ( Data.Star.temperatureSpec, starTemperature ) ( starId, world )))
+            ( starId, world )
+                |> Logic.Entity.with ( Data.Star.temperatureSpec, starTemperature )
+                |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
+                |> Tuple.mapSecond (\w -> { w | stars = Set.insert starId w.stars })
         )
         Data.Star.random
 
@@ -1242,24 +1220,19 @@ generatePlanet solarSystemId ( planetId, world ) =
         (\( planetType, waterPercent ) ->
             Random.map4
                 (\orbitDistance orbitPeriod size updatedWorld ->
-                    Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
-                        (Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
-                            (Logic.Entity.with ( Game.Components.planetSizeSpec, size )
-                                (Logic.Entity.with ( Game.Components.waterSpec, waterPercent )
-                                    (Logic.Entity.with
-                                        ( Game.Components.orbitSpec
-                                        , Data.Orbit.create
-                                            { distance = Length.astronomicalUnits orbitDistance
-                                            , period = Data.EarthYear.earthYears orbitPeriod
-                                            }
-                                        )
-                                        (Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
-                                            ( planetId, updatedWorld )
-                                        )
-                                    )
-                                )
+                    ( planetId, updatedWorld )
+                        |> Logic.Entity.with ( Game.Components.planetTypeSpec, planetType )
+                        |> Logic.Entity.with
+                            ( Game.Components.orbitSpec
+                            , Data.Orbit.create
+                                { distance = Length.astronomicalUnits orbitDistance
+                                , period = Data.EarthYear.earthYears orbitPeriod
+                                }
                             )
-                        )
+                        |> Logic.Entity.with ( Game.Components.waterSpec, waterPercent )
+                        |> Logic.Entity.with ( Game.Components.planetSizeSpec, size )
+                        |> Logic.Entity.with ( Game.Components.parentSpec, solarSystemId )
+                        |> Tuple.mapSecond (\w -> { w | planets = Set.insert planetId w.planets })
                 )
                 (case planetType of
                     Rocky ->
@@ -1306,65 +1279,48 @@ attemptToGenerateCivilization planetType planetId world =
 
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
-    Random.Extra.andMap Data.Name.randomNameSource
-        (Random.Extra.andMap (Random.float 0.0 1.0)
-            (Random.Extra.andMap (Random.float 0.7 1.3)
-                (Random.Extra.andMap (Percent.random 0.9 1.0)
-                    (Random.Extra.andMap (Rate.random 0.1 0.2)
-                        (Random.Extra.andMap (Rate.random 0.2 0.3)
-                            (Random.map
-                                (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource ->
-                                    let
-                                        ( civId, worldWithNewCiv ) =
-                                            Logic.Entity.with
-                                                ( Game.Components.civilizationPersonNameSourceSpec
-                                                , nameSource
-                                                )
-                                                (Logic.Entity.with
-                                                    ( Data.Civilization.styleSpec
-                                                    , { cooperationVsCompetition = coopVsComp
-                                                      , timeSinceLastMonument = worldWithFewerNames.starDate
-                                                      }
-                                                    )
-                                                    (Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
-                                                        (Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
-                                                            (Logic.Entity.with
-                                                                ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
-                                                                (Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
-                                                                    (Logic.Entity.with ( Game.Components.namedSpec, name )
-                                                                        (Logic.Entity.with
-                                                                            ( Game.Components.civilizationPopulationSpec
-                                                                            , Dict.singleton planetId (Population.millions initialPopulationSize)
-                                                                            )
-                                                                            (Logic.Entity.Extra.create worldWithFewerNames)
-                                                                        )
-                                                                    )
-                                                                )
-                                                            )
-                                                        )
-                                                    )
-                                                )
-
-                                        ( _, worldWithNewCivWithKnowledge ) =
-                                            Logic.Entity.with
-                                                ( Data.Knowledge.spec
-                                                , Set.Any.fromList Data.Knowledge.comparableConfig
-                                                    -- All civs know of themselves and their home planet
-                                                    [ KnowsOf planetId
-                                                    , KnowsOf civId
-                                                    ]
-                                                )
-                                                ( civId, worldWithNewCiv )
-                                    in
-                                    { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
-                                )
-                                (Random.float 0.3 0.8)
+    Random.map
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource ->
+            let
+                ( civId, worldWithNewCiv ) =
+                    Logic.Entity.Extra.create worldWithFewerNames
+                        |> Logic.Entity.with
+                            ( Game.Components.civilizationPopulationSpec
+                            , Dict.singleton planetId (Population.millions initialPopulationSize)
                             )
-                        )
-                    )
-                )
-            )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, name )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, reproductionRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
+                        |> Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
+                        |> Logic.Entity.with
+                            ( Data.Civilization.styleSpec
+                            , { cooperationVsCompetition = coopVsComp
+                              , timeSinceLastMonument = worldWithFewerNames.starDate
+                              }
+                            )
+                        |> Logic.Entity.with ( Game.Components.civilizationPersonNameSourceSpec, nameSource )
+
+                ( _, worldWithNewCivWithKnowledge ) =
+                    ( civId, worldWithNewCiv )
+                        |> Logic.Entity.with
+                            ( Data.Knowledge.spec
+                            , Set.Any.fromList Data.Knowledge.comparableConfig
+                                -- All civs know of themselves and their home planet
+                                [ KnowsOf planetId
+                                , KnowsOf civId
+                                ]
+                            )
+            in
+            { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
         )
+        (Random.float 0.3 0.8)
+        |> Random.Extra.andMap (Rate.random 0.2 0.3)
+        |> Random.Extra.andMap (Rate.random 0.1 0.2)
+        |> Random.Extra.andMap (Percent.random 0.9 1.0)
+        |> Random.Extra.andMap (Random.float 0.7 1.3)
+        |> Random.Extra.andMap (Random.float 0.0 1.0)
+        |> Random.Extra.andMap Data.Name.randomNameSource
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )
@@ -1441,8 +1397,9 @@ filterWorldByKnowledge world =
                     let
                         knowsOfIds : Set EntityID
                         knowsOfIds =
-                            Set.fromList
-                                (List.filterMap
+                            playerCivKnowledge
+                                |> Set.Any.toList Data.Knowledge.comparableConfig
+                                |> List.filterMap
                                     (\knowledge ->
                                         case knowledge of
                                             KnowsOf id ->
@@ -1451,8 +1408,7 @@ filterWorldByKnowledge world =
                                             _ ->
                                                 Nothing
                                     )
-                                    (Set.Any.toList Data.Knowledge.comparableConfig playerCivKnowledge)
-                                )
+                                |> Set.fromList
 
                         knownPlanets : Set EntityID
                         knownPlanets =
@@ -1684,12 +1640,12 @@ viewControls world =
         , Ui.Button.default
             (case world.viewStyle of
                 ThreeD ->
-                    { label = text "View 2D Glaxy"
+                    { label = text "View 2D Galaxy"
                     , onPress = Just (GotViewStyle TwoD)
                     }
 
                 TwoD ->
-                    { label = text "View 3D Glaxy"
+                    { label = text "View 3D Galaxy"
                     , onPress = Just (GotViewStyle ThreeD)
                     }
             )
@@ -1963,7 +1919,9 @@ viewCivilizationDetailed world civId =
                 let
                     totalPopulationSize : Population
                     totalPopulationSize =
-                        List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount) (Population.millions 0) (Dict.toList details.occupiedPlanets)
+                        List.foldl (\( _, planetPupulationCount ) -> Population.plus planetPupulationCount)
+                            (Population.millions 0)
+                            (Dict.toList details.occupiedPlanets)
                 in
                 [ Ui.Button.default
                     { label = text "Back"
@@ -2031,7 +1989,14 @@ viewCivilizationDetailed world civId =
 
 averageCivilizationHappiness : Dict EntityID (Percent Happiness) -> Percent Happiness
 averageCivilizationHappiness happiness =
-    Quantity.divideBy (toFloat (Dict.size happiness)) (List.foldl (\( _, happinessPerPlanet ) -> Quantity.plus happinessPerPlanet) Percent.zero (Dict.toList happiness))
+    Quantity.divideBy (toFloat (Dict.size happiness))
+        (List.foldl
+            (\( _, happinessPerPlanet ) ->
+                Quantity.plus happinessPerPlanet
+            )
+            Percent.zero
+            (Dict.toList happiness)
+        )
 
 
 populationToString : Population -> String
