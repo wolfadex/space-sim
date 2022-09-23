@@ -53,11 +53,7 @@ import Scene3d.Light
 import Scene3d.Material as Material
 import Scene3d.Mesh
 import Set exposing (Set)
-import Shared
-    exposing
-        ( Enabled(..)
-        , Settings
-        )
+import Shared exposing (Enabled(..), Settings)
 import Sphere3d
 import SubCmd exposing (SubCmd)
 import Svg
@@ -152,7 +148,8 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
         -- projecting 3D points into 2D
         screenRectangle : Rectangle2d.Rectangle2d Pixels.Pixels coordinates
         screenRectangle =
-            Rectangle2d.from Point2d.origin (Point2d.pixels world.galaxyViewSize.width world.galaxyViewSize.height)
+            Point2d.pixels world.galaxyViewSize.width world.galaxyViewSize.height
+                |> Rectangle2d.from Point2d.origin
 
         angle : Angle.Angle
         angle =
@@ -181,8 +178,9 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
                         highlightSolarSystem =
                             List.any
                                 (\civId ->
-                                    Maybe.withDefault False
-                                        (Maybe.map
+                                    world.civilizationPopulations
+                                        |> Logic.Component.get civId
+                                        |> Maybe.map
                                             (\dictPlanetPopulatiopns ->
                                                 let
                                                     solarSystemsCivIsIn : List EntityID
@@ -195,8 +193,7 @@ viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCi
                                                 in
                                                 List.any ((==) solarSystemId) solarSystemsCivIsIn && Just civId == focusedCivilization
                                             )
-                                            (Logic.Component.get civId world.civilizationPopulations)
-                                        )
+                                        |> Maybe.withDefault False
                                 )
                                 (Set.toList world.civilizations)
                     in
@@ -396,18 +393,14 @@ viewSolarSystem options settings world =
                             vertex
                     , type_ = details.type_
                     , arc =
-                        List.map (LineSegment3d.Projection.toScreenSpace camera screenRectangle)
-                            (Polyline3d.segments
-                                (Arc3d.segments (max 20 (ceiling (Length.inAstronomicalUnits details.orbitDistance) * 3))
-                                    (Circle3d.toArc
-                                        (Circle3d.withRadius
-                                            details.orbitDistance
-                                            Direction3d.positiveZ
-                                            Point3d.origin
-                                        )
-                                    )
-                                )
-                            )
+                        Circle3d.withRadius
+                            details.orbitDistance
+                            Direction3d.positiveZ
+                            Point3d.origin
+                            |> Circle3d.toArc
+                            |> Arc3d.segments (max 20 (ceiling (Length.inAstronomicalUnits details.orbitDistance) * 3))
+                            |> Polyline3d.segments
+                            |> List.map (LineSegment3d.Projection.toScreenSpace camera screenRectangle)
                     }
                 )
                 planetDetails
@@ -421,13 +414,13 @@ viewSolarSystem options settings world =
                         highlightPlanet =
                             List.any
                                 (\civId ->
-                                    Maybe.withDefault False
-                                        (Maybe.map
+                                    world.civilizationPopulations
+                                        |> Logic.Component.get civId
+                                        |> Maybe.map
                                             (\dictPlanetPopulatiopns ->
                                                 Dict.member planet.id dictPlanetPopulatiopns && Just civId == options.focusedCivilization
                                             )
-                                            (Logic.Component.get civId world.civilizationPopulations)
-                                        )
+                                        |> Maybe.withDefault False
                                 )
                                 (Set.toList world.civilizations)
                     in
@@ -458,7 +451,14 @@ viewSolarSystem options settings world =
                             , Svg.Attributes.stroke "rgb(255, 255, 0)"
                             , Svg.Attributes.fill "rgba(0, 0, 255, 0)"
                             ]
-                            (Polyline2d.fromVertices (List.concatMap (\seg -> [ LineSegment2d.startPoint seg, LineSegment2d.endPoint seg ]) planet.arc))
+                            (Polyline2d.fromVertices
+                                (List.concatMap
+                                    (\seg ->
+                                        [ LineSegment2d.startPoint seg, LineSegment2d.endPoint seg ]
+                                    )
+                                    planet.arc
+                                )
+                            )
 
                         -- Planet highlight
                         , if highlightPlanet then
@@ -525,7 +525,9 @@ viewSolarSystem options settings world =
                 (\details ->
                     ( details.id
                     , details.temperature
-                    , Point3d.Projection.toScreenSpace camera screenRectangle (Point3d.rotateAround Axis3d.z angle (scalePointInAstroUnitsToOne details.position))
+                    , scalePointInAstroUnitsToOne details.position
+                        |> Point3d.rotateAround Axis3d.z angle
+                        |> Point3d.Projection.toScreenSpace camera screenRectangle
                     )
                 )
                 starDetails
@@ -588,7 +590,10 @@ viewSolarSystem options settings world =
         -- corner (which is what SVG natively works in)
         topLeftFrame : Frame2d.Frame2d Pixels.Pixels coordinates defines2
         topLeftFrame =
-            Frame2d.reverseY (Frame2d.atPoint (Point2d.xy Quantity.zero (Pixels.float world.galaxyViewSize.height)))
+            Pixels.float world.galaxyViewSize.height
+                |> Point2d.xy Quantity.zero
+                |> Frame2d.atPoint
+                |> Frame2d.reverseY
 
         -- Create an SVG element with the projected points, lines and
         -- associated labels
@@ -891,14 +896,16 @@ renderPlanet settings details =
         planetEntity =
             case settings.realisticLighting of
                 Disabled ->
-                    Scene3d.sphere
-                        (Material.color details.color)
-                        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
+                    details.size
+                        |> Quantity.multiplyBy 1000
+                        |> Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position)
+                        |> Scene3d.sphere (Material.color details.color)
 
                 Enabled ->
-                    Scene3d.sphereWithShadow
-                        (Material.matte details.color)
-                        (Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position) (Quantity.multiplyBy 1000 details.size))
+                    details.size
+                        |> Quantity.multiplyBy 1000
+                        |> Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position)
+                        |> Scene3d.sphereWithShadow (Material.matte details.color)
     in
     case settings.showPlanetsOrbit of
         Enabled ->
@@ -1031,9 +1038,10 @@ renderStar settings details =
             Disabled ->
                 Material.color color
         )
-        (Sphere3d.atPoint
-            (scalePointInAstroUnitsToOne details.position)
-            (Quantity.multiplyBy 500 (Data.Star.temperatureToRadius details.temperature))
+        (details.temperature
+            |> Data.Star.temperatureToRadius
+            |> Quantity.multiplyBy 500
+            |> Sphere3d.atPoint (scalePointInAstroUnitsToOne details.position)
         )
 
 
@@ -1056,20 +1064,6 @@ getStarDetails world starId =
                     , y = 0
                     , z = 0
                     }
-
-            -- , size =
-            --     case size of
-            --         Yellow ->
-            --             Length.kilometers 696000
-            --         RedGiant ->
-            --             -- Length.kilometers (696000 * 2)
-            --             Length.kilometers 696000
-            --         BlueGiant ->
-            --             Length.kilometers (696000 * 3)
-            --         WhiteDwarf ->
-            --             Length.kilometers (696000 / 2)
-            --         BlackDwarf ->
-            --             Length.kilometers (696000 / 3)
             }
         )
         (Logic.Component.get starId world.starTemperature)

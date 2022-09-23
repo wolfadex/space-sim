@@ -70,82 +70,66 @@ type
 
 codec : Codec e Knowledge
 codec =
-    Serialize.finishCustomType
-        (Serialize.variant1 KnowsOf
-            Serialize.int
-            (Serialize.variant0 MegaCities
-                (Serialize.variant0 Cities
-                    (Serialize.variant0 Villages
-                        (Serialize.variant0 Optics
-                            (Serialize.variant0 BasicMetalWorking
-                                (Serialize.variant0 BasicAgriculture
-                                    (Serialize.variant0 FTLSpaceTravel
-                                        (Serialize.variant0 InterplanetarySpaceTravel
-                                            (Serialize.variant0 PlanetarySpaceTravel
-                                                (Serialize.variant0 Flight
-                                                    (Serialize.variant0 UnderwaterTravel
-                                                        (Serialize.variant0 WaterSurfaceTravel
-                                                            (Serialize.variant0 LandTravel
-                                                                (Serialize.customType
-                                                                    (\landTravelE waterSurfaceTravelE underwaterTravelE flightE planetarySpaceTravelE interplanetarySpaceTravelE fTLSpaceTravelE basicAgricultureE basicMetalWorkingE opticsE villagesE citiesE megaCitiesE knowsOfE val ->
-                                                                        case val of
-                                                                            LandTravel ->
-                                                                                landTravelE
+    (\landTravelE waterSurfaceTravelE underwaterTravelE flightE planetarySpaceTravelE interplanetarySpaceTravelE fTLSpaceTravelE basicAgricultureE basicMetalWorkingE opticsE villagesE citiesE megaCitiesE knowsOfE val ->
+        case val of
+            LandTravel ->
+                landTravelE
 
-                                                                            WaterSurfaceTravel ->
-                                                                                waterSurfaceTravelE
+            WaterSurfaceTravel ->
+                waterSurfaceTravelE
 
-                                                                            UnderwaterTravel ->
-                                                                                underwaterTravelE
+            UnderwaterTravel ->
+                underwaterTravelE
 
-                                                                            Flight ->
-                                                                                flightE
+            Flight ->
+                flightE
 
-                                                                            PlanetarySpaceTravel ->
-                                                                                planetarySpaceTravelE
+            PlanetarySpaceTravel ->
+                planetarySpaceTravelE
 
-                                                                            InterplanetarySpaceTravel ->
-                                                                                interplanetarySpaceTravelE
+            InterplanetarySpaceTravel ->
+                interplanetarySpaceTravelE
 
-                                                                            FTLSpaceTravel ->
-                                                                                fTLSpaceTravelE
+            FTLSpaceTravel ->
+                fTLSpaceTravelE
 
-                                                                            BasicAgriculture ->
-                                                                                basicAgricultureE
+            BasicAgriculture ->
+                basicAgricultureE
 
-                                                                            BasicMetalWorking ->
-                                                                                basicMetalWorkingE
+            BasicMetalWorking ->
+                basicMetalWorkingE
 
-                                                                            Optics ->
-                                                                                opticsE
+            Optics ->
+                opticsE
 
-                                                                            Villages ->
-                                                                                villagesE
+            Villages ->
+                villagesE
 
-                                                                            Cities ->
-                                                                                citiesE
+            Cities ->
+                citiesE
 
-                                                                            MegaCities ->
-                                                                                megaCitiesE
+            MegaCities ->
+                megaCitiesE
 
-                                                                            KnowsOf e ->
-                                                                                knowsOfE e
-                                                                    )
-                                                                )
-                                                            )
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
+            KnowsOf e ->
+                knowsOfE e
+    )
+        |> Serialize.customType
+        |> Serialize.variant0 LandTravel
+        |> Serialize.variant0 WaterSurfaceTravel
+        |> Serialize.variant0 UnderwaterTravel
+        |> Serialize.variant0 Flight
+        |> Serialize.variant0 PlanetarySpaceTravel
+        |> Serialize.variant0 InterplanetarySpaceTravel
+        |> Serialize.variant0 FTLSpaceTravel
+        |> Serialize.variant0 BasicAgriculture
+        |> Serialize.variant0 BasicMetalWorking
+        |> Serialize.variant0 Optics
+        |> Serialize.variant0 Villages
+        |> Serialize.variant0 Cities
+        |> Serialize.variant0 MegaCities
+        |> Serialize.variant1 KnowsOf Serialize.int
+        |> Serialize.finishCustomType
 
 
 knows : AnySet String Knowledge -> Knowledge -> Bool
@@ -171,20 +155,18 @@ comparableConfig =
 -}
 canBeLearned : KnowledgeTree -> AnySet String Knowledge -> AnySet String Knowledge
 canBeLearned (KnowledgeTree knowledgeTree) known =
-    Set.Any.fromList comparableConfig
-        (Dict.Any.keys comparableConfig
-            (Dict.Any.filter comparableConfig
-                (\_ requirements ->
-                    List.isEmpty requirements
-                        || List.any
-                            (\setOfRequirements ->
-                                Set.Any.isEmpty (Set.Any.diff setOfRequirements known)
-                            )
-                            requirements
-                )
-                knowledgeTree
+    knowledgeTree
+        |> Dict.Any.filter comparableConfig
+            (\_ requirements ->
+                List.isEmpty requirements
+                    || List.any
+                        (\setOfRequirements ->
+                            Set.Any.isEmpty (Set.Any.diff setOfRequirements known)
+                        )
+                        requirements
             )
-        )
+        |> Dict.Any.keys comparableConfig
+        |> Set.Any.fromList comparableConfig
 
 
 type KnowledgeTree
