@@ -27,6 +27,7 @@ import Percent exposing (Percent)
 import Random exposing (Seed)
 import Ui.Slider
 import Ui.Theme
+import WebAudio
 
 
 init : Flags -> SharedModel
@@ -64,6 +65,7 @@ type Effect
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg
+    | PlayAudio (List WebAudio.Node)
 
 
 type alias GenerationConfig =
