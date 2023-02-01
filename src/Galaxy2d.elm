@@ -1,9 +1,12 @@
 module Galaxy2d exposing (viewGalaxy, viewSolarSystem)
 
+import Data.Name
+import Data.Orbit
 import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Game.Components exposing (World)
+import Length
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Set exposing (Set)
@@ -25,7 +28,7 @@ viewGalaxy onPress world =
         , spacing 8
         , Background.color Ui.Theme.darkGray
         ]
-        (List.map (viewSolarSystemSimple onPress world) (Set.toList world.solarSystems))
+        (List.map (viewSolarSystemSimple onPress world) (Dict.keys (Logic.Component.toDict world.solarSystems)))
 
 
 viewSolarSystemSimple :
@@ -84,7 +87,7 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                     let
                                         civName : String
                                         civName =
-                                            Maybe.withDefault ("CIV_" ++ String.fromInt civId) (Maybe.map .singular (Logic.Component.get civId world.named))
+                                            Maybe.withDefault ("CIV_" ++ String.fromInt civId) (Maybe.map Data.Name.toString (Logic.Component.get civId world.named))
                                     in
                                     Just
                                         (if Just civId == focusedCivilization then
@@ -151,7 +154,7 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivili
                             world
                             planetId
                     )
-                    (List.sortBy (\( _, orbit ) -> orbit)
+                    (List.sortBy (\( _, orbit ) -> Length.inAstronomicalUnits (Data.Orbit.distance orbit))
                         (List.filterMap
                             (\planetId ->
                                 Maybe.map
@@ -201,7 +204,7 @@ viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } wor
                                     civName : String
                                     civName =
                                         Maybe.withDefault ("CIV_" ++ String.fromInt civId)
-                                            (Maybe.map .singular (Logic.Component.get civId world.named))
+                                            (Maybe.map Data.Name.toString (Logic.Component.get civId world.named))
                                 in
                                 Just
                                     (if Just civId == focusedCivilization then

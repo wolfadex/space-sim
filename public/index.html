@@ -7,7 +7,9 @@
   </head>
   <body>
     <script src="elm.js"></script>
-    <script>
+    <script type="module">
+      import VirtualAudioContext from "./elm-web-audio.js";
+
       const SETTINGS_STORAGE_KEY = "settings";
 
       const randomSeeds = new Uint32Array(1);
@@ -15,6 +17,9 @@
       crypto.getRandomValues(randomSeeds);
 
       const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY) || null;
+
+      const ctx = new AudioContext();
+      const virtualCtx = new VirtualAudioContext(ctx);
 
       const app = Elm.Main.init({
         flags: {
@@ -27,6 +32,11 @@
       app.ports.saveSettings.subscribe(function (settings) {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
       });
+
+      app.ports.toWebAudio &&
+        app.ports.toWebAudio.subscribe((nodes) => {
+          virtualCtx.update(nodes);
+        });
     </script>
   </body>
 </html>

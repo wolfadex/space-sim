@@ -1,6 +1,7 @@
 module Ui.Button exposing
     ( default
     , inspect
+    , negative
     , primary
     , toggle
     )
@@ -22,17 +23,17 @@ toggle config =
         , Border.rounded 3
         , Background.color
             (if config.enabled then
-                Ui.Theme.green
+                Ui.Theme.darkGray
 
              else
-                Ui.Theme.darkGray
+                Ui.Theme.green
             )
         , Font.color
             (if config.enabled then
-                Ui.Theme.darkGray
+                Ui.Theme.nearlyWhite
 
              else
-                Ui.Theme.nearlyWhite
+                Ui.Theme.darkGray
             )
         , Border.color Ui.Theme.darkGray
         ]
@@ -54,6 +55,19 @@ primary =
         ]
 
 
+negative : { onPress : Maybe msg, label : Element msg } -> Element msg
+negative =
+    Input.button
+        [ paddingXY 16 8
+        , Border.solid
+        , Border.width 3
+        , Border.rounded 3
+        , Background.color Ui.Theme.error
+        , Font.color Ui.Theme.nearlyWhite
+        , Border.color Ui.Theme.darkGray
+        ]
+
+
 default : { onPress : Maybe msg, label : Element msg } -> Element msg
 default =
     Input.button
@@ -61,13 +75,7 @@ default =
         , Border.solid
         , Border.width 3
         , Border.rounded 3
-        , Background.color Ui.Theme.darkGray
-        , Font.color Ui.Theme.nearlyWhite
-        , Border.color Ui.Theme.darkGray
-        , focused
-            [ Font.color Ui.Theme.green
-            , Border.color Ui.Theme.green
-            ]
+        , Background.color Ui.Theme.green
         ]
 
 

@@ -71,6 +71,7 @@ config =
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
+        |> Review.Rule.ignoreErrorsForFiles [ "src/Markov.elm", "src/Markov/String.elm" ]
     , NoUnused.Modules.rule
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
@@ -80,12 +81,6 @@ config =
             |> ReviewPipelineStyles.andCallThem "Non-performant composition"
         , ReviewPipelineStyles.forbid ReviewPipelineStyles.leftCompositionPipelines
             |> ReviewPipelineStyles.andCallThem "Non-performant left-composition"
-        , ReviewPipelineStyles.forbid ReviewPipelineStyles.rightPizzaPipelines
-            |> ReviewPipelineStyles.andTryToFixThemBy ReviewPipelineStyles.Fixes.convertingToParentheticalApplication
-            |> ReviewPipelineStyles.andCallThem "Non-performant pipe"
-        , ReviewPipelineStyles.forbid ReviewPipelineStyles.leftPizzaPipelines
-            |> ReviewPipelineStyles.andTryToFixThemBy ReviewPipelineStyles.Fixes.convertingToParentheticalApplication
-            |> ReviewPipelineStyles.andCallThem "Non-performant left-pipe"
         ]
         |> Review.Rule.ignoreErrorsForDirectories [ "tests" ]
     , Simplify.rule Simplify.defaults

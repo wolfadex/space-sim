@@ -14,7 +14,7 @@ module Shared exposing
     , viewSettings
     )
 
-import Data.Names exposing (CivilizationName)
+import Data.Name exposing (Name)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -23,8 +23,11 @@ import Element.Input as Input
 import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
 import List.Nonempty exposing (Nonempty)
+import Percent exposing (Percent)
 import Random exposing (Seed)
+import Ui.Slider
 import Ui.Theme
+import WebAudio
 
 
 init : Flags -> SharedModel
@@ -62,10 +65,11 @@ type Effect
     | DeleteGame
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg
+    | PlayAudio (List WebAudio.Node)
 
 
 type alias GenerationConfig =
-    { name : CivilizationName
+    { name : Name
     , homePlanetName : String
     , minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int
@@ -79,6 +83,7 @@ type SharedMsg
     = GotLightingChange Bool
     | GotPlanetOrbitChange Bool
     | GotShowPlanetOrbitChange Bool
+    | GotPlanetRotationSpeed Float
 
 
 
@@ -127,11 +132,20 @@ update msg ({ settings } as model) =
                     }
             }
 
+        GotPlanetRotationSpeed speed ->
+            { model
+                | settings =
+                    { settings
+                        | planetRotationSpeed = Percent.fromFloat speed
+                    }
+            }
+
 
 type alias Settings =
     { version : Int
     , realisticLighting : Enabled
     , planetsOrbit : Enabled
+    , planetRotationSpeed : Percent ()
     , showPlanetsOrbit : Enabled
     }
 
@@ -141,6 +155,7 @@ defaultSettings =
     { version = 0
     , realisticLighting = Enabled
     , planetsOrbit = Enabled
+    , planetRotationSpeed = Percent.fromFloat 0.2
     , showPlanetsOrbit = Enabled
     }
 
@@ -151,6 +166,7 @@ encodeSettings settings =
         [ ( "version", Json.Encode.int settings.version )
         , ( "realisticLighting", encodeEnabled settings.realisticLighting )
         , ( "planetsOrbit", encodeEnabled settings.planetsOrbit )
+        , ( "planetRotationSpeed", Json.Encode.float (Percent.toFloat settings.planetRotationSpeed) )
         , ( "showPlanetsOrbit", encodeEnabled settings.showPlanetsOrbit )
         ]
 
@@ -183,16 +199,18 @@ decodeSettingsInternal =
 
 decodeSettings0 : Int -> Decoder Settings
 decodeSettings0 version =
-    Json.Decode.map3
-        (\realisticLighting planetsOrbit showPlanetsOrbit ->
+    Json.Decode.map4
+        (\realisticLighting planetsOrbit planetRotationSpeed showPlanetsOrbit ->
             { version = version
             , realisticLighting = realisticLighting
             , planetsOrbit = planetsOrbit
+            , planetRotationSpeed = Percent.fromFloat planetRotationSpeed
             , showPlanetsOrbit = showPlanetsOrbit
             }
         )
         (Json.Decode.field "realisticLighting" decodeEnabled)
         (Json.Decode.field "planetsOrbit" decodeEnabled)
+        (Json.Decode.field "planetRotationSpeed" Json.Decode.float)
         (Json.Decode.field "showPlanetsOrbit" decodeEnabled)
 
 
@@ -274,6 +292,15 @@ viewSettings settings =
 
                         Disabled ->
                             False
+                }
+            , Ui.Slider.float
+                []
+                { step = Just 0.01
+                , min = 0.01
+                , max = 1.0
+                , value = Percent.toFloat settings.planetRotationSpeed
+                , label = Input.labelAbove [] (text "Planet Rotation Speed")
+                , onChange = GotPlanetRotationSpeed
                 }
             , Input.checkbox
                 []

@@ -5,11 +5,10 @@ module Game.Components exposing
     , LightYear
     , Log
     , Mortality
-    , Orbit
     , PlayingMsg(..)
     , Reproduction
+    , SolarSystem(..)
     , SpaceFocus(..)
-    , StarDate
     , TickRate(..)
     , ViewStyle(..)
     , Visible(..)
@@ -19,6 +18,7 @@ module Game.Components exposing
     , civilizationDensitySpec
     , civilizationHappinessSpec
     , civilizationMortalityRateSpec
+    , civilizationPersonNameSourceSpec
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
@@ -28,12 +28,17 @@ module Game.Components exposing
     , planetSizeSpec
     , planetTypeSpec
     , positionSpec
+    , solarSystemSpec
     , waterSpec
     )
 
 import Browser.Dom exposing (Viewport)
+import Data.Civilization
+import Data.EarthYear exposing (EarthYear)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
-import Data.Names exposing (CivilizationName)
+import Data.Name exposing (Name, NameSource)
+import Data.Orbit exposing (Orbit)
+import Data.Structure exposing (Structure)
 import Dict exposing (Dict)
 import Json.Decode exposing (Value)
 import Length exposing (Meters)
@@ -74,7 +79,10 @@ type alias World =
     , civilizationDensity : Logic.Component.Set Float
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
     , civilizationKnowledge : Logic.Component.Set (AnySet String Knowledge)
-    , named : Logic.Component.Set CivilizationName
+    , civilizationStyle : Logic.Component.Set Data.Civilization.Characteristics
+    , named : Logic.Component.Set Name
+    , civilizationStructures : Logic.Component.Set Structure
+    , civilizationPersonNameSource : Logic.Component.Set NameSource
 
     -- Other
     , planetTypes : Logic.Component.Set CelestialBodyForm
@@ -85,15 +93,15 @@ type alias World =
     , parents : Logic.Component.Set EntityID
     , children : Logic.Component.Set (Set EntityID)
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
+    , solarSystems : Logic.Component.Set SolarSystem
 
     ---- Book keeping
     , planets : Set EntityID
     , stars : Set EntityID
-    , solarSystems : Set EntityID
     , playerCiv : Maybe EntityID
     , civilizations : Set EntityID
-    , availableCivilizationNames : List CivilizationName
-    , starDate : StarDate
+    , availableCivilizationNames : List Name
+    , starDate : EarthYear
     , eventLog : List Log
     , knowledgeTree : KnowledgeTree
     , buildingKnowledgeState : Task.Parallel.ListState PlayingMsg (List ( Knowledge, List (AnySet String Knowledge) ))
@@ -131,16 +139,19 @@ emptyWorld =
     , civilizationPopulations = Logic.Component.empty
     , civilizationHappiness = Logic.Component.empty
     , civilizationKnowledge = Logic.Component.empty
+    , civilizationStyle = Logic.Component.empty
     , galaxyPositions = Logic.Component.empty
+    , civilizationStructures = Logic.Component.empty
+    , solarSystems = Logic.Component.empty
+    , civilizationPersonNameSource = Logic.Component.empty
 
     --
     , planets = Set.empty
     , stars = Set.empty
-    , solarSystems = Set.empty
     , playerCiv = Nothing
     , civilizations = Set.empty
-    , availableCivilizationNames = Data.Names.allCivilizationNames
-    , starDate = 0
+    , availableCivilizationNames = Data.Name.allNames
+    , starDate = Data.EarthYear.earthYears 0
     , eventLog = []
     , knowledgeTree = Data.Knowledge.baseKnowledgeTree
     , buildingKnowledgeState =
@@ -187,13 +198,9 @@ type ViewStyle
 
 type alias Log =
     { description : String
-    , time : StarDate
+    , time : EarthYear
     , civilizationId : EntityID
     }
-
-
-type alias StarDate =
-    Int
 
 
 type SpaceFocus
@@ -216,9 +223,27 @@ type TickRate
     | HalfSpeed
 
 
+civilizationPersonNameSourceSpec : Spec NameSource { world | civilizationPersonNameSource : Logic.Component.Set NameSource }
+civilizationPersonNameSourceSpec =
+    Logic.Component.Spec .civilizationPersonNameSource (\comps world -> { world | civilizationPersonNameSource = comps })
+
+
 civilizationReproductionRateSpec : Spec (Rate Reproduction) { world | civilizationReproductionRates : Logic.Component.Set (Rate Reproduction) }
 civilizationReproductionRateSpec =
     Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
+
+
+type Reproduction
+    = Reproduction Never
+
+
+solarSystemSpec : Spec SolarSystem { world | solarSystems : Logic.Component.Set SolarSystem }
+solarSystemSpec =
+    Logic.Component.Spec .solarSystems (\comps world -> { world | solarSystems = comps })
+
+
+type SolarSystem
+    = SolarSystem
 
 
 civilizationMortalityRateSpec : Spec (Rate Mortality) { world | civilizationMortalityRates : Logic.Component.Set (Rate Mortality) }
@@ -226,15 +251,11 @@ civilizationMortalityRateSpec =
     Logic.Component.Spec .civilizationMortalityRates (\comps world -> { world | civilizationMortalityRates = comps })
 
 
-type Reproduction
-    = Reproduction Never
-
-
 type Mortality
     = Mortality Never
 
 
-namedSpec : Spec CivilizationName { world | named : Logic.Component.Set CivilizationName }
+namedSpec : Spec Name { world | named : Logic.Component.Set Name }
 namedSpec =
     Logic.Component.Spec .named (\comps world -> { world | named = comps })
 
@@ -252,10 +273,6 @@ type CelestialBodyForm
 orbitSpec : Spec Orbit { world | orbits : Logic.Component.Set Orbit }
 orbitSpec =
     Logic.Component.Spec .orbits (\comps world -> { world | orbits = comps })
-
-
-type alias Orbit =
-    Int
 
 
 parentSpec : Spec EntityID { world | parents : Logic.Component.Set EntityID }
