@@ -16,6 +16,18 @@ import Set.Any exposing (AnySet)
 cooperationVsCompetition:
 Whether the civ lean towards copperation or competition. 0.0 being 100% cooperative, like The Borg, and 1.0 being 100% competitive like The Gorn
 
+timeSinceLastMonument:
+When the strucutre was built that will last a long time and could be "discovered" by a future civilization, or recognized as "important"/"influential"
+
+senses:
+How the civilization communicates. Effects how, or whether, civilizations are able to communicate with each other
+
+descisionMakingStructure:
+The social & governmental approach of the civ.
+Distributed <---> Top down
+0.0 <---> 1.0
+Fungi <---> Borg, Monarchy
+
 TODO: soical structure (hierarchy, flat, classes, etc)
 TODO: government, governance (democracy, police state, etc)
 TODO: religion
@@ -30,6 +42,7 @@ type alias Characteristics =
     { cooperationVsCompetition : Float
     , timeSinceLastMonument : EarthYear
     , senses : AnySet Int Sense
+    , descisionMakingStructure : Float
     }
 
 
@@ -66,9 +79,9 @@ type Sense
     = Visual
     | Audio
     | Pressure
-    | Smell
-    | Taste
-    | Telepathic
+    | Smell -- Chemical, airborne
+    | Taste -- Chemical, direct contact
+    | Telepathic -- Other waves, could also cover something like Borg style communication. Telepathic is more how it appears to humans
 
 
 allSenses : List Sense

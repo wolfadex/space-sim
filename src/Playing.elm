@@ -1277,10 +1277,12 @@ attemptToGenerateCivilization planetType planetId world =
         Random.constant world
 
 
+{-| TODO: Most of this should be moved to Data.Civilization module
+-}
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
     Random.map
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource senses ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource senses descisionMakingStructure ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -1298,6 +1300,7 @@ generateCivilization worldWithFewerNames planetId name =
                             , { cooperationVsCompetition = coopVsComp
                               , timeSinceLastMonument = worldWithFewerNames.starDate
                               , senses = senses
+                              , descisionMakingStructure = descisionMakingStructure
                               }
                             )
                         |> Logic.Entity.with ( Game.Components.civilizationPersonNameSourceSpec, nameSource )
@@ -1315,11 +1318,17 @@ generateCivilization worldWithFewerNames planetId name =
             in
             { worldWithNewCivWithKnowledge | civilizations = Set.insert civId worldWithNewCivWithKnowledge.civilizations }
         )
+        -- initialPopulationSize
         (Random.float 0.3 0.8)
+        -- reproductionRate
         |> Random.Extra.andMap (Rate.random 0.2 0.3)
+        -- mortalityRate
         |> Random.Extra.andMap (Rate.random 0.1 0.2)
+        -- initialHappiness
         |> Random.Extra.andMap (Percent.random 0.9 1.0)
+        -- civDensity: this needs to change based on entity size
         |> Random.Extra.andMap (Random.float 0.7 1.3)
+        -- coopVsComp: should this be biased away from the extremes?
         |> Random.Extra.andMap (Random.float 0.0 1.0)
         |> Random.Extra.andMap Data.Name.randomNameSource
         |> Random.Extra.andMap
@@ -1329,6 +1338,8 @@ generateCivilization worldWithFewerNames planetId name =
                     (\senseCount -> Random.List.choices senseCount Data.Civilization.allSenses)
                 |> Random.map (\( senses, _ ) -> Set.Any.fromList Data.Civilization.senseComparableConfig senses)
             )
+        -- descisionMakingStructure: should this be biased away from the extremes?
+        |> Random.Extra.andMap (Random.float 0.0 1.0)
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )
