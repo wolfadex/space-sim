@@ -29,17 +29,36 @@ A space game inspired by Dwarf Fortress.
 
 ## Development
 
+If you're using Nix and Direnv:
+
+```bash
+direnv allow
+npm run dev
+```
+
+If you're only using Nix and not Direnv
+
 ```bash
 npm install
 npm run dev
 ```
 
-```bash
-npm run review-watch
-```
+If you're only using Direnv and not Nix
+
+- Install Node
 
 ```bash
-npm run test-watch
+direnv allow
+npm run dev
+```
+
+If you're using neither Direnv or Nix
+
+- Install Node
+
+```bash
+npm install
+npm run dev
 ```
 
 <br />
