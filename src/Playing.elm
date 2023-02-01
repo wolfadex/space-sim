@@ -750,11 +750,7 @@ expansionSystem ( world, initialSeed ) =
                         ( nextWorld, nextSeed )
 
                     _ ->
-                        let
-                            ( expandedWorld, seed ) =
-                                Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextSeed
-                        in
-                        ( expandedWorld, seed )
+                        Random.step (possiblyExpandToPlanet civ.id possiblePlanetsToExpandInto world) nextSeed
         )
         ( world, initialSeed )
         planetsAndKnowledge
@@ -812,11 +808,8 @@ civilUnrestSystem ( world, initialSeed ) =
                         )
                 )
                 (Set.toList world.civilizations)
-
-        ( worldWithNewCivs, seed ) =
-            Random.step (generateRevoltingCivs revoltingCivs world) initialSeed
     in
-    ( worldWithNewCivs, seed )
+    Random.step (generateRevoltingCivs revoltingCivs world) initialSeed
 
 
 generateRevoltingCivs : List ( EntityID, EntityID ) -> World -> Generator World
