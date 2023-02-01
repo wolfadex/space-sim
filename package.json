@@ -11,7 +11,9 @@
     "dev:server": "http-server",
     "dev:test": "elm-test-rs --watch",
     "dev:review": "elm-review --fix --watch",
-    "build": "elm-review && elm-test-rs && elm-watch make --optimize"
+    "build": "elm-review && elm-test-rs && elm-watch make --optimize",
+    "review": "elm-review",
+    "test": "elm-test-rs"
   },
   "devDependencies": {
     "elm": "^0.19.1-5",
