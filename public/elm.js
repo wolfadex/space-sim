@@ -604,7 +604,7 @@ ${variant}`;
   var VERSION = "1.1.2";
   var TARGET_NAME = "main game";
   var INITIAL_ELM_COMPILED_TIMESTAMP = Number(
-    "1675223055206"
+    "1675257511836"
   );
   var ORIGINAL_COMPILATION_MODE = "standard";
   var ORIGINAL_BROWSER_UI_POSITION = "BottomLeft";
