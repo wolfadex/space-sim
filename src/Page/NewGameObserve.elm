@@ -1,7 +1,6 @@
 module Page.NewGameObserve exposing
     ( Model
     , Msg
-    , baseModel
     , init
     , subscriptions
     , update
@@ -11,7 +10,7 @@ module Page.NewGameObserve exposing
 import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Data.EarthYear
-import Data.Name exposing (Name)
+import Data.Name
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
@@ -44,7 +43,6 @@ import Set exposing (Set)
 import Shared
     exposing
         ( Effect(..)
-        , PlayType(..)
         , SharedModel
         , SharedMsg
         )
@@ -54,7 +52,6 @@ import Ui.Button
 import Ui.Link
 import Ui.Slider
 import Ui.Theme
-import Validator exposing (Validator)
 import View exposing (View)
 
 
@@ -439,26 +436,6 @@ contrastingBackground =
         , padding 8
         , Border.rounded 8
         ]
-
-
-viewError : String -> Element msg
-viewError error =
-    el
-        [ Background.color Ui.Theme.nearlyWhite
-        , Font.color Ui.Theme.error
-        , paddingXY 16 8
-        , Border.rounded 32
-        ]
-        (text error)
-
-
-showBlank : String -> String
-showBlank str =
-    if String.isEmpty str then
-        "____"
-
-    else
-        str
 
 
 displayGameValue : String -> String -> Element msg

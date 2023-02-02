@@ -29,7 +29,6 @@ import Random exposing (Seed)
 import Serialize exposing (Codec)
 import Ui.Slider
 import Ui.Theme
-import Url
 import WebAudio
 
 
@@ -63,7 +62,7 @@ type PlayType
     | Participation
 
 
-playTypeCodec : Serialize.Codec e PlayType
+playTypeCodec : Codec e PlayType
 playTypeCodec =
     Serialize.customType
         (\observationEncoder participationEncoder value ->
@@ -113,7 +112,7 @@ generationConfigCodec =
             , playType = playType
             }
         )
-        |> Serialize.field (.name >> Data.Name.toString) Serialize.string
+        |> Serialize.field (\rec -> Data.Name.toString rec.name) Serialize.string
         |> Serialize.field .homePlanetName Serialize.string
         |> Serialize.field .minSolarSystemsToGenerate Serialize.int
         |> Serialize.field .maxSolarSystemsToGenerate Serialize.int
