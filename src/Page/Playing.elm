@@ -1,4 +1,4 @@
-module Playing exposing
+module Page.Playing exposing
     ( init
     , subscriptions
     , update
@@ -78,184 +78,13 @@ import View exposing (View)
 ---- INIT ----
 
 
-init : SharedModel -> PlayType -> GenerationConfig -> ( World, SubCmd PlayingMsg Effect )
-init sharedModel playType generationConfig =
-    let
-        ( generatedWorld, seed ) =
-            let
-                -- Filter out a civilization name if the player's chosen name matches
-                worldWithPlayerDataFilteredOut : World
-                worldWithPlayerDataFilteredOut =
-                    case playType of
-                        Participation ->
-                            { emptyWorld
-                                | availableCivilizationNames =
-                                    List.filter (\name -> String.toLower (Data.Name.toString name) /= String.toLower (Data.Name.toString generationConfig.name))
-                                        emptyWorld.availableCivilizationNames
-                            }
-
-                        Observation ->
-                            emptyWorld
-            in
-            Random.step (generateGalaxy generationConfig worldWithPlayerDataFilteredOut) sharedModel.seed
-
-        viableStartingPlanets : List ( EntityID, Orbit )
-        viableStartingPlanets =
-            Set.toList generatedWorld.planets
-                |> List.filterMap
-                    (\planetId ->
-                        Maybe.andThen
-                            (\( type_, orbit ) ->
-                                case type_ of
-                                    Rocky ->
-                                        Just ( planetId, orbit )
-
-                                    Gas ->
-                                        Nothing
-                            )
-                            (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
-                    )
-                |> List.sortWith planetOrbitPreference
-
-        ( inhabitedPlanets, finalSeed ) =
-            Tuple.mapFirst
-                (\xs ->
-                    Maybe.withDefault Dict.empty
-                        (Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
-                            (List.head xs)
-                        )
-                )
-                (Random.step (Random.List.shuffle viableStartingPlanets) seed)
-
-        ( playerCivId, worldWithPlayerCiv ) =
-            Logic.Entity.Extra.create generatedWorld
-                |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                |> Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
-                |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
-                |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
-                |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets )
-
-        ( playerCiv, worldWithPlayerCivWithKnowledge ) =
-            case playType of
-                Participation ->
-                    ( playerCivId, worldWithPlayerCiv )
-                        |> Logic.Entity.with
-                            ( Data.Knowledge.spec
-                            , Set.Any.fromList Data.Knowledge.comparableConfig
-                                (KnowsOf playerCivId
-                                    :: List.concatMap
-                                        (\planetId ->
-                                            case Logic.Component.get planetId worldWithPlayerCiv.parents of
-                                                Nothing ->
-                                                    [ KnowsOf planetId ]
-
-                                                Just solarSystemId ->
-                                                    case Logic.Component.get solarSystemId worldWithPlayerCiv.children of
-                                                        Nothing ->
-                                                            [ KnowsOf planetId ]
-
-                                                        Just childrenIds ->
-                                                            KnowsOf planetId :: List.map KnowsOf (Set.toList (Set.intersect childrenIds worldWithPlayerCiv.stars))
-                                        )
-                                        (Dict.keys inhabitedPlanets)
-                                )
-                            )
-                        |> Tuple.mapFirst Just
-
-                Observation ->
-                    ( Nothing, generatedWorld )
-
-        ( buildingKnowledgeState, parallelCmd ) =
-            Task.Parallel.attemptList
-                { onUpdates = BuildingKnowledge
-                , onSuccess = KnowledgeBuilt
-                , onFailure = \_ -> KnowledgeBuildFailure
-                , tasks =
-                    List.indexedMap
-                        (\delay planetId ->
-                            Task.map
-                                (\() ->
-                                    let
-                                        solarSiblings : Set EntityID
-                                        solarSiblings =
-                                            getSolarSiblings worldWithPlayerCiv planetId
-                                    in
-                                    List.concat
-                                        [ ---- Local solar knowledge
-                                          List.map
-                                            (\siblingId ->
-                                                if Set.member siblingId worldWithPlayerCiv.stars then
-                                                    -- No previous knowledge required
-                                                    ( KnowsOf siblingId, [] )
-
-                                                else
-                                                    -- Requires Optics
-                                                    ( KnowsOf siblingId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
-                                            )
-                                            (Set.toList solarSiblings)
-
-                                        ---- Galactic knowledge
-                                        -- Knowledge of extra solar stars only requires Optics
-                                        , List.map
-                                            (\nonSiblingStarId ->
-                                                ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
-                                            )
-                                            (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
-
-                                        -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
-                                        , List.map
-                                            (\nonSiblingPlanetId ->
-                                                ( KnowsOf nonSiblingPlanetId
-                                                , List.map
-                                                    (\foreignStarId ->
-                                                        Set.Any.fromList Data.Knowledge.comparableConfig
-                                                            [ Optics, KnowsOf foreignStarId ]
-                                                    )
-                                                    (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
-                                                )
-                                            )
-                                            (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
-
-                                        ---- Other Civ Knowledge
-                                        ]
-                                )
-                                (Process.sleep (toFloat delay))
-                        )
-                        (Set.toList worldWithPlayerCiv.planets)
-                }
-    in
-    ( { worldWithPlayerCivWithKnowledge
-        | playerCiv = playerCiv
-        , playType = playType
-        , civilizations =
-            case playerCiv of
-                Nothing ->
-                    worldWithPlayerCiv.civilizations
-
-                Just civId ->
-                    Set.insert civId worldWithPlayerCiv.civilizations
-        , zoom =
-            Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems)
-                |> List.filterMap
-                    (\solarSystemId ->
-                        Maybe.map
-                            (\galacticPosition ->
-                                Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
-                            )
-                            (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
-                    )
-                |> List.sort
-                |> List.reverse
-                |> List.head
-                |> Maybe.map (\m -> m / 2)
-                |> Maybe.withDefault (25000 + (100 * 9460730000000000))
-        , buildingKnowledgeState = buildingKnowledgeState
-        , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCiv.planets )
-      }
-    , SubCmd.batch
-        [ SubCmd.effect (UpdateSeed finalSeed)
-        , SubCmd.cmd parallelCmd
-        ]
+init : GenerationConfig -> ( World, SubCmd PlayingMsg Effect )
+init generationConfig =
+    ( emptyWorld
+    , CreateGalaxy generationConfig
+        |> Task.succeed
+        |> Task.perform identity
+        |> SubCmd.cmd
     )
 
 
@@ -342,6 +171,185 @@ zoomMultiplier focus =
 update : SharedModel -> PlayingMsg -> World -> ( World, SubCmd PlayingMsg Effect )
 update sharedModel msg world =
     case msg of
+        CreateGalaxy generationConfig ->
+            let
+                ( generatedWorld, seed ) =
+                    let
+                        -- Filter out a civilization name if the player's chosen name matches
+                        worldWithPlayerDataFilteredOut : World
+                        worldWithPlayerDataFilteredOut =
+                            case generationConfig.playType of
+                                Participation ->
+                                    { emptyWorld
+                                        | availableCivilizationNames =
+                                            List.filter (\name -> String.toLower (Data.Name.toString name) /= String.toLower (Data.Name.toString generationConfig.name))
+                                                emptyWorld.availableCivilizationNames
+                                    }
+
+                                Observation ->
+                                    emptyWorld
+                    in
+                    Random.step (generateGalaxy generationConfig worldWithPlayerDataFilteredOut) sharedModel.seed
+
+                viableStartingPlanets : List ( EntityID, Orbit )
+                viableStartingPlanets =
+                    Set.toList generatedWorld.planets
+                        |> List.filterMap
+                            (\planetId ->
+                                Maybe.andThen
+                                    (\( type_, orbit ) ->
+                                        case type_ of
+                                            Rocky ->
+                                                Just ( planetId, orbit )
+
+                                            Gas ->
+                                                Nothing
+                                    )
+                                    (Logic.Component.get2 planetId generatedWorld.planetTypes generatedWorld.orbits)
+                            )
+                        |> List.sortWith planetOrbitPreference
+
+                ( inhabitedPlanets, finalSeed ) =
+                    Tuple.mapFirst
+                        (\xs ->
+                            Maybe.withDefault Dict.empty
+                                (Maybe.map (\( planetId, _ ) -> Dict.singleton planetId (Population.millions 7))
+                                    (List.head xs)
+                                )
+                        )
+                        (Random.step (Random.List.shuffle viableStartingPlanets) seed)
+
+                ( playerCivId, worldWithPlayerCiv ) =
+                    Logic.Entity.Extra.create generatedWorld
+                        |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                        |> Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
+                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
+                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets )
+
+                ( playerCiv, worldWithPlayerCivWithKnowledge ) =
+                    case generationConfig.playType of
+                        Participation ->
+                            ( playerCivId, worldWithPlayerCiv )
+                                |> Logic.Entity.with
+                                    ( Data.Knowledge.spec
+                                    , Set.Any.fromList Data.Knowledge.comparableConfig
+                                        (KnowsOf playerCivId
+                                            :: List.concatMap
+                                                (\planetId ->
+                                                    case Logic.Component.get planetId worldWithPlayerCiv.parents of
+                                                        Nothing ->
+                                                            [ KnowsOf planetId ]
+
+                                                        Just solarSystemId ->
+                                                            case Logic.Component.get solarSystemId worldWithPlayerCiv.children of
+                                                                Nothing ->
+                                                                    [ KnowsOf planetId ]
+
+                                                                Just childrenIds ->
+                                                                    KnowsOf planetId :: List.map KnowsOf (Set.toList (Set.intersect childrenIds worldWithPlayerCiv.stars))
+                                                )
+                                                (Dict.keys inhabitedPlanets)
+                                        )
+                                    )
+                                |> Tuple.mapFirst Just
+
+                        Observation ->
+                            ( Nothing, generatedWorld )
+
+                ( buildingKnowledgeState, parallelCmd ) =
+                    Task.Parallel.attemptList
+                        { onUpdates = BuildingKnowledge
+                        , onSuccess = KnowledgeBuilt
+                        , onFailure = \_ -> KnowledgeBuildFailure
+                        , tasks =
+                            List.indexedMap
+                                (\delay planetId ->
+                                    Task.map
+                                        (\() ->
+                                            let
+                                                solarSiblings : Set EntityID
+                                                solarSiblings =
+                                                    getSolarSiblings worldWithPlayerCiv planetId
+                                            in
+                                            List.concat
+                                                [ ---- Local solar knowledge
+                                                  List.map
+                                                    (\siblingId ->
+                                                        if Set.member siblingId worldWithPlayerCiv.stars then
+                                                            -- No previous knowledge required
+                                                            ( KnowsOf siblingId, [] )
+
+                                                        else
+                                                            -- Requires Optics
+                                                            ( KnowsOf siblingId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                                    )
+                                                    (Set.toList solarSiblings)
+
+                                                ---- Galactic knowledge
+                                                -- Knowledge of extra solar stars only requires Optics
+                                                , List.map
+                                                    (\nonSiblingStarId ->
+                                                        ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
+                                                    )
+                                                    (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
+
+                                                -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
+                                                , List.map
+                                                    (\nonSiblingPlanetId ->
+                                                        ( KnowsOf nonSiblingPlanetId
+                                                        , List.map
+                                                            (\foreignStarId ->
+                                                                Set.Any.fromList Data.Knowledge.comparableConfig
+                                                                    [ Optics, KnowsOf foreignStarId ]
+                                                            )
+                                                            (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
+                                                        )
+                                                    )
+                                                    (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
+
+                                                ---- Other Civ Knowledge
+                                                ]
+                                        )
+                                        (Process.sleep (toFloat delay))
+                                )
+                                (Set.toList worldWithPlayerCiv.planets)
+                        }
+            in
+            ( { worldWithPlayerCivWithKnowledge
+                | playerCiv = playerCiv
+                , playType = generationConfig.playType
+                , civilizations =
+                    case playerCiv of
+                        Nothing ->
+                            worldWithPlayerCiv.civilizations
+
+                        Just civId ->
+                            Set.insert civId worldWithPlayerCiv.civilizations
+                , zoom =
+                    Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems)
+                        |> List.filterMap
+                            (\solarSystemId ->
+                                Maybe.map
+                                    (\galacticPosition ->
+                                        Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
+                                    )
+                                    (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
+                            )
+                        |> List.sort
+                        |> List.reverse
+                        |> List.head
+                        |> Maybe.map (\m -> m / 2)
+                        |> Maybe.withDefault (25000 + (100 * 9460730000000000))
+                , buildingKnowledgeState = buildingKnowledgeState
+                , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCiv.planets )
+              }
+            , SubCmd.batch
+                [ SubCmd.effect (UpdateSeed finalSeed)
+                , SubCmd.cmd parallelCmd
+                ]
+            )
+
         BuildingKnowledge taskMsg ->
             let
                 ( nextBuildingKnowledgeState, next ) =

@@ -9,6 +9,7 @@ module Shared exposing
     , SharedMsg(..)
     , defaultSettings
     , encodeSettings
+    , generationConfigCodec
     , init
     , update
     , viewSettings
@@ -25,8 +26,10 @@ import Json.Encode exposing (Value)
 import List.Nonempty exposing (Nonempty)
 import Percent exposing (Percent)
 import Random exposing (Seed)
+import Serialize exposing (Codec)
 import Ui.Slider
 import Ui.Theme
+import Url
 import WebAudio
 
 
@@ -60,9 +63,25 @@ type PlayType
     | Participation
 
 
+playTypeCodec : Serialize.Codec e PlayType
+playTypeCodec =
+    Serialize.customType
+        (\observationEncoder participationEncoder value ->
+            case value of
+                Observation ->
+                    observationEncoder
+
+                Participation ->
+                    participationEncoder
+        )
+        |> Serialize.variant0 Observation
+        |> Serialize.variant0 Participation
+        |> Serialize.finishCustomType
+
+
 type Effect
-    = CreateGame PlayType GenerationConfig
-    | DeleteGame
+    = DeleteGame
+      -- | CreateGame PlayType GenerationConfig
     | UpdateSeed Seed
     | GotSharedMessage SharedMsg
     | PlayAudio (List WebAudio.Node)
@@ -76,7 +95,33 @@ type alias GenerationConfig =
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
     , starCounts : Nonempty ( Float, Int )
+    , playType : PlayType
     }
+
+
+generationConfigCodec : Codec e GenerationConfig
+generationConfigCodec =
+    Serialize.record
+        (\name homePlanetName minSolarSystemsToGenerate maxSolarSystemsToGenerate minPlanetsPerSolarSystemToGenerate maxPlanetsPerSolarSystemToGenerate starCounts playType ->
+            { name = Data.Name.fromString name
+            , homePlanetName = homePlanetName
+            , minSolarSystemsToGenerate = minSolarSystemsToGenerate
+            , maxSolarSystemsToGenerate = maxSolarSystemsToGenerate
+            , minPlanetsPerSolarSystemToGenerate = minPlanetsPerSolarSystemToGenerate
+            , maxPlanetsPerSolarSystemToGenerate = maxPlanetsPerSolarSystemToGenerate
+            , starCounts = starCounts
+            , playType = playType
+            }
+        )
+        |> Serialize.field (.name >> Data.Name.toString) Serialize.string
+        |> Serialize.field .homePlanetName Serialize.string
+        |> Serialize.field .minSolarSystemsToGenerate Serialize.int
+        |> Serialize.field .maxSolarSystemsToGenerate Serialize.int
+        |> Serialize.field .minPlanetsPerSolarSystemToGenerate Serialize.int
+        |> Serialize.field .maxPlanetsPerSolarSystemToGenerate Serialize.int
+        |> Serialize.field .starCounts (List.Nonempty.codec (Serialize.tuple Serialize.float Serialize.int))
+        |> Serialize.field .playType playTypeCodec
+        |> Serialize.finishRecord
 
 
 type SharedMsg

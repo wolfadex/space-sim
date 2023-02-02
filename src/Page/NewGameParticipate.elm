@@ -1,8 +1,6 @@
-module NewGame exposing
-    ( InnerPage(..)
-    , Model
+module Page.NewGameParticipate exposing
+    ( Model
     , Msg
-    , baseModel
     , init
     , subscriptions
     , update
@@ -40,6 +38,7 @@ import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
 import Quantity
+import Route
 import Set exposing (Set)
 import Shared
     exposing
@@ -51,6 +50,7 @@ import Shared
 import SubCmd exposing (SubCmd)
 import Temperature exposing (Temperature)
 import Ui.Button
+import Ui.Link
 import Ui.Slider
 import Ui.Text
 import Ui.Theme
@@ -164,8 +164,7 @@ init =
 
 
 type alias Model =
-    { page : InnerPage
-    , frequency : Float
+    { frequency : Float
     , frequencyDirection : Float
     , settingsVisible : Visible
     , elapsedTime : Float
@@ -186,7 +185,6 @@ type alias Model =
     , civilizations : Set EntityID
 
     ---- game stuff
-    , errors : List String
     , minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int
     , minPlanetsPerSolarSystemToGenerate : Int
@@ -199,16 +197,9 @@ type alias Model =
     }
 
 
-type InnerPage
-    = MainMenu
-    | Participate -- ParticipateModel
-    | Observe -- ObserveModel
-
-
 baseModel : Model
 baseModel =
-    { page = MainMenu
-    , frequency = 500
+    { frequency = 500
     , frequencyDirection = 1
     , settingsVisible = Hidden
     , elapsedTime = 1234345
@@ -231,7 +222,6 @@ baseModel =
     -- game stuff
     , civilizationNameSingular = ""
     , homePlanetName = ""
-    , errors = []
     , minSolarSystemsToGenerate = 40
     , maxSolarSystemsToGenerate = 80
     , minPlanetsPerSolarSystemToGenerate = 1
@@ -256,17 +246,13 @@ subscriptions _ =
 
 
 type Msg
-    = ViewParticipate
-    | ViewObserve
-    | Tick Float
+    = Tick Float
     | WindowResized
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotSettingsVisible Visible
     | GotLocalSharedMessage SharedMsg
-    | ViewMain
       -- form stuff
     | SetNameSingular String
-    | StartSimulation
     | SetHomePlanetName String
     | GotMinSolarSystemCount Int
     | GotMaxSolarSystemCount Int
@@ -278,18 +264,6 @@ type Msg
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
 update _ msg model =
     case msg of
-        ViewParticipate ->
-            ( { model | page = Participate }
-              -- , SubCmd.effect (PlayAudio (testSound model))
-            , SubCmd.none
-            )
-
-        ViewObserve ->
-            ( { model | page = Observe }
-              -- , SubCmd.effect (PlayAudio (testSound model))
-            , SubCmd.none
-            )
-
         Tick deltaMs ->
             let
                 newModel : Model
@@ -329,9 +303,6 @@ update _ msg model =
 
         GotLocalSharedMessage settingsChange ->
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
-
-        ViewMain ->
-            ( { model | page = MainMenu }, SubCmd.effect (PlayAudio []) )
 
         -- form stuff
         SetNameSingular singular ->
@@ -403,48 +374,6 @@ update _ msg model =
             , SubCmd.none
             )
 
-        StartSimulation ->
-            case model.page of
-                MainMenu ->
-                    ( model, SubCmd.none )
-
-                Observe ->
-                    ( model
-                    , SubCmd.effect
-                        (Shared.CreateGame
-                            Observation
-                            { name = Data.Name.fromString ""
-                            , homePlanetName = ""
-                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
-                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
-                            , starCounts = model.starCounts
-                            }
-                        )
-                    )
-
-                Participate ->
-                    case Validator.run createGameValidator model of
-                        Ok ( validName, validHomeName ) ->
-                            ( model
-                            , SubCmd.effect
-                                (Shared.CreateGame
-                                    Participation
-                                    { name = validName
-                                    , homePlanetName = validHomeName
-                                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                                    , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
-                                    , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
-                                    , starCounts = model.starCounts
-                                    }
-                                )
-                            )
-
-                        Err errs ->
-                            ( { model | errors = errs }, SubCmd.none )
-
 
 createGameValidator : Validator Model String ( Name, String )
 createGameValidator =
@@ -476,15 +405,7 @@ view sharedModel model =
     let
         options : View Msg
         options =
-            case model.page of
-                MainMenu ->
-                    viewMainMenu
-
-                Participate ->
-                    viewParticipate model
-
-                Observe ->
-                    viewObserve model
+            viewParticipate model
     in
     { title = options.title
     , body =
@@ -534,18 +455,13 @@ view sharedModel model =
                     )
                 )
             , inFront
-                (case model.page of
-                    MainMenu ->
-                        none
-
-                    _ ->
-                        el
-                            [ padding 16 ]
-                            (Ui.Button.default
-                                { label = text "Main Menu"
-                                , onPress = Just ViewMain
-                                }
-                            )
+                (el
+                    [ padding 16 ]
+                    (Ui.Link.internal
+                        { label = text "Main Menu"
+                        , route = Route.Home
+                        }
+                    )
                 )
             ]
             options.body
@@ -560,47 +476,6 @@ contrastingBackground =
         , padding 8
         , Border.rounded 8
         ]
-
-
-viewMainMenu : View Msg
-viewMainMenu =
-    { title = "Hello Space!"
-    , body =
-        el
-            [ padding 16
-            , width fill
-            , height fill
-            ]
-            (column
-                [ centerX
-                , centerY
-                , spacing 64
-                ]
-                [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
-                , column
-                    [ centerX, spacing 16 ]
-                    [ el [ centerX ]
-                        (Ui.Button.default
-                            { onPress = Just ViewParticipate
-                            , label = text "Participate"
-                            }
-                        )
-                    , el [ centerX ]
-                        (Ui.Button.default
-                            { onPress = Just ViewObserve
-                            , label = text "Observe"
-                            }
-                        )
-                    , el [ centerX, Font.strike ]
-                        (Ui.Button.default
-                            { onPress = Nothing
-                            , label = text "Load Simulation"
-                            }
-                        )
-                    ]
-                ]
-            )
-    }
 
 
 viewParticipate : Model -> View Msg
@@ -627,8 +502,36 @@ viewParticipate model =
                     , padding 16
                     ]
                     [ contrastingBackground (viewPlayerCivForm model)
-                    , wrappedRow [ spacing 8 ] (List.map viewError model.errors)
-                    , startSimulationButton "Start Game"
+                    , case Validator.run createGameValidator model of
+                        Ok _ ->
+                            none
+
+                        Err errors ->
+                            wrappedRow [ spacing 8 ] (List.map viewError errors)
+                    , el [ centerX ]
+                        (case Validator.run createGameValidator model of
+                            Ok ( validName, validHomeName ) ->
+                                Ui.Link.internal
+                                    { label = text "Start Game"
+                                    , route =
+                                        Route.Playing
+                                            { name = validName
+                                            , homePlanetName = validHomeName
+                                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                                            , starCounts = model.starCounts
+                                            , playType = Participation
+                                            }
+                                    }
+
+                            Err _ ->
+                                Ui.Button.default
+                                    { label = text "Start Game"
+                                    , onPress = Nothing
+                                    }
+                        )
                     ]
                 , viewExample model
                 ]
@@ -663,16 +566,6 @@ viewPlayerCivForm model =
             , inputPlanets model
             , inputStarCounts model
             ]
-        )
-
-
-startSimulationButton : String -> Element Msg
-startSimulationButton label =
-    el [ centerX ]
-        (Ui.Button.default
-            { label = text label
-            , onPress = Just StartSimulation
-            }
         )
 
 
@@ -740,51 +633,6 @@ displayGameValue id value =
         , Element.Extra.id id
         ]
         (text value)
-
-
-viewObserve : Model -> View Msg
-viewObserve model =
-    { title = "Hello Space! - Observe"
-    , body =
-        el
-            [ padding 16
-            , width fill
-            , height fill
-            ]
-            (column
-                [ centerX
-                , centerY
-                , spacing 64
-                ]
-                [ contrastingBackground (el [ centerX, Font.size 64, Font.underline ] (text "Observe the Simulation"))
-                , column
-                    [ centerX
-                    , centerY
-                    , spacing 16
-                    , padding 16
-                    , width shrink
-                    ]
-                    [ contrastingBackground (viewObserveForm model)
-                    , startSimulationButton "Begin Simulation"
-                    ]
-                ]
-            )
-    }
-
-
-viewObserveForm : Model -> Element Msg
-viewObserveForm model =
-    column
-        [ width fill
-        , height (px 600)
-        , scrollbarY
-        ]
-        (List.intersperse formSpacer
-            [ inputSolarSystems model
-            , inputPlanets model
-            , inputStarCounts model
-            ]
-        )
 
 
 formSpacer : Element msg
