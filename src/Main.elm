@@ -14,7 +14,6 @@ import Shared exposing (Effect(..), Flags, SharedModel)
 import SubModule
 import Url
 import View exposing (View)
-import WebAudio
 
 
 main : Program Flags Model Msg
@@ -212,11 +211,10 @@ update msg model =
                     in
                     ( { model | shared = { shared | seed = seed } }, Cmd.none )
 
-                PlayAudio audio ->
-                    ( model
-                    , toWebAudio (Json.Encode.list WebAudio.encode audio)
-                    )
-
+        -- PlayAudio audio ->
+        --     ( model
+        --     , toWebAudio (Json.Encode.list WebAudio.encode audio)
+        --     )
         _ ->
             ( model, Cmd.none )
 
@@ -224,7 +222,8 @@ update msg model =
 port saveSettings : Value -> Cmd msg
 
 
-port toWebAudio : Value -> Cmd msg
+
+-- port toWebAudio : Value -> Cmd msg
 
 
 view : Model -> Document Msg

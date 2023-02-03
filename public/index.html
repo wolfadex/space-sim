@@ -33,10 +33,10 @@
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
       });
 
-      app.ports.toWebAudio &&
-        app.ports.toWebAudio.subscribe((nodes) => {
-          virtualCtx.update(nodes);
-        });
+      // app.ports.toWebAudio &&
+      //   app.ports.toWebAudio.subscribe((nodes) => {
+      //     virtualCtx.update(nodes);
+      //   });
     </script>
   </body>
 </html>
