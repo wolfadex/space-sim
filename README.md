@@ -32,17 +32,14 @@ A space game inspired by Dwarf Fortress.
 
 ## Development
 
+- Install [Nix](https://nixos.org/download.html)
+- Install [Direnv](https://direnv.net/)
+
 ```bash
-npm install
+git clone git@github.com:wolfadex/space-sim.git
+cd space-sim
+direnv allow
 npm run dev
-```
-
-```bash
-npm run review-watch
-```
-
-```bash
-npm run test-watch
 ```
 
 <br />
