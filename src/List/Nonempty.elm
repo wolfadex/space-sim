@@ -1,4 +1,16 @@
-module List.Nonempty exposing (Nonempty(..), appendList, head, indexedMap, length, singleton, tail, toList)
+module List.Nonempty exposing
+    ( Nonempty(..)
+    , appendList
+    , codec
+    , head
+    , indexedMap
+    , length
+    , singleton
+    , tail
+    , toList
+    )
+
+import Serialize
 
 
 type Nonempty a
@@ -38,3 +50,11 @@ toList (Nonempty ( a, list )) =
 length : Nonempty a -> Int
 length (Nonempty ( _, list )) =
     List.length list + 1
+
+
+codec : Serialize.Codec e a -> Serialize.Codec e (Nonempty a)
+codec valueCodec =
+    Serialize.record (\first rest -> Nonempty ( first, rest ))
+        |> Serialize.field head valueCodec
+        |> Serialize.field tail (Serialize.list valueCodec)
+        |> Serialize.finishRecord

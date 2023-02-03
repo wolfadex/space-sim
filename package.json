@@ -8,7 +8,7 @@
     "prebuild": "elm-tooling install",
     "dev": "run-pty run-pty.json",
     "dev:elm": "elm-watch hot",
-    "dev:server": "http-server",
+    "dev:server": "http-server --proxy http://localhost:8080?",
     "dev:test": "elm-test-rs --watch",
     "dev:review": "elm-review --fix --watch",
     "build": "elm-review && elm-test-rs && elm-watch make --optimize",

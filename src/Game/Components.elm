@@ -169,6 +169,7 @@ emptyWorld =
 
 type PlayingMsg
     = DeleteGalaxy
+    | CreateGalaxy Shared.GenerationConfig
     | SetSpaceFocus SpaceFocus
     | SetCivilizationFocus CivilizationFocus
     | Tick Float

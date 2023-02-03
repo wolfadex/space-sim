@@ -1,128 +1,199 @@
 port module Main exposing (Model, Msg, Page, main)
 
 import Browser exposing (Document)
+import Browser.Navigation
 import Element exposing (..)
 import Game.Components
 import Json.Encode exposing (Value)
-import NewGame
-import Playing
+import Page.Home
+import Page.NewGameObserve
+import Page.NewGameParticipate
+import Page.Playing
+import Route
 import Shared exposing (Effect(..), Flags, SharedModel)
 import SubModule
+import Url
 import View exposing (View)
-import WebAudio
 
 
 main : Program Flags Model Msg
 main =
-    Browser.document
+    Browser.application
         { init = init
         , subscriptions = subscriptions
         , update = update
         , view = view
+        , onUrlChange = OnUrlChange
+        , onUrlRequest = OnUrlRequest
         }
 
 
 type alias Model =
     { shared : SharedModel
     , page : Page
+    , navKey : Browser.Navigation.Key
     }
 
 
 type Page
-    = NewGame NewGame.Model
-    | Playing Game.Components.World
+    = PageHome Page.Home.Model
+    | PageNewGameParticipate Page.NewGameParticipate.Model
+    | PageNewGameObserve Page.NewGameObserve.Model
+    | PagePlaying Game.Components.World
 
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : Flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init flags url navKey =
     let
-        ( newGameModel, initializeNewGame ) =
-            SubModule.initWithEffect
-                { toMsg = GotNewGameMessage
-                , effectToMsg = GotSharedEffect
-                }
-                NewGame.init
+        ( initialPage, initializeApp ) =
+            initPageFromUrl url
     in
-    initializeNewGame
+    initializeApp
         ( { shared = Shared.init flags
-          , page = NewGame newGameModel
+          , page = initialPage
+          , navKey = navKey
           }
         , Cmd.none
         )
 
 
+initPageFromUrl : Url.Url -> ( Page, ( Model, Cmd Msg ) -> ( Model, Cmd Msg ) )
+initPageFromUrl url =
+    case Route.fromUrl url of
+        Route.Home ->
+            SubModule.initWithEffect
+                { toMsg = PageHomeMessage
+                , effectToMsg = GotSharedEffect
+                }
+                Page.Home.init
+                |> Tuple.mapFirst PageHome
+
+        Route.NewGameParticipate ->
+            SubModule.initWithEffect
+                { toMsg = PageNewGameParticipateMessage
+                , effectToMsg = GotSharedEffect
+                }
+                Page.NewGameParticipate.init
+                |> Tuple.mapFirst PageNewGameParticipate
+
+        Route.NewGameObserve ->
+            SubModule.initWithEffect
+                { toMsg = PageNewGameObserveMessage
+                , effectToMsg = GotSharedEffect
+                }
+                Page.NewGameObserve.init
+                |> Tuple.mapFirst PageNewGameObserve
+
+        Route.Playing generationConfig ->
+            SubModule.initWithEffect
+                { toMsg = PagePlayingMessage
+                , effectToMsg = GotSharedEffect
+                }
+                (Page.Playing.init generationConfig)
+                |> Tuple.mapFirst PagePlaying
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model.page of
-        NewGame m ->
-            Sub.map GotNewGameMessage (NewGame.subscriptions m)
+        PageHome m ->
+            Sub.map PageHomeMessage (Page.Home.subscriptions m)
 
-        Playing world ->
-            Sub.map GotPlayingMessage (Playing.subscriptions world)
+        PageNewGameParticipate m ->
+            Sub.map PageNewGameParticipateMessage (Page.NewGameParticipate.subscriptions m)
+
+        PageNewGameObserve m ->
+            Sub.map PageNewGameObserveMessage (Page.NewGameObserve.subscriptions m)
+
+        PagePlaying world ->
+            Sub.map PagePlayingMessage (Page.Playing.subscriptions world)
 
 
 type Msg
-    = GotNewGameMessage NewGame.Msg
-    | GotPlayingMessage Game.Components.PlayingMsg
-    | GotSharedEffect Effect
+    = GotSharedEffect Effect
+    | OnUrlChange Url.Url
+    | OnUrlRequest Browser.UrlRequest
+    | PagePlayingMessage Game.Components.PlayingMsg
+    | PageHomeMessage Page.Home.Msg
+    | PageNewGameParticipateMessage Page.NewGameParticipate.Msg
+    | PageNewGameObserveMessage Page.NewGameObserve.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case ( msg, model.page ) of
-        ( GotNewGameMessage message, NewGame newGameModel ) ->
+        ( OnUrlChange url, _ ) ->
+            let
+                ( initialPage, initializeApp ) =
+                    initPageFromUrl url
+            in
+            initializeApp
+                ( { model | page = initialPage }
+                , Cmd.none
+                )
+
+        ( OnUrlRequest urlRequest, _ ) ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Browser.Navigation.pushUrl model.navKey (Url.toString url) )
+
+                Browser.External url ->
+                    ( model, Browser.Navigation.load url )
+
+        ( PageHomeMessage message, PageHome m ) ->
             let
                 ( pageModel, cmd ) =
                     SubModule.updateWithEffect
-                        { toMsg = GotNewGameMessage
+                        { toMsg = PageHomeMessage
                         , effectToMsg = GotSharedEffect
-                        , toModel = NewGame
+                        , toModel = PageHome
                         }
-                        (NewGame.update model.shared message newGameModel)
+                        (Page.Home.update model.shared message m)
             in
             ( { model | page = pageModel }, cmd )
 
-        ( GotPlayingMessage message, Playing world ) ->
+        ( PageNewGameParticipateMessage message, PageNewGameParticipate m ) ->
             let
                 ( pageModel, cmd ) =
                     SubModule.updateWithEffect
-                        { toMsg = GotPlayingMessage
+                        { toMsg = PageNewGameParticipateMessage
                         , effectToMsg = GotSharedEffect
-                        , toModel = Playing
+                        , toModel = PageNewGameParticipate
                         }
-                        (Playing.update model.shared message world)
+                        (Page.NewGameParticipate.update model.shared message m)
+            in
+            ( { model | page = pageModel }, cmd )
+
+        ( PageNewGameObserveMessage message, PageNewGameObserve m ) ->
+            let
+                ( pageModel, cmd ) =
+                    SubModule.updateWithEffect
+                        { toMsg = PageNewGameObserveMessage
+                        , effectToMsg = GotSharedEffect
+                        , toModel = PageNewGameObserve
+                        }
+                        (Page.NewGameObserve.update model.shared message m)
+            in
+            ( { model | page = pageModel }, cmd )
+
+        ( PagePlayingMessage message, PagePlaying world ) ->
+            let
+                ( pageModel, cmd ) =
+                    SubModule.updateWithEffect
+                        { toMsg = PagePlayingMessage
+                        , effectToMsg = GotSharedEffect
+                        , toModel = PagePlaying
+                        }
+                        (Page.Playing.update model.shared message world)
             in
             ( { model | page = pageModel }, cmd )
 
         ( GotSharedEffect effect, _ ) ->
             case effect of
-                CreateGame playType newGameDetails ->
-                    let
-                        ( playingModel, initializePlaying ) =
-                            SubModule.initWithEffect
-                                { toMsg = GotPlayingMessage
-                                , effectToMsg = GotSharedEffect
-                                }
-                                (Playing.init model.shared playType newGameDetails)
-                    in
-                    initializePlaying
-                        ( { model | page = Playing playingModel }
-                        , Cmd.none
-                        )
-
                 DeleteGame ->
-                    let
-                        ( newGameModel, initializeNewGame ) =
-                            SubModule.initWithEffect
-                                { toMsg = GotNewGameMessage
-                                , effectToMsg = GotSharedEffect
-                                }
-                                NewGame.init
-                    in
-                    initializeNewGame
-                        ( { model | page = NewGame newGameModel }
-                        , Cmd.none
-                        )
+                    ( model
+                    , Browser.Navigation.pushUrl model.navKey (Route.toString Route.Home)
+                    )
 
                 GotSharedMessage change ->
                     let
@@ -140,11 +211,10 @@ update msg model =
                     in
                     ( { model | shared = { shared | seed = seed } }, Cmd.none )
 
-                PlayAudio audio ->
-                    ( model
-                    , toWebAudio (Json.Encode.list WebAudio.encode audio)
-                    )
-
+        -- PlayAudio audio ->
+        --     ( model
+        --     , toWebAudio (Json.Encode.list WebAudio.encode audio)
+        --     )
         _ ->
             ( model, Cmd.none )
 
@@ -152,7 +222,8 @@ update msg model =
 port saveSettings : Value -> Cmd msg
 
 
-port toWebAudio : Value -> Cmd msg
+
+-- port toWebAudio : Value -> Cmd msg
 
 
 view : Model -> Document Msg
@@ -161,11 +232,17 @@ view model =
         content : View Msg
         content =
             case model.page of
-                NewGame m ->
-                    View.map GotNewGameMessage (NewGame.view model.shared m)
+                PageHome m ->
+                    View.map PageHomeMessage (Page.Home.view model.shared m)
 
-                Playing m ->
-                    View.map GotPlayingMessage (Playing.view model.shared m)
+                PageNewGameParticipate m ->
+                    View.map PageNewGameParticipateMessage (Page.NewGameParticipate.view model.shared m)
+
+                PageNewGameObserve m ->
+                    View.map PageNewGameObserveMessage (Page.NewGameObserve.view model.shared m)
+
+                PagePlaying m ->
+                    View.map PagePlayingMessage (Page.Playing.view model.shared m)
     in
     { title = content.title
     , body = [ layout [ width fill, height fill ] content.body ]
