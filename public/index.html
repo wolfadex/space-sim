@@ -4,6 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Space Sim</title>
+
+    <style>
+      @font-face {
+        font-family: "Exo2";
+        src: url("/Exo_2/Exo2-VariableFont_wght.ttf");
+      }
+
+      * {
+        font-family: "Exo2" !important;
+      }
+
+      body {
+        margin: 0;
+        height: 100vh;
+      }
+
+      .column {
+        display: flex;
+        flex-direction: column;
+        width: fit-content;
+      }
+
+      .row {
+        display: flex;
+      }
+
+      .columns1 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-auto-rows: minmax(100px, auto);
+      }
+    </style>
   </head>
   <body>
     <script src="/elm.js"></script>
