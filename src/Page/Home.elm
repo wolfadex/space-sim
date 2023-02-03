@@ -1,6 +1,7 @@
 module Page.Home exposing
     ( Model
     , Msg
+    , baseModel
     , init
     , subscriptions
     , update
