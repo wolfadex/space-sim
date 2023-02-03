@@ -190,11 +190,17 @@ type alias Model =
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
     , starCounts : Nonempty ( Float, Int )
-
-    -- participate only
     , civilizationNameSingular : String
     , homePlanetName : String
+
+    -- "tab"
+    , tab : Tab
     }
+
+
+type Tab
+    = SolarSystemTab
+    | CivilizationTab
 
 
 baseModel : Model
@@ -230,6 +236,9 @@ baseModel =
         List.Nonempty.appendList
             [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
             (List.Nonempty.singleton ( 0.56, 1 ))
+
+    -- "tab"
+    , tab = SolarSystemTab
     }
 
 
@@ -259,6 +268,7 @@ type Msg
     | GotMinPlanetCount Int
     | GotMaxPlanetCount Int
     | GotStarCountChange Int Float
+    | TabChanged Tab
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -305,6 +315,9 @@ update _ msg model =
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
 
         -- form stuff
+        TabChanged tab ->
+            ( { model | tab = tab }, SubCmd.none )
+
         SetNameSingular singular ->
             ( { model | civilizationNameSingular = singular }
             , SubCmd.none
@@ -391,7 +404,7 @@ civNameValidator : Validator Model String Name
 civNameValidator =
     Validator.required .civilizationNameSingular
         String.isEmpty
-        "Name is required"
+        "Civilization name is required"
         (Validator.custom Ok)
         (Validator.succeed Data.Name.fromString)
 
@@ -402,12 +415,7 @@ civNameValidator =
 
 view : SharedModel -> Model -> View Msg
 view sharedModel model =
-    let
-        options : View Msg
-        options =
-            viewParticipate model
-    in
-    { title = options.title
+    { title = "Hello Space! - Participate"
     , body =
         el
             [ width fill
@@ -464,7 +472,7 @@ view sharedModel model =
                     )
                 )
             ]
-            options.body
+            (viewParticipate model)
     }
 
 
@@ -475,77 +483,119 @@ contrastingBackground =
         , Background.color Ui.Theme.nearlyWhiteTransparent
         , padding 8
         , Border.rounded 8
+        , width fill
         ]
 
 
-viewParticipate : Model -> View Msg
+viewParticipate : Model -> Element Msg
 viewParticipate model =
-    { title = "Hello Space! - Participate"
-    , body =
-        column
+    column
+        [ centerX
+        , centerY
+        , spacing 64
+        , width fill
+        ]
+        [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
+        , wrappedRow
             [ centerX
             , centerY
-            , spacing 64
+            , spacing 16
+            , paddingXY 32 16
+            , width fill
             ]
-            [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
-            , wrappedRow
-                [ centerX
-                , centerY
+            [ column
+                [ width fill
                 , spacing 16
-                , padding 16
-                , width shrink
                 ]
-                [ column
-                    [ centerY
-                    , width fill
-                    , spacing 16
-                    , padding 16
-                    ]
-                    [ contrastingBackground (viewPlayerCivForm model)
-                    , case Validator.run createGameValidator model of
-                        Ok _ ->
-                            none
+                [ contrastingBackground <|
+                    case model.tab of
+                        SolarSystemTab ->
+                            viewSolarSystemForm model
 
-                        Err errors ->
-                            wrappedRow [ spacing 8 ] (List.map viewError errors)
-                    , el [ centerX ]
-                        (case Validator.run createGameValidator model of
-                            Ok ( validName, validHomeName ) ->
-                                Ui.Link.internal
-                                    { label = text "Start Game"
-                                    , route =
-                                        Route.Playing
-                                            { name = validName
-                                            , homePlanetName = validHomeName
-                                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
-                                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
-                                            , starCounts = model.starCounts
-                                            , playType = Participation
-                                            }
-                                    }
+                        CivilizationTab ->
+                            viewCivilizationForm model
+                , case Validator.run createGameValidator model of
+                    Ok _ ->
+                        el [ height (px 36) ] none
 
-                            Err _ ->
+                    Err errors ->
+                        wrappedRow [ spacing 8 ] (List.map viewError errors)
+                , row [ width fill ]
+                    [ el [ alignLeft ]
+                        (case model.tab of
+                            SolarSystemTab ->
+                                none
+
+                            CivilizationTab ->
                                 Ui.Button.default
-                                    { label = text "Start Game"
-                                    , onPress = Nothing
+                                    { label = text "Change Solar System"
+                                    , onPress = Just (TabChanged SolarSystemTab)
                                     }
                         )
+                    , el
+                        [ alignRight ]
+                        (case model.tab of
+                            SolarSystemTab ->
+                                Ui.Button.default
+                                    { label = text "Setup Civilization"
+                                    , onPress = Just (TabChanged CivilizationTab)
+                                    }
+
+                            CivilizationTab ->
+                                case Validator.run createGameValidator model of
+                                    Ok ( validName, validHomeName ) ->
+                                        Ui.Link.internal
+                                            { label = text "Start Game"
+                                            , route =
+                                                Route.Playing
+                                                    { name = validName
+                                                    , homePlanetName = validHomeName
+                                                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                                                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                                                    , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                                                    , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                                                    , starCounts = model.starCounts
+                                                    , playType = Participation
+                                                    }
+                                            }
+
+                                    Err _ ->
+                                        Ui.Button.default
+                                            { label = text "Start Game"
+                                            , onPress = Nothing
+                                            }
+                        )
                     ]
-                , viewExample model
                 ]
+            , viewExample model
             ]
-    }
+        ]
 
 
-viewPlayerCivForm : Model -> Element Msg
-viewPlayerCivForm model =
+viewSolarSystemForm : Model -> Element Msg
+viewSolarSystemForm model =
     column
         [ spacing 16
         , width fill
         , height (px 600)
         , scrollbarY
+        ]
+        (List.intersperse formSpacer
+            [ inputSolarSystems model
+            , inputPlanets model
+            , inputStarCounts model
+            ]
+        )
+
+
+viewCivilizationForm : Model -> Element Msg
+viewCivilizationForm model =
+    column
+        [ spacing 16
+        , width fill
+        , height (px 600)
+        , scrollbarY
+        , alignLeft
         ]
         (List.intersperse formSpacer
             [ inputGroup "Civilization"
@@ -562,9 +612,6 @@ viewPlayerCivForm model =
                     , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
                     }
                 ]
-            , inputSolarSystems model
-            , inputPlanets model
-            , inputStarCounts model
             ]
         )
 
@@ -669,7 +716,7 @@ inputGroup label inputs =
 
 inputSolarSystems : Model -> Element Msg
 inputSolarSystems model =
-    inputGroup "Solar System to Generate"
+    inputGroup "Solar Systems to Generate"
         [ Ui.Slider.int []
             { onChange = GotMinSolarSystemCount
             , label =
