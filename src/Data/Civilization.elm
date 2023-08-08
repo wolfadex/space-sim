@@ -7,6 +7,7 @@ module Data.Civilization exposing
     )
 
 import Data.EarthYear exposing (EarthYear)
+import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Set.Any exposing (AnySet)
 
@@ -14,7 +15,7 @@ import Set.Any exposing (AnySet)
 {-| Characteristics of a civilization
 
 cooperationVsCompetition:
-Whether the civ lean towards copperation or competition. 0.0 being 100% cooperative, like The Borg, and 1.0 being 100% competitive like The Gorn
+Whether the civ lean towards copperation or competition. 0.0 being 100% cooperative, like Borg, and 1.0 being 100% competitive like Gorn
 
 timeSinceLastMonument:
 When the strucutre was built that will last a long time and could be "discovered" by a future civilization, or recognized as "important"/"influential"
@@ -28,7 +29,6 @@ Distributed <---> Top down
 0.0 <---> 1.0
 Fungi <---> Borg, Monarchy
 
-TODO: soical structure (hierarchy, flat, classes, etc)
 TODO: government, governance (democracy, police state, etc)
 TODO: religion
 TODO: language/communication (written, sound/spoken, smell, taste, signed, etc)
@@ -78,9 +78,8 @@ styleSpec =
 type Sense
     = Visual
     | Audio
-    | Pressure
-    | Smell -- Chemical, airborne
-    | Taste -- Chemical, direct contact
+    | Pressure -- touch
+    | Smell -- Chemical, smell/taste
     | Telepathic -- Other waves, could also cover something like Borg style communication. Telepathic is more how it appears to humans
 
 
@@ -90,7 +89,6 @@ allSenses =
     , Audio
     , Pressure
     , Smell
-    , Taste
     , Telepathic
     ]
 
@@ -116,9 +114,6 @@ senseComparableConfig =
                     Smell
 
                 4 ->
-                    Taste
-
-                5 ->
                     Telepathic
 
                 _ ->
@@ -138,11 +133,8 @@ senseComparableConfig =
                 Smell ->
                     3
 
-                Taste ->
-                    4
-
                 Telepathic ->
-                    5
+                    4
     }
 
 

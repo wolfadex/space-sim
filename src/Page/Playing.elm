@@ -1290,7 +1290,7 @@ attemptToGenerateCivilization planetType planetId world =
 generateCivilization : World -> EntityID -> Name -> Generator World
 generateCivilization worldWithFewerNames planetId name =
     Random.map
-        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource senses descisionMakingStructure ->
+        (\initialPopulationSize reproductionRate mortalityRate initialHappiness civDensity coopVsComp nameSource senses descisionMakingStructure motivations ->
             let
                 ( civId, worldWithNewCiv ) =
                     Logic.Entity.Extra.create worldWithFewerNames
@@ -1303,6 +1303,10 @@ generateCivilization worldWithFewerNames planetId name =
                         |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, mortalityRate )
                         |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.singleton planetId initialHappiness )
                         |> Logic.Entity.with ( Game.Components.civilizationDensitySpec, civDensity )
+                        |> Logic.Entity.with
+                            ( Game.Components.motivationsSpec
+                            , motivations
+                            )
                         |> Logic.Entity.with
                             ( Data.Civilization.styleSpec
                             , { cooperationVsCompetition = coopVsComp
@@ -1348,6 +1352,19 @@ generateCivilization worldWithFewerNames planetId name =
             )
         -- descisionMakingStructure: should this be biased away from the extremes?
         |> Random.Extra.andMap (Random.float 0.0 1.0)
+        |> Random.Extra.andMap
+            (Random.map3
+                (\expand explore dominate ->
+                    Dict.fromList
+                        [ ( "expand", expand )
+                        , ( "explore", explore )
+                        , ( "dominate", dominate )
+                        ]
+                )
+                (Random.float -1.0 1.0)
+                (Random.float -1.0 1.0)
+                (Random.float -1.0 1.0)
+            )
 
 
 generateCivilizationName : World -> Generator ( Maybe Name, World )

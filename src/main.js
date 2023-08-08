@@ -1,16 +1,40 @@
-import VirtualAudioContext from './elm-web-audio.js'
-import { Elm } from './Main.elm'
+import VirtualAudioContext from "./elm-web-audio.js";
+import { Elm } from "./Main.elm";
 
-const SETTINGS_STORAGE_KEY = 'settings'
+// HACKS -- BEGIN
+Object.defineProperty(HTMLElement.prototype, "___capturePointer", {
+  set(pointerId) {
+    if (pointerId == null) {
+      this.releasePointerCapture(this.___pointerId);
+    } else {
+      this.___pointerId = pointerId;
+      this.setPointerCapture(pointerId);
+    }
+  },
+});
+Object.defineProperty(SVGElement.prototype, "___capturePointer", {
+  set(pointerId) {
+    if (pointerId == null) {
+      this.releasePointerCapture(this.___pointerId);
+    } else {
+      this.___pointerId = pointerId;
+      this.setPointerCapture(pointerId);
+    }
+  },
+});
 
-const randomSeeds = new Uint32Array(1)
+// HACKS -- END
 
-crypto.getRandomValues(randomSeeds)
+const SETTINGS_STORAGE_KEY = "settings";
 
-const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY) || null
+const randomSeeds = new Uint32Array(1);
 
-const ctx = new AudioContext()
-const virtualCtx = new VirtualAudioContext(ctx)
+crypto.getRandomValues(randomSeeds);
+
+const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY) || null;
+
+const ctx = new AudioContext();
+const virtualCtx = new VirtualAudioContext(ctx);
 
 const app = Elm.Main.init({
   flags: {
@@ -18,13 +42,13 @@ const app = Elm.Main.init({
     settings:
       savedSettings === null ? savedSettings : JSON.parse(savedSettings),
   },
-})
+});
 
-app.ports.saveSettings.subscribe(function (settings) {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
-})
+app.ports.saveSettings.subscribe(function(settings) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+});
 
 app.ports.toWebAudio &&
   app.ports.toWebAudio.subscribe((nodes) => {
-    virtualCtx.update(nodes)
-  })
+    virtualCtx.update(nodes);
+  });

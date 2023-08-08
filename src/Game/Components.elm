@@ -22,6 +22,7 @@ module Game.Components exposing
     , civilizationPopulationSpec
     , civilizationReproductionRateSpec
     , emptyWorld
+    , motivationsSpec
     , namedSpec
     , orbitSpec
     , parentSpec
@@ -94,6 +95,7 @@ type alias World =
     , children : Logic.Component.Set (Set EntityID)
     , galaxyPositions : Logic.Component.Set (Point3d Meters LightYear)
     , solarSystems : Logic.Component.Set SolarSystem
+    , motivations : Logic.Component.Set Motivations
 
     ---- Book keeping
     , planets : Set EntityID
@@ -143,6 +145,7 @@ emptyWorld =
     , galaxyPositions = Logic.Component.empty
     , civilizationStructures = Logic.Component.empty
     , solarSystems = Logic.Component.empty
+    , motivations = Logic.Component.empty
     , civilizationPersonNameSource = Logic.Component.empty
 
     --
@@ -326,3 +329,12 @@ positionSpec =
 
 type LightYear
     = LightYear Never
+
+
+type alias Motivations =
+    Dict String Float
+
+
+motivationsSpec : Spec Motivations { world | motivations : Logic.Component.Set Motivations }
+motivationsSpec =
+    Logic.Component.Spec .motivations (\comps world -> { world | motivations = comps })

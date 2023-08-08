@@ -9,6 +9,10 @@ module Page.NewGameParticipate exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
+import Circle2d
+import Control exposing (Control)
+import CubicSpline2d exposing (CubicSpline2d)
+import Data.Civilization exposing (Sense)
 import Data.EarthYear
 import Data.Name exposing (Name)
 import Data.Orbit exposing (Orbit)
@@ -29,17 +33,27 @@ import Game.Components
         , Visible(..)
         , Water
         )
+import Geometry.Svg
+import Html exposing (Html)
+import Html.Attributes
+import Html.Events
+import Input.MinMaxSlider
+import Input.Spline
 import Length exposing (Meters)
 import List.Nonempty exposing (Nonempty)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Numeral
 import Percent exposing (Percent)
+import Pixels
+import Point2d
 import Point3d exposing (Point3d)
+import Polyline2d
 import Population exposing (Population)
 import Quantity
 import Route
 import Set exposing (Set)
+import Set.Any exposing (AnySet)
 import Shared
     exposing
         ( Effect(..)
@@ -48,6 +62,8 @@ import Shared
         , SharedMsg
         )
 import SubCmd exposing (SubCmd)
+import Svg
+import Svg.Attributes
 import Temperature exposing (Temperature)
 import Ui.Button
 import Ui.Link
@@ -185,16 +201,25 @@ type alias Model =
     , civilizations : Set EntityID
 
     ---- game stuff
+    , tab : Tab
+
+    -- solar systems
     , minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
     , starCounts : Nonempty ( Float, Int )
+    , solarSystemForm : Control.State FormState
+
+    -- civilizaiton
     , civilizationNameSingular : String
     , homePlanetName : String
+    , cooperationVsCompetition : Float
+    , senses : AnySet Int Sense
+    , descisionMakingStructure : Float
 
-    -- "tab"
-    , tab : Tab
+    -- spline
+    , spline : CubicSpline2d Meters ()
     }
 
 
@@ -224,10 +249,10 @@ baseModel =
     , planets = Set.empty
     , stars = Set.empty
     , civilizations = Set.empty
+    , tab = SolarSystemTab
 
-    -- game stuff
-    , civilizationNameSingular = ""
-    , homePlanetName = ""
+    ---- game stuff
+    -- solar systems
     , minSolarSystemsToGenerate = 40
     , maxSolarSystemsToGenerate = 80
     , minPlanetsPerSolarSystemToGenerate = 1
@@ -236,9 +261,20 @@ baseModel =
         List.Nonempty.appendList
             [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
             (List.Nonempty.singleton ( 0.56, 1 ))
+    , solarSystemForm = galaxyForm.init |> Tuple.first
 
-    -- "tab"
-    , tab = SolarSystemTab
+    -- civilization
+    , civilizationNameSingular = ""
+    , homePlanetName = ""
+    , cooperationVsCompetition = 0.5
+    , senses = Set.Any.empty
+    , descisionMakingStructure = 0.5
+    , spline =
+        CubicSpline2d.fromControlPoints
+            (Point2d.meters 1 1)
+            (Point2d.meters 3 4)
+            (Point2d.meters 5 1)
+            (Point2d.meters 7 4)
     }
 
 
@@ -269,6 +305,8 @@ type Msg
     | GotMaxPlanetCount Int
     | GotStarCountChange Int Float
     | TabChanged Tab
+    | SolarSystemFormSentMsg (Control.Delta FormDelta)
+    | SolarSystemFormSubmitted
 
 
 update : SharedModel -> Msg -> Model -> ( Model, SubCmd Msg Effect )
@@ -364,7 +402,11 @@ update _ msg model =
             let
                 originalPercent : Float
                 originalPercent =
-                    Maybe.withDefault newPercent (Maybe.map Tuple.first (List.head (List.drop index (List.Nonempty.toList model.starCounts))))
+                    List.Nonempty.toList model.starCounts
+                        |> List.drop index
+                        |> List.head
+                        |> Maybe.map Tuple.first
+                        |> Maybe.withDefault newPercent
 
                 otherStarChange : Float
                 otherStarChange =
@@ -386,6 +428,18 @@ update _ msg model =
               }
             , SubCmd.none
             )
+
+        SolarSystemFormSentMsg msg_ ->
+            let
+                ( solarSystemForm, cmd ) =
+                    galaxyForm.update msg_ model.solarSystemForm
+            in
+            ( { model | solarSystemForm = solarSystemForm }
+            , SubCmd.cmd cmd
+            )
+
+        SolarSystemFormSubmitted ->
+            Debug.todo ""
 
 
 createGameValidator : Validator Model String ( Name, String )
@@ -510,7 +564,9 @@ viewParticipate model =
                 [ contrastingBackground <|
                     case model.tab of
                         SolarSystemTab ->
-                            viewSolarSystemForm model
+                            -- viewSolarSystemForm model
+                            galaxyForm.view model.solarSystemForm
+                                |> html
 
                         CivilizationTab ->
                             viewCivilizationForm model
@@ -582,10 +638,19 @@ viewSolarSystemForm model =
         ]
         (List.intersperse formSpacer
             [ inputSolarSystems model
+
+            -- , inputSpline model
             , inputPlanets model
             , inputStarCounts model
             ]
         )
+
+
+inputSpline : Model -> Element Msg
+inputSpline model =
+    -- SplineInput.view { model = SplineInput.init }
+    --     |> html
+    none
 
 
 viewCivilizationForm : Model -> Element Msg
@@ -611,6 +676,41 @@ viewCivilizationForm model =
                     , text = model.homePlanetName
                     , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
                     }
+                , Input.slider
+                    []
+                    { label = Input.labelAbove [] (text "Cooperative or Competitive")
+                    , max = 1.0
+                    , min = 0.0
+                    , onChange = Debug.todo ""
+                    , step = Nothing
+                    , value = model.cooperationVsCompetition
+                    , thumb = Input.defaultThumb
+                    }
+                , column
+                    [ spacing 4, width (px 400) ]
+                    [ row [ spacing 64, width fill ]
+                        [ text "Cooperative"
+                        , el [ centerX ] (text "or")
+                        , el [ alignRight ] (text "Competitive")
+                        ]
+                    , el
+                        [ Border.width 1
+                        , width fill
+                        , moveDown 4
+                        , inFront
+                            (el
+                                [ height (px 16)
+                                , Border.width 2
+                                , moveUp 8
+                                , moveRight (model.cooperationVsCompetition * 400)
+                                ]
+                                none
+                            )
+                        ]
+                        none
+                    ]
+                , text "Senses:"
+                , text "descisionMakingStructure"
                 ]
             ]
         )
@@ -804,3 +904,164 @@ inputStarCounts model =
             )
             (List.Nonempty.toList model.starCounts)
         )
+
+
+type alias FormState =
+    ( Control.State Input.MinMaxSlider.Model
+    , ( Control.State Input.MinMaxSlider.Model
+      , ( Control.State (List.Nonempty.Nonempty ( Float, Int ))
+        , Control.End
+        )
+      )
+    )
+
+
+type alias FormDelta =
+    ( Control.Delta Input.MinMaxSlider.Msg
+    , ( Control.Delta Input.MinMaxSlider.Msg
+      , ( Control.Delta ( Int, Float ), Control.End )
+      )
+    )
+
+
+type alias SolarSystemForm =
+    { minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
+    }
+
+
+galaxyForm : Control.Form FormState FormDelta SolarSystemForm Msg
+galaxyForm =
+    Control.form
+        { onUpdate = SolarSystemFormSentMsg
+        , onSubmit = SolarSystemFormSubmitted
+        , control =
+            Control.record
+                (\solarSystems planets starCounts ->
+                    { minSolarSystemsToGenerate = solarSystems.min
+                    , maxSolarSystemsToGenerate = solarSystems.max
+                    , minPlanetsPerSolarSystemToGenerate = planets.min
+                    , maxPlanetsPerSolarSystemToGenerate = planets.max
+                    , starCounts = starCounts
+                    }
+                )
+                |> Control.field
+                    (\{ minSolarSystemsToGenerate, maxSolarSystemsToGenerate } ->
+                        { min = minSolarSystemsToGenerate, max = maxSolarSystemsToGenerate }
+                    )
+                    (Input.MinMaxSlider.new { min = 10, max = 800 }
+                        |> Input.MinMaxSlider.withStep 10
+                        |> Input.MinMaxSlider.toControl
+                        |> Control.label "Solar Systems to Generate:"
+                        |> Control.initWith { min = 40, max = 80 }
+                    )
+                |> Control.field
+                    (\{ minPlanetsPerSolarSystemToGenerate, maxPlanetsPerSolarSystemToGenerate } ->
+                        { min = minPlanetsPerSolarSystemToGenerate, max = maxPlanetsPerSolarSystemToGenerate }
+                    )
+                    (Input.MinMaxSlider.new { min = 0, max = 40 }
+                        |> Input.MinMaxSlider.withStep 1
+                        |> Input.MinMaxSlider.toControl
+                        |> Control.label "Planets per Solar System:"
+                        |> Control.initWith { min = 1, max = 12 }
+                    )
+                |> Control.field .starCounts starCountControl
+                |> Control.endRecord
+        }
+
+
+starCountControl : Control (Nonempty ( Float, Int )) ( Int, Float ) (Nonempty ( Float, Int ))
+starCountControl =
+    Control.create
+        { label = "Odds that a Solar System has:"
+        , initEmpty =
+            ( List.Nonempty.appendList
+                [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
+                (List.Nonempty.singleton ( 0.56, 1 ))
+            , Cmd.none
+            )
+        , initWith = \starCounts -> ( starCounts, Cmd.none )
+        , update = updateStarCountControl
+        , view = viewStarCountControl
+        , subscriptions = \_ -> Sub.none
+        , parse = Ok
+        }
+
+
+updateStarCountControl : ( Int, Float ) -> Nonempty ( Float, Int ) -> ( Nonempty ( Float, Int ), Cmd ( Int, Float ) )
+updateStarCountControl ( index, newPercent ) starCounts =
+    let
+        originalPercent : Float
+        originalPercent =
+            List.Nonempty.toList starCounts
+                |> List.drop index
+                |> List.head
+                |> Maybe.map Tuple.first
+                |> Maybe.withDefault newPercent
+
+        otherStarChange : Float
+        otherStarChange =
+            (originalPercent - newPercent) / toFloat (List.Nonempty.length starCounts - 1)
+    in
+    ( List.Nonempty.indexedMap
+        (\i ( percent, count ) ->
+            ( if i == index then
+                newPercent
+
+              else
+                min 1 (max 0 (percent + otherStarChange))
+            , count
+            )
+        )
+        starCounts
+    , Cmd.none
+    )
+
+
+viewStarCountControl :
+    { state : Nonempty ( Float, Int )
+    , class : String
+    , id : String
+    , name : String
+    , label : String
+    }
+    -> List (Html ( Int, Float ))
+viewStarCountControl { state, class, id, name, label } =
+    [ Html.label
+        [ Html.Attributes.for name ]
+        [ Html.text label ]
+    , Html.div
+        [ Html.Attributes.class class
+        , Html.Attributes.id id
+        , Html.Attributes.style "display" "flex"
+        , Html.Attributes.style "flex-direction" "column"
+        , Html.Attributes.style "padding-left" "1rem"
+        ]
+        (state
+            |> List.Nonempty.toList
+            |> List.concatMap
+                (\( percent, count ) ->
+                    [ Html.label
+                        [ Html.Attributes.for (name ++ "stars-" ++ String.fromInt count) ]
+                        [ Html.text (String.fromInt count ++ " Stars: " ++ Numeral.format "0.00[%]" percent) ]
+                    , Html.input
+                        [ Html.Attributes.type_ "range"
+                        , Html.Attributes.name name
+                        , Html.Attributes.min (String.fromFloat 0.0)
+                        , Html.Attributes.max (String.fromFloat 1.0)
+                        , Html.Attributes.step (String.fromFloat 0.001)
+                        , Html.Attributes.value (String.fromFloat percent)
+                        , Html.Events.onInput
+                            (String.toFloat
+                                >> Maybe.withDefault percent
+                                >> Tuple.pair (count - 1)
+                            )
+                        ]
+                        []
+                    ]
+                )
+        )
+    ]
