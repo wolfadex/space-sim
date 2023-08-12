@@ -1,4 +1,4 @@
-module Input.MinMaxSlider exposing (..)
+module Input.MinMaxSlider exposing (Config(..), InternalConfig, InternalModel, Model(..), Msg(..), initWith, new, parse, toControl, update, view, viewSlider, withStep)
 
 import Control exposing (Control)
 import Html exposing (Html)
@@ -122,7 +122,15 @@ view { state, name, label, id, class } =
         (Model model) =
             state
     in
-    [ Html.span [] [ Html.text label ]
+    [ Html.span []
+        [ Html.text
+            (label
+                ++ ": "
+                ++ String.fromInt model.minimum
+                ++ " - "
+                ++ String.fromInt model.maximum
+            )
+        ]
     , Html.div
         [ Html.Attributes.style "display" "grid"
         , Html.Attributes.style "gap" "0.25rem"

@@ -5,10 +5,11 @@ port module Shared exposing
     , GenerationConfig
     , PlayType(..)
     , Settings
+    , SettingsFormDelta
+    , SettingsFormState
     , SharedModel
     , SharedMsg(..)
     , defaultSettings
-    , encodeSettings
     , generationConfigCodec
     , init
     , update
@@ -44,9 +45,6 @@ init flags =
 
                 Ok settings_ ->
                     settings_
-
-        _ =
-            "carl"
     in
     { seed = Random.initialSeed flags.initialSeed
     , settings = settings
@@ -139,11 +137,7 @@ generationConfigCodec =
 
 
 type SharedMsg
-    = GotLightingChange Bool
-    | GotPlanetOrbitChange Bool
-    | GotShowPlanetOrbitChange Bool
-    | GotPlanetRotationSpeed Float
-    | SettingsFormSentMsg (Control.Delta SettingsFormDelta)
+    = SettingsFormSentMsg (Control.Delta SettingsFormDelta)
     | SettingsFormSubmitted
 
 
@@ -184,61 +178,6 @@ update msg ({ settings } as model) =
 
                 Err _ ->
                     Cmd.none
-            )
-
-        GotLightingChange enabledBool ->
-            ( { model
-                | settings =
-                    { settings
-                        | realisticLighting =
-                            if enabledBool then
-                                Enabled
-
-                            else
-                                Disabled
-                    }
-              }
-            , Cmd.none
-            )
-
-        GotPlanetOrbitChange enabledBool ->
-            ( { model
-                | settings =
-                    { settings
-                        | planetsOrbit =
-                            if enabledBool then
-                                Enabled
-
-                            else
-                                Disabled
-                    }
-              }
-            , Cmd.none
-            )
-
-        GotShowPlanetOrbitChange enabledBool ->
-            ( { model
-                | settings =
-                    { settings
-                        | showPlanetsOrbit =
-                            if enabledBool then
-                                Enabled
-
-                            else
-                                Disabled
-                    }
-              }
-            , Cmd.none
-            )
-
-        GotPlanetRotationSpeed speed ->
-            ( { model
-                | settings =
-                    { settings
-                        | planetRotationSpeed = Percent.fromFloat speed
-                    }
-              }
-            , Cmd.none
             )
 
 
@@ -354,8 +293,6 @@ viewSettings model =
         [ Ui.justifySelf.end
         , Ui.width.shrink
         , Ui.height.shrink
-
-        -- , Ui.translate.down 24
         , Ui.padding.rem1
         ]
         (Ui.column

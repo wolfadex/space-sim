@@ -2,9 +2,7 @@ module Main exposing (Model, Msg, Page, main)
 
 import Browser exposing (Document)
 import Browser.Navigation
-import Element exposing (..)
 import Game.Components
-import Json.Encode exposing (Value)
 import Page.Home
 import Page.NewGameObserve
 import Page.NewGameParticipate

@@ -1,28 +1,8 @@
 module FormBuilder exposing (main)
 
-import Circle2d
-import Control exposing (Control)
-import CubicSpline2d exposing (CubicSpline2d)
-import Geometry.Svg
-import Html exposing (Html)
-import Html.Attributes
-import Html.Events
-import Input.MinMaxSlider
+import Control
 import Input.Slider.Float
-import Input.Spline
-import Json.Decode
-import List.Nonempty exposing (Nonempty)
-import Numeral
-import Percent exposing (Percent)
-import Pixels exposing (Pixels)
-import Point2d exposing (Point2d)
-import Polyline2d
-import Set exposing (Set)
-import SubCmd exposing (SubCmd)
-import Svg
-import Svg.Attributes
-import Svg.Events
-import Vector2d
+import Percent
 
 
 main =
@@ -94,15 +74,6 @@ main =
                 |> Control.endRecord
         , outputToString = Debug.toString
         }
-
-
-type alias Settings =
-    { version : Int
-    , realisticLighting : Enabled
-    , planetsOrbit : Enabled
-    , planetRotationSpeed : Percent ()
-    , showPlanetsOrbit : Enabled
-    }
 
 
 type Enabled

@@ -1,4 +1,4 @@
-module Input.Spline exposing (..)
+module Input.Spline exposing (Config(..), Internal, Model(..), Msg(..), Options, init, initWith, internalScale, limit, mapPoint2d, new, parse, pointerDown, pointerMove, pointerUp, scaleWithin, splineControl, toControl, update, view, withUnits)
 
 import Circle2d
 import Control exposing (Control)
@@ -7,12 +7,9 @@ import Geometry.Svg
 import Html exposing (Html)
 import Html.Attributes
 import Json.Decode
-import List.Nonempty exposing (Nonempty)
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Polyline2d
-import Set exposing (Set)
-import SubCmd exposing (SubCmd)
 import Svg
 import Svg.Attributes
 import Svg.Events
@@ -55,7 +52,7 @@ splineControl options =
         , initWith = \spline -> ( initWith options spline, Cmd.none )
         , update = update
         , view = view
-        , subscriptions = \state -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , parse = parse
         }
 

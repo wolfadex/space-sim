@@ -1,7 +1,7 @@
-module Input.Slider exposing (..)
+module Input.Slider exposing (Config(..), InternalConfig, InternalModel, Model(..), Msg(..), initEmpty, initWith, new, parse, toControl, update, view, withStep)
 
 import Control exposing (Control)
-import Html exposing (Html)
+import Html
 import Html.Attributes
 import Html.Events
 

@@ -24,8 +24,6 @@ import Game.Components
         , Water
         )
 import Html exposing (Html)
-import Html.Attributes
-import Html.Events
 import Length exposing (Meters)
 import Logic.Component
 import Logic.Entity exposing (EntityID)

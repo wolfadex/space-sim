@@ -7,7 +7,6 @@ module Ui.Button exposing
     )
 
 import Html exposing (Html)
-import Html.Attributes
 import Html.Events
 import Ui
 import Ui.Theme

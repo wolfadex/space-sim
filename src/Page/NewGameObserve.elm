@@ -9,7 +9,7 @@ module Page.NewGameObserve exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
-import Control exposing (Control)
+import Control
 import Data.EarthYear
 import Data.Name
 import Data.Orbit exposing (Orbit)
@@ -25,14 +25,11 @@ import Game.Components
         , Water
         )
 import Html exposing (Html)
-import Html.Attributes
-import Html.Events
-import Input.MinMaxSlider
 import Length exposing (Meters)
 import List.Nonempty exposing (Nonempty)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
-import Numeral
+import Page.Shared
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
@@ -187,7 +184,7 @@ type alias Model =
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
     , starCounts : Nonempty ( Float, Int )
-    , solarSystemForm : Control.State FormState
+    , solarSystemForm : Control.State Page.Shared.GalaxyFormState
     }
 
 
@@ -245,13 +242,7 @@ type Msg
     | GotGalaxyViewport (Result Browser.Dom.Error Viewport)
     | GotSettingsVisible Visible
     | GotLocalSharedMessage SharedMsg
-      -- form stuff
-    | GotMinSolarSystemCount Int
-    | GotMaxSolarSystemCount Int
-    | GotMinPlanetCount Int
-    | GotMaxPlanetCount Int
-    | GotStarCountChange Int Float
-    | SolarSystemFormSentMsg (Control.Delta FormDelta)
+    | SolarSystemFormSentMsg (Control.Delta Page.Shared.GalaxyFormDelta)
     | SolarSystemFormSubmitted
 
 
@@ -298,66 +289,6 @@ update _ msg model =
         GotLocalSharedMessage settingsChange ->
             ( model, SubCmd.effect (GotSharedMessage settingsChange) )
 
-        -- form stuff
-        GotMinSolarSystemCount minCount ->
-            ( { model
-                | minSolarSystemsToGenerate = minCount
-                , maxSolarSystemsToGenerate = max minCount model.maxSolarSystemsToGenerate
-              }
-            , SubCmd.none
-            )
-
-        GotMaxSolarSystemCount maxCount ->
-            ( { model
-                | minSolarSystemsToGenerate = min model.minSolarSystemsToGenerate maxCount
-                , maxSolarSystemsToGenerate = maxCount
-              }
-            , SubCmd.none
-            )
-
-        GotMinPlanetCount minCount ->
-            ( { model
-                | minPlanetsPerSolarSystemToGenerate = minCount
-                , maxPlanetsPerSolarSystemToGenerate = max minCount model.maxPlanetsPerSolarSystemToGenerate
-              }
-            , SubCmd.none
-            )
-
-        GotMaxPlanetCount maxCount ->
-            ( { model
-                | minPlanetsPerSolarSystemToGenerate = min model.minPlanetsPerSolarSystemToGenerate maxCount
-                , maxPlanetsPerSolarSystemToGenerate = maxCount
-              }
-            , SubCmd.none
-            )
-
-        GotStarCountChange index newPercent ->
-            let
-                originalPercent : Float
-                originalPercent =
-                    Maybe.withDefault newPercent (Maybe.map Tuple.first (List.head (List.drop index (List.Nonempty.toList model.starCounts))))
-
-                otherStarChange : Float
-                otherStarChange =
-                    (originalPercent - newPercent) / toFloat (List.Nonempty.length model.starCounts - 1)
-            in
-            ( { model
-                | starCounts =
-                    List.Nonempty.indexedMap
-                        (\i ( percent, count ) ->
-                            ( if i == index then
-                                newPercent
-
-                              else
-                                min 1 (max 0 (percent + otherStarChange))
-                            , count
-                            )
-                        )
-                        model.starCounts
-              }
-            , SubCmd.none
-            )
-
         SolarSystemFormSentMsg msg_ ->
             let
                 ( solarSystemForm, cmd ) =
@@ -377,67 +308,69 @@ update _ msg model =
 
 view : SharedModel -> Model -> View Msg
 view sharedModel model =
-    let
-        options : View Msg
-        options =
-            viewObserve model
-    in
-    { title = options.title
+    { title = "Hello Space! - Observe"
     , body =
-        Ui.el
+        Ui.stack
             [ Ui.height.fill
-
-            -- , behindContent
-            --     (Galaxy3d.viewSolarSystem
-            --         { onPressStar = Nothing
-            --         , onPressPlanet = Nothing
-            --         , onZoom = Nothing
-            --         , onZoomPress = Nothing
-            --         , onRotationPress = Nothing
-            --         , focusedCivilization = Nothing
-            --         , stars = model.stars
-            --         , planets = model.planets
-            --         }
-            --         sharedModel.settings
-            --         model
-            --     )
-            -- , inFront
-            --     (el
-            --         [ alignRight
-            --         , alignTop
-            --         , padding 16
-            --         , inFront
-            --             (case model.settingsVisible of
-            --                 Hidden ->
-            --                     none
-            --                 Visible ->
-            --                     map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-            --             )
-            --         ]
-            --         (Ui.Button.default
-            --             { label = text "⚙"
-            --             , onPress =
-            --                 Just
-            --                     (case model.settingsVisible of
-            --                         Visible ->
-            --                             GotSettingsVisible Hidden
-            --                         Hidden ->
-            --                             GotSettingsVisible Visible
-            --                     )
-            --             }
-            --         )
-            --     )
-            -- , inFront
-            --     (el
-            --         [ padding 16 ]
-            --         (Ui.Link.internal
-            --             { label = text "Main Menu"
-            --             , route = Route.Home
-            --             }
-            --         )
-            --     )
             ]
-            options.body
+            [ Galaxy3d.viewSolarSystem
+                { onPressStar = Nothing
+                , onPressPlanet = Nothing
+                , onZoom = Nothing
+                , onZoomPress = Nothing
+                , onRotationPress = Nothing
+                , focusedCivilization = Nothing
+                , stars = model.stars
+                , planets = model.planets
+                }
+                sharedModel.settings
+                model
+            , viewObserve model
+            , Ui.column
+                [ Ui.height.shrink
+                , Ui.width.shrink
+                , Ui.justifySelf.end
+                ]
+                [ Ui.Button.default
+                    [ Ui.width.shrink
+                    , Ui.height.shrink
+                    , Ui.justifySelf.end
+                    , Ui.transform
+                        [ Ui.translate.left 10
+                        , Ui.translate.down 10
+                        ]
+                    ]
+                    { label = Ui.text "⚙"
+                    , onPress =
+                        (case model.settingsVisible of
+                            Visible ->
+                                Hidden
+
+                            Hidden ->
+                                Visible
+                        )
+                            |> GotSettingsVisible
+                            |> Just
+                    }
+                , case model.settingsVisible of
+                    Hidden ->
+                        Ui.none
+
+                    Visible ->
+                        Ui.map GotLocalSharedMessage (Shared.viewSettings sharedModel)
+                ]
+            , Ui.el
+                [ Ui.padding.rem1
+                ]
+                (Ui.Link.internal
+                    [ Ui.width.shrink
+                    , Ui.height.shrink
+                    ]
+                    { label = Ui.text "Main Menu"
+                    , route = Route.Home
+                    }
+                )
+            ]
     }
 
 
@@ -451,237 +384,61 @@ contrastingBackground =
         ]
 
 
-displayGameValue : String -> String -> Html msg
-displayGameValue id value =
-    Ui.el
-        [ -- Font.color (rgb 0.2 0.6 0.6)
-          -- ,
-          Html.Attributes.id id
-        ]
-        (Ui.text value)
-
-
-viewObserve : Model -> View Msg
+viewObserve : Model -> Html Msg
 viewObserve model =
-    { title = "Hello Space! - Observe"
-    , body =
-        Ui.el
-            [ Ui.padding.rem1
-            , Ui.height.fill
-            ]
-            (Ui.column
-                [ -- centerX
-                  -- , centerY
-                  -- , spacing 64
-                  Ui.gap.rem3
-                ]
-                [ contrastingBackground
-                    (Ui.el
-                        [-- centerX
-                         -- , Font.size 64
-                         -- , Font.underline
-                        ]
-                        (Ui.text "Observe the Simulation")
-                    )
-                , Ui.column
-                    [ -- centerX
-                      -- , centerY
-                      -- ,
-                      Ui.gap.rem1
-                    , Ui.padding.rem1
-
-                    -- , width shrink
-                    ]
-                    [ contrastingBackground (viewObserveForm model)
-                    , Ui.el
-                        [-- centerX
-                        ]
-                        (Ui.Link.internal []
-                            { label = Ui.text "Begin Simulation"
-                            , route =
-                                Route.Playing
-                                    { name = Data.Name.fromString ""
-                                    , homePlanetName = ""
-                                    , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                                    , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                                    , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
-                                    , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
-                                    , starCounts = model.starCounts
-                                    , playType = Shared.Observation
-                                    }
-                            }
-                        )
-                    ]
-                ]
-            )
-    }
-
-
-viewObserveForm : Model -> Html Msg
-viewObserveForm model =
     Ui.el
-        [-- Ui.height (px 600)
-         -- , scrollbarY
+        [ Ui.padding.rem1
         ]
-        (galaxyForm.view model.solarSystemForm)
-
-
-type alias FormState =
-    ( Control.State Input.MinMaxSlider.Model
-    , ( Control.State Input.MinMaxSlider.Model
-      , ( Control.State (List.Nonempty.Nonempty ( Float, Int ))
-        , Control.End
-        )
-      )
-    )
-
-
-type alias FormDelta =
-    ( Control.Delta Input.MinMaxSlider.Msg
-    , ( Control.Delta Input.MinMaxSlider.Msg
-      , ( Control.Delta ( Int, Float ), Control.End )
-      )
-    )
-
-
-type alias SolarSystemForm =
-    { minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    , minPlanetsPerSolarSystemToGenerate : Int
-    , maxPlanetsPerSolarSystemToGenerate : Int
-    , starCounts : Nonempty ( Float, Int )
-    }
-
-
-galaxyForm : Control.Form FormState FormDelta SolarSystemForm Msg
-galaxyForm =
-    Control.form
-        { onUpdate = SolarSystemFormSentMsg
-        , onSubmit = SolarSystemFormSubmitted
-        , control =
-            Control.record
-                (\solarSystems planets starCounts ->
-                    { minSolarSystemsToGenerate = solarSystems.min
-                    , maxSolarSystemsToGenerate = solarSystems.max
-                    , minPlanetsPerSolarSystemToGenerate = planets.min
-                    , maxPlanetsPerSolarSystemToGenerate = planets.max
-                    , starCounts = starCounts
-                    }
-                )
-                |> Control.field
-                    (\{ minSolarSystemsToGenerate, maxSolarSystemsToGenerate } ->
-                        { min = minSolarSystemsToGenerate, max = maxSolarSystemsToGenerate }
-                    )
-                    (Input.MinMaxSlider.new { min = 10, max = 800 }
-                        |> Input.MinMaxSlider.withStep 10
-                        |> Input.MinMaxSlider.toControl
-                        |> Control.label "Solar Systems to Generate:"
-                        |> Control.initWith { min = 40, max = 80 }
-                    )
-                |> Control.field
-                    (\{ minPlanetsPerSolarSystemToGenerate, maxPlanetsPerSolarSystemToGenerate } ->
-                        { min = minPlanetsPerSolarSystemToGenerate, max = maxPlanetsPerSolarSystemToGenerate }
-                    )
-                    (Input.MinMaxSlider.new { min = 0, max = 40 }
-                        |> Input.MinMaxSlider.withStep 1
-                        |> Input.MinMaxSlider.toControl
-                        |> Control.label "Planets per Solar System:"
-                        |> Control.initWith { min = 1, max = 12 }
-                    )
-                |> Control.field .starCounts starCountControl
-                |> Control.endRecord
-        }
-
-
-starCountControl : Control (Nonempty ( Float, Int )) ( Int, Float ) (Nonempty ( Float, Int ))
-starCountControl =
-    Control.create
-        { label = "Odds that a Solar System has:"
-        , initEmpty =
-            ( List.Nonempty.appendList
-                [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
-                (List.Nonempty.singleton ( 0.56, 1 ))
-            , Cmd.none
-            )
-        , initWith = \starCounts -> ( starCounts, Cmd.none )
-        , update = updateStarCountControl
-        , view = viewStarCountControl
-        , subscriptions = \_ -> Sub.none
-        , parse = Ok
-        }
-
-
-updateStarCountControl : ( Int, Float ) -> Nonempty ( Float, Int ) -> ( Nonempty ( Float, Int ), Cmd ( Int, Float ) )
-updateStarCountControl ( index, newPercent ) starCounts =
-    let
-        originalPercent : Float
-        originalPercent =
-            List.Nonempty.toList starCounts
-                |> List.drop index
-                |> List.head
-                |> Maybe.map Tuple.first
-                |> Maybe.withDefault newPercent
-
-        otherStarChange : Float
-        otherStarChange =
-            (originalPercent - newPercent) / toFloat (List.Nonempty.length starCounts - 1)
-    in
-    ( List.Nonempty.indexedMap
-        (\i ( percent, count ) ->
-            ( if i == index then
-                newPercent
-
-              else
-                min 1 (max 0 (percent + otherStarChange))
-            , count
-            )
-        )
-        starCounts
-    , Cmd.none
-    )
-
-
-viewStarCountControl :
-    { state : Nonempty ( Float, Int )
-    , class : String
-    , id : String
-    , name : String
-    , label : String
-    }
-    -> List (Html ( Int, Float ))
-viewStarCountControl { state, class, id, name, label } =
-    [ Html.label
-        [ Html.Attributes.for name ]
-        [ Html.text label ]
-    , Html.div
-        [ Html.Attributes.class class
-        , Html.Attributes.id id
-        , Html.Attributes.style "display" "flex"
-        , Html.Attributes.style "flex-direction" "column"
-        , Html.Attributes.style "padding-left" "1rem"
-        ]
-        (state
-            |> List.Nonempty.toList
-            |> List.concatMap
-                (\( percent, count ) ->
-                    [ Html.label
-                        [ Html.Attributes.for (name ++ "stars-" ++ String.fromInt count) ]
-                        [ Html.text (String.fromInt count ++ " Stars: " ++ Numeral.format "0.00[%]" percent) ]
-                    , Html.input
-                        [ Html.Attributes.type_ "range"
-                        , Html.Attributes.name name
-                        , Html.Attributes.min (String.fromFloat 0.0)
-                        , Html.Attributes.max (String.fromFloat 1.0)
-                        , Html.Attributes.step (String.fromFloat 0.001)
-                        , Html.Attributes.value (String.fromFloat percent)
-                        , Html.Events.onInput
-                            (String.toFloat
-                                >> Maybe.withDefault percent
-                                >> Tuple.pair (count - 1)
-                            )
-                        ]
-                        []
+        (Ui.column
+            [ Ui.gap.rem3
+            , Ui.width.shrink
+            , Ui.height.shrink
+            , Ui.justifySelf.center
+            , Ui.alignSelf.center
+            ]
+            [ Ui.text "Observe the Simulation"
+                |> Ui.el
+                    [ Ui.fontSize.rem3
+                    , Ui.fontUnderline
                     ]
-                )
+                |> contrastingBackground
+                |> Ui.el
+                    [ Ui.justifySelf.center
+                    , Ui.width.shrink
+                    ]
+            , Ui.column
+                [ Ui.gap.rem1
+                , Ui.padding.rem1
+                ]
+                [ galaxyForm.view model.solarSystemForm
+                    |> Ui.el [ Ui.padding.rem1 ]
+                    |> contrastingBackground
+                    |> Ui.el
+                        [ Ui.width.shrink
+                        , Ui.justifySelf.center
+                        ]
+                , Ui.Link.internal
+                    [ Ui.width.shrink
+                    , Ui.justifySelf.center
+                    ]
+                    { label = Ui.text "Begin Simulation"
+                    , route =
+                        Route.Playing
+                            { name = Data.Name.fromString ""
+                            , homePlanetName = ""
+                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
+                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
+                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
+                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
+                            , starCounts = model.starCounts
+                            , playType = Shared.Observation
+                            }
+                    }
+                ]
+            ]
         )
-    ]
+
+
+galaxyForm : Control.Form Page.Shared.GalaxyFormState Page.Shared.GalaxyFormDelta Page.Shared.GalaxyFormResult Msg
+galaxyForm =
+    Page.Shared.galaxyForm { toMsg = SolarSystemFormSentMsg, onSubmit = SolarSystemFormSubmitted }

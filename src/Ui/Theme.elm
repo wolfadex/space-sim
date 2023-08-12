@@ -8,9 +8,6 @@ module Ui.Theme exposing
     , toCss
     )
 
-import Html
-import Html.Attributes
-
 
 type Color
     = Color { r : Float, g : Float, b : Float, a : Float }

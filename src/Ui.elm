@@ -1,8 +1,7 @@
-module Ui exposing (..)
+module Ui exposing (Transformation(..), alignSelf, backgroundColor, borderColor, borderRadius, borderStyle, borderWidth, column, el, fontColor, fontSize, fontUnderline, gap, height, justifySelf, link, map, noAttribute, none, padding, paragraph, row, rowWrapped, stack, text, transform, translate, width)
 
 import Html exposing (Html)
 import Html.Attributes
-import Html.Events
 import Ui.Theme
 
 
@@ -23,63 +22,42 @@ text =
 el : List (Html.Attribute msg) -> Html msg -> Html msg
 el attributes child =
     Html.div
-        ([ Html.Attributes.class "wolfadex-row"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.class "wolfadex-row" :: attributes)
         [ child ]
 
 
 column : List (Html.Attribute msg) -> List (Html msg) -> Html msg
 column attributes children =
     Html.div
-        ([ Html.Attributes.class "wolfadex-column"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.class "wolfadex-column" :: attributes)
         children
 
 
 row : List (Html.Attribute msg) -> List (Html msg) -> Html msg
 row attributes children =
     Html.div
-        ([ Html.Attributes.class "wolfadex-row"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.class "wolfadex-row" :: attributes)
         children
 
 
 rowWrapped : List (Html.Attribute msg) -> List (Html msg) -> Html msg
 rowWrapped attributes children =
     Html.div
-        ([ Html.Attributes.class "wolfadex-row-wrapped"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.class "wolfadex-row-wrapped" :: attributes)
         children
 
 
 stack : List (Html.Attribute msg) -> List (Html msg) -> Html msg
 stack attributes children =
     Html.div
-        ([ Html.Attributes.class "wolfadex-stacked"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.class "wolfadex-stacked" :: attributes)
         children
 
 
 paragraph : List (Html.Attribute msg) -> List (Html msg) -> Html msg
 paragraph attributes children =
     Html.p
-        ([ -- Html.Attributes.style "display" "flex"
-           --  , Html.Attributes.style "flex-direction" "column"
-           --  ,
-           Html.Attributes.style "width" "100%"
-         ]
-            ++ attributes
-        )
+        (Html.Attributes.style "width" "100%" :: attributes)
         children
 
 
@@ -216,6 +194,11 @@ noAttribute =
     Html.Attributes.class ""
 
 
+fontUnderline : Html.Attribute msg
+fontUnderline =
+    Html.Attributes.style "text-decoration" "underline"
+
+
 link =
     { external =
         \attributes options ->
@@ -228,11 +211,6 @@ link =
                 [ options.label
                 ]
     }
-
-
-centerText : Html.Attribute msg
-centerText =
-    Html.Attributes.style "text-align" "center"
 
 
 map : (a -> b) -> Html a -> Html b
