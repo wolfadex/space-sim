@@ -6,90 +6,120 @@ module Ui.Button exposing
     , toggle
     )
 
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Font as Font
-import Element.Input as Input
+import Html exposing (Html)
+import Html.Attributes
+import Html.Events
+import Ui
 import Ui.Theme
 
 
-toggle : { onPress : Maybe msg, label : Element msg, enabled : Bool } -> Element msg
+toggle : { onPress : Maybe msg, label : Html msg, enabled : Bool } -> Html msg
 toggle config =
-    Input.button
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color
+    Html.button
+        [ Ui.padding.xy.rem1.remHalf
+        , Ui.borderStyle.solid
+        , Ui.borderWidth.px3
+        , Ui.borderRadius.px3
+        , Ui.backgroundColor
             (if config.enabled then
                 Ui.Theme.darkGray
 
              else
                 Ui.Theme.green
             )
-        , Font.color
+        , Ui.fontColor
             (if config.enabled then
                 Ui.Theme.nearlyWhite
 
              else
                 Ui.Theme.darkGray
             )
-        , Border.color Ui.Theme.darkGray
+        , Ui.borderColor Ui.Theme.darkGray
+        , case config.onPress of
+            Nothing ->
+                Ui.noAttribute
+
+            Just onPress ->
+                Html.Events.onClick onPress
         ]
-        { onPress = config.onPress
-        , label = config.label
-        }
+        [ config.label ]
 
 
-primary : { onPress : Maybe msg, label : Element msg } -> Element msg
-primary =
-    Input.button
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color Ui.Theme.green
-        , Font.color Ui.Theme.darkGray
-        , Border.color Ui.Theme.darkGray
+primary : { onPress : Maybe msg, label : Html msg } -> Html msg
+primary config =
+    Html.button
+        [ Ui.padding.xy.rem1.remHalf
+        , Ui.borderStyle.solid
+        , Ui.borderWidth.px3
+        , Ui.borderRadius.px3
+        , Ui.backgroundColor Ui.Theme.green
+        , Ui.fontColor Ui.Theme.darkGray
+        , Ui.borderColor Ui.Theme.darkGray
+        , case config.onPress of
+            Nothing ->
+                Ui.noAttribute
+
+            Just onPress ->
+                Html.Events.onClick onPress
         ]
+        [ config.label ]
 
 
-negative : { onPress : Maybe msg, label : Element msg } -> Element msg
-negative =
-    Input.button
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color Ui.Theme.error
-        , Font.color Ui.Theme.nearlyWhite
-        , Border.color Ui.Theme.darkGray
+negative : { onPress : Maybe msg, label : Html msg } -> Html msg
+negative config =
+    Html.button
+        [ Ui.padding.xy.rem1.remHalf
+        , Ui.borderStyle.solid
+        , Ui.borderWidth.px3
+        , Ui.borderRadius.px3
+        , Ui.backgroundColor Ui.Theme.error
+        , Ui.fontColor Ui.Theme.nearlyWhite
+        , Ui.borderColor Ui.Theme.darkGray
+        , case config.onPress of
+            Nothing ->
+                Ui.noAttribute
+
+            Just onPress ->
+                Html.Events.onClick onPress
         ]
+        [ config.label ]
 
 
-default : { onPress : Maybe msg, label : Element msg } -> Element msg
-default =
-    Input.button
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color Ui.Theme.green
-        ]
+default : List (Html.Attribute msg) -> { onPress : Maybe msg, label : Html msg } -> Html msg
+default attributes config =
+    Html.button
+        ([ Ui.padding.xy.rem1.remHalf
+         , Ui.borderStyle.solid
+         , Ui.borderWidth.px3
+         , Ui.borderRadius.px3
+         , Ui.backgroundColor Ui.Theme.green
+         , case config.onPress of
+            Nothing ->
+                Ui.noAttribute
+
+            Just onPress ->
+                Html.Events.onClick onPress
+         ]
+            ++ attributes
+        )
+        [ config.label ]
 
 
-inspect : Maybe msg -> Element msg
+inspect : Maybe msg -> Html msg
 inspect onPress =
-    Input.button
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color Ui.Theme.darkGray
-        , Font.color Ui.Theme.nearlyWhite
-        , Border.color Ui.Theme.darkGray
+    Html.button
+        [ Ui.padding.xy.rem1.remHalf
+        , Ui.borderStyle.solid
+        , Ui.borderWidth.px3
+        , Ui.borderRadius.px3
+        , Ui.backgroundColor Ui.Theme.darkGray
+        , Ui.fontColor Ui.Theme.nearlyWhite
+        , Ui.borderColor Ui.Theme.darkGray
+        , case onPress of
+            Nothing ->
+                Ui.noAttribute
+
+            Just onP ->
+                Html.Events.onClick onP
         ]
-        { label = text "👁"
-        , onPress = onPress
-        }
+        [ Ui.text "👁" ]

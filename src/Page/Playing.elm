@@ -15,9 +15,6 @@ import Data.Orbit exposing (Orbit)
 import Data.Star
 import Data.Structure
 import Dict exposing (Dict)
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
 import Galaxy2d
 import Galaxy3d
 import Game.Components
@@ -38,6 +35,7 @@ import Game.Components
         , World
         , emptyWorld
         )
+import Html exposing (Html)
 import Json.Decode
 import Length exposing (Meters)
 import List.Nonempty
@@ -69,6 +67,7 @@ import SubCmd exposing (SubCmd)
 import Task
 import Task.Parallel
 import Temperature
+import Ui
 import Ui.Button
 import Ui.Theme
 import View exposing (View)
@@ -1484,101 +1483,104 @@ filterWorldByKnowledge world =
             world
 
 
-viewPlaying : SharedModel -> World -> Element PlayingMsg
+viewPlaying : SharedModel -> World -> Html PlayingMsg
 viewPlaying sharedModel world =
     case world.buildingKnowledge of
         Just ( completed, total ) ->
-            column
-                [ centerX
-                , centerY
+            Ui.column
+                [-- centerX
+                 -- , centerY
                 ]
-                [ text "Generating Galaxy"
-                , row
-                    [ width (px 300)
-                    , inFront
-                        (el
-                            [ centerX
-                            , centerY
-                            , Background.color (rgba 1 1 1 0.5)
-                            , Border.rounded 4
-                            , padding 4
-                            ]
-                            (text (String.fromInt (completed * 100 // total) ++ "%"))
-                        )
-                    ]
-                    [ el
-                        [ Background.gradient
-                            { angle = pi / 2
-                            , steps =
-                                [ rgb 1 0 1
-                                , rgb 0.5 0.5 1
-                                , rgb 0.1 1 0.1
-                                ]
-                            }
-                        , width (fillPortion completed)
-                        , height (px 35)
-                        , Border.widthEach
-                            { top = 3
-                            , bottom = 3
-                            , left = 3
-                            , right = 0
-                            }
-                        ]
-                        none
-                    , el
-                        [ width (fillPortion (total - completed))
-                        , height (px 35)
-                        , Border.widthEach
-                            { top = 3
-                            , bottom = 3
-                            , left = 0
-                            , right = 3
-                            }
-                        ]
-                        none
-                    ]
+                [ Ui.text "Generating Galaxy"
+
+                -- , Ui.row
+                --     [-- width (px 300)
+                --      -- , inFront
+                --      --     (el
+                --      --         [ centerX
+                --      --         , centerY
+                --      --         , Background.color (rgba 1 1 1 0.5)
+                --      --         , Border.rounded 4
+                --      --         , padding 4
+                --      --         ]
+                --      --         (Ui.text (String.fromInt (completed * 100 // total) ++ "%"))
+                --      --     )
+                --     ]
+                --     [ Ui. el
+                --         [
+                --         -- Background.gradient
+                --         --     { angle = pi / 2
+                --         --     , steps =
+                --         --         [ rgb 1 0 1
+                --         --         , rgb 0.5 0.5 1
+                --         --         , rgb 0.1 1 0.1
+                --         --         ]
+                --         --     }
+                --         -- , width (fillPortion completed)
+                --         -- , height (px 35)
+                --         -- , Border.widthEach
+                --         --     { top = 3
+                --         --     , bottom = 3
+                --         --     , left = 3
+                --         --     , right = 0
+                --         --     }
+                --         ]
+                --         Ui.none
+                --     , Ui.el
+                --         [
+                --         -- width (fillPortion (total - completed))
+                --         -- , height (px 35)
+                --         -- , Border.widthEach
+                --         --     { top = 3
+                --         --     , bottom = 3
+                --         --     , left = 0
+                --         --     , right = 3
+                --         --     }
+                --         ]
+                --         Ui.none
+                --     ]
                 ]
 
         Nothing ->
-            column
-                [ width fill
-                , height fill
-                , inFront
-                    (case world.settingsVisible of
-                        Hidden ->
-                            none
+            Ui.column
+                [ Ui.height.fill
 
-                        Visible ->
-                            map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-                    )
+                -- , inFront
+                --     (case world.settingsVisible of
+                --         Hidden ->
+                --             Ui.none
+                --         Visible ->
+                --             map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
+                --     )
                 ]
                 [ viewControls world
                 , (case world.viewStyle of
                     ThreeD ->
-                        column
+                        Ui.column
 
                     TwoD ->
-                        row
+                        Ui.row
                   )
-                    [ width fill
-                    , height fill
-                    , scrollbarY
-                    , padding 16
-                    , spacing 8
+                    [ Ui.height.fill
+
+                    -- , scrollbarY
+                    , Ui.padding.rem1
+                    , Ui.gap.remHalf
                     ]
-                    [ el
+                    [ Ui.el
                         ((case world.viewStyle of
                             ThreeD ->
                                 []
 
                             TwoD ->
-                                [ scrollbarY ]
+                                [-- scrollbarY
+                                ]
                          )
-                            ++ [ alignTop
-                               , width fill
-                               , height fill
-                               , Border.solid
-                               , Border.width 1
+                            ++ [ -- alignTop
+                                 -- ,
+                                 Ui.height.fill
+                               , Ui.borderStyle.solid
+                               , Ui.borderWidth.px1
                                ]
                         )
                         (case world.spaceFocus of
@@ -1589,25 +1591,25 @@ viewPlaying sharedModel world =
                                 case Logic.Component.get id world.solarSystems of
                                     Just SolarSystem ->
                                         viewSlice
-                                            [ Ui.Button.default
-                                                { label = text "View Galaxy"
+                                            [ Ui.Button.default []
+                                                { label = Ui.text "View Galaxy"
                                                 , onPress = Just (SetSpaceFocus FGalaxy)
                                                 }
                                             ]
                                             (viewSolarSystemDetailed sharedModel.settings world id)
 
                                     Nothing ->
-                                        text "Missing solar system"
+                                        Ui.text "Missing solar system"
 
                             FStar starId ->
                                 if Set.member starId world.stars then
                                     viewSlice
-                                        [ Ui.Button.default
-                                            { label = text "View Galaxy"
+                                        [ Ui.Button.default []
+                                            { label = Ui.text "View Galaxy"
                                             , onPress = Just (SetSpaceFocus FGalaxy)
                                             }
-                                        , Ui.Button.default
-                                            { label = text "View System"
+                                        , Ui.Button.default []
+                                            { label = Ui.text "View System"
                                             , onPress =
                                                 Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
                                                     (Logic.Component.get starId world.parents)
@@ -1616,17 +1618,17 @@ viewPlaying sharedModel world =
                                         (viewStarDetailed world starId)
 
                                 else
-                                    text "Missing star"
+                                    Ui.text "Missing star"
 
                             FPlanet planetId ->
                                 if Set.member planetId world.planets then
                                     viewSlice
-                                        [ Ui.Button.default
-                                            { label = text "View Galaxy"
+                                        [ Ui.Button.default []
+                                            { label = Ui.text "View Galaxy"
                                             , onPress = Just (SetSpaceFocus FGalaxy)
                                             }
-                                        , Ui.Button.default
-                                            { label = text "View System"
+                                        , Ui.Button.default []
+                                            { label = Ui.text "View System"
                                             , onPress =
                                                 Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
                                                     (Logic.Component.get planetId world.parents)
@@ -1635,7 +1637,7 @@ viewPlaying sharedModel world =
                                         (viewPlanetDetailed world planetId)
 
                                 else
-                                    text "Missing planet"
+                                    Ui.text "Missing planet"
                         )
                     , case world.civilizationFocus of
                         FAll ->
@@ -1647,61 +1649,62 @@ viewPlaying sharedModel world =
                 ]
 
 
-viewControls : World -> Element PlayingMsg
+viewControls : World -> Html PlayingMsg
 viewControls world =
-    row
-        [ padding 16
-        , spacing 16
-        , width fill
+    Ui.row
+        [ Ui.padding.rem1
+        , Ui.gap.rem1
         ]
-        [ text "Game Speed:"
+        [ Ui.text "Game Speed:"
         , Ui.Button.toggle
-            { label = text "||"
+            { label = Ui.text "||"
             , onPress = Just (SetTickRate Paused)
             , enabled = world.tickRate == Paused
             }
         , Ui.Button.toggle
-            { label = text "|>"
+            { label = Ui.text "|>"
             , onPress = Just (SetTickRate HalfSpeed)
             , enabled = world.tickRate == HalfSpeed
             }
         , Ui.Button.toggle
-            { label = text ">"
+            { label = Ui.text ">"
             , onPress = Just (SetTickRate Normal)
             , enabled = world.tickRate == Normal
             }
         , Ui.Button.toggle
-            { label = text ">>"
+            { label = Ui.text ">>"
             , onPress = Just (SetTickRate Fast)
             , enabled = world.tickRate == Fast
             }
         , Ui.Button.toggle
-            { label = text ">>>"
+            { label = Ui.text ">>>"
             , onPress = Just (SetTickRate ExtraFast)
             , enabled = world.tickRate == ExtraFast
             }
-        , text (Data.EarthYear.formatAsStarDate world.starDate)
-        , Ui.Button.default
+        , Ui.text (Data.EarthYear.formatAsStarDate world.starDate)
+        , Ui.Button.default []
             (case world.viewStyle of
                 ThreeD ->
-                    { label = text "View 2D Galaxy"
+                    { label = Ui.text "View 2D Galaxy"
                     , onPress = Just (GotViewStyle TwoD)
                     }
 
                 TwoD ->
-                    { label = text "View 3D Galaxy"
+                    { label = Ui.text "View 3D Galaxy"
                     , onPress = Just (GotViewStyle ThreeD)
                     }
             )
-        , el [ width fill ] none
+        , Ui.el [] Ui.none
         , Ui.Button.negative
-            { label = text "Delete Galaxy"
+            { label = Ui.text "Delete Galaxy"
             , onPress = Just DeleteGalaxy
             }
-        , el [ width fill ] none
-        , el [ alignRight ]
-            (Ui.Button.default
-                { label = text "⚙"
+        , Ui.el [] Ui.none
+        , Ui.el
+            [-- alignRight
+            ]
+            (Ui.Button.default []
+                { label = Ui.text "⚙"
                 , onPress =
                     Just
                         (case world.settingsVisible of
@@ -1716,17 +1719,17 @@ viewControls world =
         ]
 
 
-viewSlice : List (Element PlayingMsg) -> Element PlayingMsg -> Element PlayingMsg
+viewSlice : List (Html PlayingMsg) -> Html PlayingMsg -> Html PlayingMsg
 viewSlice menuItems slice =
-    el
-        [ height fill
-        , width fill
-        , inFront (row [ padding 8, spacing 8 ] menuItems)
+    Ui.el
+        [ Ui.height.fill
+
+        -- , inFront (row [ padding 8, spacing 8 ] menuItems)
         ]
         slice
 
 
-viewGalaxy : World -> Element PlayingMsg
+viewGalaxy : World -> Html PlayingMsg
 viewGalaxy world =
     case world.viewStyle of
         ThreeD ->
@@ -1760,7 +1763,7 @@ viewGalaxy world =
                 world
 
 
-viewSolarSystemDetailed : Settings -> World -> EntityID -> Element PlayingMsg
+viewSolarSystemDetailed : Settings -> World -> EntityID -> Html PlayingMsg
 viewSolarSystemDetailed settings world solarSystemId =
     let
         ( stars, planets ) =
@@ -1814,32 +1817,33 @@ viewSolarSystemDetailed settings world solarSystemId =
                 planets
 
 
-viewStarDetailed : World -> EntityID -> Element PlayingMsg
+viewStarDetailed : World -> EntityID -> Html PlayingMsg
 viewStarDetailed model starId =
     case Logic.Component.get starId model.starTemperature of
         Nothing ->
-            text "Your star is missing!"
+            Ui.text "Your star is missing!"
 
         Just temp ->
-            column
-                [ spacing 8
-                , paddingEach
-                    { top = 64
-                    , left = 8
-                    , bottom = 8
-                    , right = 8
-                    }
+            Ui.column
+                [ Ui.gap.remHalf
+
+                -- , paddingEach
+                --     { top = 64
+                --     , left = 8
+                --     , bottom = 8
+                --     , right = 8
+                --     }
                 ]
-                [ text ("Name: S_" ++ String.fromInt starId)
-                , text ("Temperature: " ++ String.fromInt (round (Temperature.inKelvins temp)) ++ "K")
+                [ Ui.text ("Name: S_" ++ String.fromInt starId)
+                , Ui.text ("Temperature: " ++ String.fromInt (round (Temperature.inKelvins temp)) ++ "K")
                 ]
 
 
-viewPlanetDetailed : World -> EntityID -> Element PlayingMsg
+viewPlanetDetailed : World -> EntityID -> Html PlayingMsg
 viewPlanetDetailed world planetId =
     case Logic.Component.get planetId world.planetTypes of
         Nothing ->
-            text "Your planet is missing!"
+            Ui.text "Your planet is missing!"
 
         Just planetType ->
             let
@@ -1860,17 +1864,18 @@ viewPlanetDetailed world planetId =
                         )
                         (Set.toList world.civilizations)
             in
-            column
-                [ spacing 8
-                , paddingEach
-                    { top = 64
-                    , left = 8
-                    , bottom = 8
-                    , right = 8
-                    }
+            Ui.column
+                [ Ui.gap.remHalf
+
+                -- , paddingEach
+                --     { top = 64
+                --     , left = 8
+                --     , bottom = 8
+                --     , right = 8
+                --     }
                 ]
-                [ text ("Name: P_" ++ String.fromInt planetId)
-                , text
+                [ Ui.text ("Name: P_" ++ String.fromInt planetId)
+                , Ui.text
                     ("Terrain: "
                         ++ (case planetType of
                                 Rocky ->
@@ -1880,28 +1885,28 @@ viewPlanetDetailed world planetId =
                                     "Gas"
                            )
                     )
-                , text "Civs on Planet:"
+                , Ui.text "Civs on Planet:"
                 , case civsOnPlanet of
                     [] ->
-                        text "None"
+                        Ui.text "None"
 
                     civs ->
-                        column [ spacing 4 ]
+                        Ui.column [ Ui.gap.remQuarter ]
                             (List.map
                                 (\( civId, name ) ->
-                                    Ui.Button.default
-                                        { label = text (Data.Name.toString name)
+                                    Ui.Button.default []
+                                        { label = Ui.text (Data.Name.toString name)
                                         , onPress = Just (SetCivilizationFocus (FOne civId))
                                         }
                                 )
                                 civs
                             )
-                , text "Structures:"
-                , column []
+                , Ui.text "Structures:"
+                , Ui.column []
                     (List.filterMap
                         (\( _, structure ) ->
                             if structure.planet == planetId then
-                                Just (text (Data.Structure.toString structure))
+                                Just (Ui.text (Data.Structure.toString structure))
 
                             else
                                 Nothing
@@ -1911,53 +1916,54 @@ viewPlanetDetailed world planetId =
                 ]
 
 
-viewCivilizations : World -> Element PlayingMsg
+viewCivilizations : World -> Html PlayingMsg
 viewCivilizations world =
-    column
-        [ spacing 8
-        , alignTop
-        , width fill
-        , height fill
-        , scrollbarY
+    Ui.column
+        [ Ui.gap.remHalf
+
+        -- , alignTop
+        , Ui.height.fill
+
+        -- , scrollbarY
         ]
         (List.map (viewCivilizationSimple world) (Set.toList world.civilizations))
 
 
-viewCivilizationSimple : World -> EntityID -> Element PlayingMsg
+viewCivilizationSimple : World -> EntityID -> Html PlayingMsg
 viewCivilizationSimple world civId =
     case Logic.Component.get civId world.named of
         Nothing ->
-            text "Civilization is missing"
+            Ui.text "Civilization is missing"
 
         Just name ->
-            row
-                [ spacing 8
-                , width fill
-                , Background.color Ui.Theme.nearlyWhite
+            Ui.row
+                [ Ui.gap.remHalf
+                , Ui.backgroundColor Ui.Theme.nearlyWhite
                 ]
                 [ Ui.Button.inspect
                     (Just (SetCivilizationFocus (FOne civId)))
-                , text (Data.Name.toString name)
+                , Ui.text (Data.Name.toString name)
                 ]
 
 
-viewCivilizationDetailed : World -> EntityID -> Element PlayingMsg
+viewCivilizationDetailed : World -> EntityID -> Html PlayingMsg
 viewCivilizationDetailed world civId =
-    column
-        [ padding 16
-        , width fill
-        , height fill
-        , scrollbarY
-        , spacing 16
-        , alignTop
-        , Border.solid
-        , Border.width 2
-        , Border.color Ui.Theme.darkGray
-        , Background.color Ui.Theme.nearlyWhite
+    Ui.column
+        [ Ui.padding.rem1
+        , Ui.height.fill
+
+        -- , scrollbarY
+        , Ui.gap.rem1
+
+        -- , alignTop
+        , Ui.borderStyle.solid
+        , Ui.borderWidth.px2
+        , Ui.borderColor Ui.Theme.darkGray
+        , Ui.backgroundColor Ui.Theme.nearlyWhite
         ]
         (case getCivilizationDetails world civId of
             Nothing ->
-                [ text "Civ is missing" ]
+                [ Ui.text "Civ is missing" ]
 
             Just details ->
                 let
@@ -1967,66 +1973,75 @@ viewCivilizationDetailed world civId =
                             (Population.millions 0)
                             (Dict.toList details.occupiedPlanets)
                 in
-                [ Ui.Button.default
-                    { label = text "Back"
+                [ Ui.Button.default []
+                    { label = Ui.text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
-                , text ("The " ++ Data.Name.toString (Data.Name.plurualize details.name) ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
-                , text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
+                , Ui.text ("The " ++ Data.Name.toString (Data.Name.plurualize details.name) ++ " have " ++ populationToString totalPopulationSize ++ " citizens.")
+                , Ui.text ("Happiness " ++ happinessToString (averageCivilizationHappiness details.happiness))
                 , case Logic.Component.get civId world.civilizationStyle of
                     Nothing ->
-                        none
+                        Ui.none
 
                     Just civStyle ->
-                        column
-                            [ spacing 4, width (px 400) ]
-                            [ row [ spacing 64, width fill ]
-                                [ text "Cooperative"
-                                , el [ centerX ] (text "or")
-                                , el [ alignRight ] (text "Competitive")
-                                ]
-                            , el
-                                [ Border.width 1
-                                , width fill
-                                , inFront
-                                    (el
-                                        [ height (px 16)
-                                        , Border.width 2
-                                        , moveUp 8
-                                        , moveRight (civStyle.cooperationVsCompetition * 400)
-                                        ]
-                                        none
-                                    )
-                                ]
-                                none
+                        Ui.column
+                            [ Ui.gap.remQuarter
+
+                            -- , width (px 400)
                             ]
-                , text "They occupy planets:"
-                , column []
+                            [ Ui.row [ Ui.gap.rem3 ]
+                                [ Ui.text "Cooperative"
+                                , Ui.el
+                                    [-- centerX
+                                    ]
+                                    (Ui.text "or")
+                                , Ui.el
+                                    [-- alignRight
+                                    ]
+                                    (Ui.text "Competitive")
+                                ]
+                            , Ui.el
+                                [ Ui.borderWidth.px1
+
+                                -- , inFront
+                                --     (Ui.el
+                                --         [ height (px 16)
+                                --         , Border.width 2
+                                --         , moveUp 8
+                                --         , moveRight (civStyle.cooperationVsCompetition * 400)
+                                --         ]
+                                --         Ui.none
+                                --     )
+                                ]
+                                Ui.none
+                            ]
+                , Ui.text "They occupy planets:"
+                , Ui.column []
                     (List.map
                         (\( planetId, populationCount ) ->
-                            row
-                                [ spacing 8 ]
-                                [ Ui.Button.default
-                                    { label = text ("P_" ++ String.fromInt planetId)
+                            Ui.row
+                                [ Ui.gap.remHalf ]
+                                [ Ui.Button.default []
+                                    { label = Ui.text ("P_" ++ String.fromInt planetId)
                                     , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
-                                , column [ spacing 4, width fill ]
-                                    [ paragraph [] [ text ("Population: " ++ populationToString populationCount) ]
-                                    , paragraph []
+                                , Ui.column [ Ui.gap.remQuarter ]
+                                    [ Ui.paragraph [] [ Ui.text ("Population: " ++ populationToString populationCount) ]
+                                    , Ui.paragraph []
                                         [ case Dict.get planetId details.happiness of
                                             Just happiness ->
-                                                text ("Happiness: " ++ happinessToString happiness)
+                                                Ui.text ("Happiness: " ++ happinessToString happiness)
 
                                             Nothing ->
-                                                none
+                                                Ui.none
                                         ]
                                     ]
                                 ]
                         )
                         (Dict.toList details.occupiedPlanets)
                     )
-                , text "Logs"
-                , column [ spacing 4 ] (List.map viewLog details.logs)
+                , Ui.text "Logs"
+                , Ui.column [ Ui.gap.remQuarter ] (List.map viewLog details.logs)
                 ]
         )
 
@@ -2060,15 +2075,15 @@ populationToString population =
         postFix " trillion" Population.inTrillions
 
 
-viewLog : Log -> Element PlayingMsg
+viewLog : Log -> Html PlayingMsg
 viewLog log =
-    column
-        [ Border.solid
-        , Border.width 1
-        , padding 4
+    Ui.column
+        [ Ui.borderStyle.solid
+        , Ui.borderWidth.px1
+        , Ui.padding.remQuarter
         ]
-        [ text (Data.EarthYear.formatAsStarDate log.time)
-        , paragraph [] [ text log.description ]
+        [ Ui.text (Data.EarthYear.formatAsStarDate log.time)
+        , Ui.paragraph [] [ Ui.text log.description ]
         ]
 
 

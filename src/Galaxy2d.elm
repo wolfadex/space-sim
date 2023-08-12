@@ -3,13 +3,13 @@ module Galaxy2d exposing (viewGalaxy, viewSolarSystem)
 import Data.Name
 import Data.Orbit
 import Dict
-import Element exposing (..)
-import Element.Background as Background
 import Game.Components exposing (World)
+import Html exposing (Html)
 import Length
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Set exposing (Set)
+import Ui
 import Ui.Button
 import Ui.Theme
 
@@ -20,13 +20,13 @@ viewGalaxy :
     , focusedCivilization : Maybe EntityID
     }
     -> World
-    -> Element msg
+    -> Html msg
 viewGalaxy onPress world =
-    column
-        [ spacing 8
-        , width fill
-        , spacing 8
-        , Background.color Ui.Theme.darkGray
+    Ui.column
+        [ Ui.gap.remHalf
+
+        -- , width fill
+        , Ui.backgroundColor Ui.Theme.darkGray
         ]
         (List.map (viewSolarSystemSimple onPress world) (Dict.keys (Logic.Component.toDict world.solarSystems)))
 
@@ -38,7 +38,7 @@ viewSolarSystemSimple :
     }
     -> World
     -> EntityID
-    -> Element msg
+    -> Html msg
 viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCivilization } world solarSystemId =
     let
         ( starCount, planetCount ) =
@@ -55,21 +55,23 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                     )
                 )
     in
-    column
-        [ padding 8
-        , Background.color Ui.Theme.nearlyWhite
-        , width fill
+    Ui.column
+        [ Ui.gap.remHalf
+        , Ui.backgroundColor Ui.Theme.nearlyWhite
+
+        -- , width fill
         ]
-        [ row
-            [ spacing 8, width fill ]
-            [ el [ width fill ] (text ("Solar System: SS_" ++ String.fromInt solarSystemId))
+        [ Ui.row
+            [ Ui.gap.remHalf
+            ]
+            [ Ui.el [] (Ui.text ("Solar System: SS_" ++ String.fromInt solarSystemId))
             , Ui.Button.inspect
                 (Just (onPressSolarSystem solarSystemId))
             ]
-        , text ("Stars: " ++ String.fromInt starCount)
-        , text ("Planets: " ++ String.fromInt planetCount)
-        , wrappedRow [ spacing 8 ]
-            (text "Occupied by: "
+        , Ui.text ("Stars: " ++ String.fromInt starCount)
+        , Ui.text ("Planets: " ++ String.fromInt planetCount)
+        , Ui.rowWrapped [ Ui.gap.remHalf ]
+            (Ui.text "Occupied by: "
                 :: List.filterMap
                     (\civId ->
                         Maybe.andThen
@@ -92,13 +94,13 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                     Just
                                         (if Just civId == focusedCivilization then
                                             Ui.Button.primary
-                                                { label = text civName
+                                                { label = Ui.text civName
                                                 , onPress = Just (onPressCivilization civId)
                                                 }
 
                                          else
-                                            Ui.Button.default
-                                                { label = text civName
+                                            Ui.Button.default []
+                                                { label = Ui.text civName
                                                 , onPress = Just (onPressCivilization civId)
                                                 }
                                         )
@@ -123,27 +125,27 @@ viewSolarSystem :
     -> Set EntityID
     -> World
     -> Set EntityID
-    -> Element msg
+    -> Html msg
 viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivilization } solarSystemId stars world planets =
-    column
-        [ paddingEach
-            { top = 64
-            , left = 8
-            , bottom = 8
-            , right = 8
-            }
+    Ui.column
+        [-- paddingEach
+         --     { top = 64
+         --     , left = 8
+         --     , bottom = 8
+         --     , right = 8
+         --     }
         ]
-        [ text ("Solar System: SS_" ++ String.fromInt solarSystemId)
-        , column [ padding 8 ]
-            [ text "Stars:"
-            , column [ padding 8, spacing 4 ]
+        [ Ui.text ("Solar System: SS_" ++ String.fromInt solarSystemId)
+        , Ui.column [ Ui.padding.remHalf ]
+            [ Ui.text "Stars:"
+            , Ui.column [ Ui.padding.remHalf, Ui.gap.remQuarter ]
                 (List.map (viewStarSimple onPressStar world)
                     (Set.toList stars)
                 )
             ]
-        , column [ padding 8 ]
-            [ text "Planets:"
-            , column [ padding 8, spacing 4 ]
+        , Ui.column [ Ui.padding.remHalf ]
+            [ Ui.text "Planets:"
+            , Ui.column [ Ui.padding.remHalf, Ui.gap.remQuarter ]
                 (List.map
                     (\( planetId, _ ) ->
                         viewPlanetSimple
@@ -169,11 +171,11 @@ viewSolarSystem { onPressPlanet, onPressStar, onPressCivilization, focusedCivili
         ]
 
 
-viewStarSimple : (EntityID -> msg) -> World -> EntityID -> Element msg
+viewStarSimple : (EntityID -> msg) -> World -> EntityID -> Html msg
 viewStarSimple onPress _ starId =
-    row
-        [ spacing 8, width fill ]
-        [ el [ width fill ] (text ("S_" ++ String.fromInt starId))
+    Ui.row
+        [ Ui.gap.remHalf ]
+        [ Ui.el [] (Ui.text ("S_" ++ String.fromInt starId))
         , Ui.Button.inspect (Just (onPress starId))
         ]
 
@@ -185,16 +187,16 @@ viewPlanetSimple :
     }
     -> World
     -> EntityID
-    -> Element msg
+    -> Html msg
 viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } world planetId =
-    column
-        [ spacing 8, width fill ]
-        [ row
-            [ spacing 8, width fill ]
-            [ el [ width fill ] (text ("P_" ++ String.fromInt planetId))
+    Ui.column
+        [ Ui.gap.remHalf ]
+        [ Ui.row
+            [ Ui.gap.remHalf ]
+            [ Ui.el [] (Ui.text ("P_" ++ String.fromInt planetId))
             , Ui.Button.inspect (Just (onPressPlanet planetId))
             ]
-        , wrappedRow [ spacing 8 ]
+        , Ui.rowWrapped [ Ui.gap.remHalf ]
             (List.filterMap
                 (\civId ->
                     Maybe.andThen
@@ -209,13 +211,13 @@ viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } wor
                                 Just
                                     (if Just civId == focusedCivilization then
                                         Ui.Button.primary
-                                            { label = text civName
+                                            { label = Ui.text civName
                                             , onPress = Just (onPressCivilization civId)
                                             }
 
                                      else
-                                        Ui.Button.default
-                                            { label = text civName
+                                        Ui.Button.default []
+                                            { label = Ui.text civName
                                             , onPress = Just (onPressCivilization civId)
                                             }
                                     )

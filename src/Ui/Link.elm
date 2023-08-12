@@ -1,21 +1,44 @@
 module Ui.Link exposing (internal)
 
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
+import Html exposing (Html)
+import Html.Attributes
 import Route
+import Ui
 import Ui.Theme
 
 
-internal : { route : Route.Route, label : Element msg } -> Element msg
-internal config =
-    link
-        [ paddingXY 16 8
-        , Border.solid
-        , Border.width 3
-        , Border.rounded 3
-        , Background.color Ui.Theme.green
+internal : List (Html.Attribute msg) -> { route : Route.Route, label : Html msg } -> Html msg
+internal attributes config =
+    Html.a
+        ([ -- paddingXY 16 8
+           -- ,
+           Ui.borderStyle.solid
+         , Ui.borderWidth.px3
+         , Ui.borderRadius.px3
+         , Ui.backgroundColor Ui.Theme.green
+         , Html.Attributes.href (Route.toString config.route)
+         , Html.Attributes.style "text-decoration" "none"
+         , Html.Attributes.style "display" "grid"
+         ]
+            ++ attributes
+        )
+        [ config.label
+            |> Ui.el
+                [ Ui.justifySelf.center
+                , Ui.alignSelf.center
+                , Ui.width.shrink
+                , Ui.padding.xy.rem1.remHalf
+                ]
         ]
-        { url = Route.toString config.route
-        , label = config.label
-        }
+
+
+external : List (Html.Attribute msg) -> { url : String, label : Html msg } -> Html msg
+external attributes options =
+    Html.a
+        (attributes
+            ++ [ Html.Attributes.href options.url
+               , Html.Attributes.target "_blank"
+               ]
+        )
+        [ options.label
+        ]

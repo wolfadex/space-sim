@@ -1,4 +1,4 @@
-module Shared exposing
+port module Shared exposing
     ( Effect(..)
     , Enabled(..)
     , Flags
@@ -15,19 +15,17 @@ module Shared exposing
     , viewSettings
     )
 
+import Control
 import Data.Name exposing (Name)
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Font as Font
-import Element.Input as Input
+import Html exposing (Html)
+import Input.Slider.Float
 import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
 import List.Nonempty exposing (Nonempty)
 import Percent exposing (Percent)
 import Random exposing (Seed)
 import Serialize exposing (Codec)
-import Ui.Slider
+import Ui
 import Ui.Theme
 
 
@@ -37,14 +35,24 @@ import Ui.Theme
 
 init : Flags -> SharedModel
 init flags =
-    { seed = Random.initialSeed flags.initialSeed
-    , settings =
-        case decodeSettings flags.settings of
-            Err _ ->
-                defaultSettings
+    let
+        settings : Settings
+        settings =
+            case decodeSettings flags.settings of
+                Err _ ->
+                    defaultSettings
 
-            Ok settings ->
-                settings
+                Ok settings_ ->
+                    settings_
+
+        _ =
+            "carl"
+    in
+    { seed = Random.initialSeed flags.initialSeed
+    , settings = settings
+    , settingsModel =
+        settingsForm.initWith settings
+            |> Tuple.first
     }
 
 
@@ -56,6 +64,7 @@ type alias Flags =
 
 type alias SharedModel =
     { settings : Settings
+    , settingsModel : Control.State SettingsFormState
     , seed : Seed
     }
 
@@ -134,17 +143,51 @@ type SharedMsg
     | GotPlanetOrbitChange Bool
     | GotShowPlanetOrbitChange Bool
     | GotPlanetRotationSpeed Float
+    | SettingsFormSentMsg (Control.Delta SettingsFormDelta)
+    | SettingsFormSubmitted
 
 
 
 ---- SETTINGS ----
 
 
-update : SharedMsg -> SharedModel -> SharedModel
+update : SharedMsg -> SharedModel -> ( SharedModel, Cmd SharedMsg )
 update msg ({ settings } as model) =
     case msg of
+        SettingsFormSentMsg msg_ ->
+            let
+                ( settingsModel, cmd ) =
+                    settingsForm.update msg_ model.settingsModel
+            in
+            ( { model | settingsModel = settingsModel }
+            , cmd
+            )
+
+        SettingsFormSubmitted ->
+            let
+                ( settingsModel, result ) =
+                    settingsForm.submit model.settingsModel
+            in
+            ( { model
+                | settingsModel = settingsModel
+                , settings =
+                    case result of
+                        Ok newSettings ->
+                            newSettings
+
+                        Err _ ->
+                            model.settings
+              }
+            , case result of
+                Ok newSettings ->
+                    saveSettings (encodeSettings newSettings)
+
+                Err _ ->
+                    Cmd.none
+            )
+
         GotLightingChange enabledBool ->
-            { model
+            ( { model
                 | settings =
                     { settings
                         | realisticLighting =
@@ -154,10 +197,12 @@ update msg ({ settings } as model) =
                             else
                                 Disabled
                     }
-            }
+              }
+            , Cmd.none
+            )
 
         GotPlanetOrbitChange enabledBool ->
-            { model
+            ( { model
                 | settings =
                     { settings
                         | planetsOrbit =
@@ -167,10 +212,12 @@ update msg ({ settings } as model) =
                             else
                                 Disabled
                     }
-            }
+              }
+            , Cmd.none
+            )
 
         GotShowPlanetOrbitChange enabledBool ->
-            { model
+            ( { model
                 | settings =
                     { settings
                         | showPlanetsOrbit =
@@ -180,15 +227,22 @@ update msg ({ settings } as model) =
                             else
                                 Disabled
                     }
-            }
+              }
+            , Cmd.none
+            )
 
         GotPlanetRotationSpeed speed ->
-            { model
+            ( { model
                 | settings =
                     { settings
                         | planetRotationSpeed = Percent.fromFloat speed
                     }
-            }
+              }
+            , Cmd.none
+            )
+
+
+port saveSettings : Value -> Cmd msg
 
 
 type alias Settings =
@@ -294,90 +348,147 @@ decodeEnabled =
         Json.Decode.bool
 
 
-viewSettings : Settings -> Element SharedMsg
-viewSettings settings =
-    el
-        [ alignRight
-        , moveDown 44
-        , padding 16
+viewSettings : SharedModel -> Html SharedMsg
+viewSettings model =
+    Ui.el
+        [ Ui.justifySelf.end
+        , Ui.width.shrink
+        , Ui.height.shrink
+
+        -- , Ui.translate.down 24
+        , Ui.padding.rem1
         ]
-        (column
-            [ Background.color Ui.Theme.nearlyWhite
-            , padding 16
-            , Border.solid
-            , Border.color Ui.Theme.darkGray
-            , Border.width 3
-            , Border.rounded 8
-            , spacing 8
+        (Ui.column
+            [ Ui.backgroundColor Ui.Theme.nearlyWhite
+            , Ui.padding.rem1
+            , Ui.borderStyle.solid
+            , Ui.borderColor Ui.Theme.darkGray
+            , Ui.borderWidth.px3
+            , Ui.borderRadius.remHalf
+            , Ui.gap.remHalf
             ]
-            [ el
-                [ Font.size 30
-                , Border.widthEach { top = 0, bottom = 1, left = 0, right = 0 }
-                , Border.solid
-                , width fill
+            [ Ui.el
+                [ Ui.fontSize.rem2
+                , Ui.borderWidth.bottom.px1
+                , Ui.borderStyle.solid
                 ]
-                (text "Settings")
-            , Input.checkbox
-                []
-                { onChange = GotLightingChange
-                , icon = Input.defaultCheckbox
-                , label = Input.labelLeft [] (text "Realistic Lighting:")
-                , checked =
-                    case settings.realisticLighting of
-                        Enabled ->
-                            True
-
-                        Disabled ->
-                            False
-                }
-            , Input.checkbox
-                []
-                { onChange = GotPlanetOrbitChange
-                , icon = Input.defaultCheckbox
-                , label = Input.labelLeft [] (text "Planets Orbit:")
-                , checked =
-                    case settings.planetsOrbit of
-                        Enabled ->
-                            True
-
-                        Disabled ->
-                            False
-                }
-            , Ui.Slider.float
-                []
-                { step = Just 0.01
-                , min = 0.01
-                , max = 1.0
-                , value = Percent.toFloat settings.planetRotationSpeed
-                , label = Input.labelAbove [] (text "Planet Rotation Speed")
-                , onChange = GotPlanetRotationSpeed
-                }
-            , Input.checkbox
-                []
-                { onChange = GotShowPlanetOrbitChange
-                , icon = Input.defaultCheckbox
-                , label = Input.labelLeft [] (text "Show Planets Orbit's:")
-                , checked =
-                    case settings.showPlanetsOrbit of
-                        Enabled ->
-                            True
-
-                        Disabled ->
-                            False
-                }
-            , paragraph
-                [ Font.size 16
-                , Font.color Ui.Theme.nearlyWhite
-                , Background.color Ui.Theme.darkGray
-                , padding 4
-                , Border.rounded 4
+                (Ui.text "Settings")
+            , settingsForm.view model.settingsModel
+            , Ui.paragraph
+                [ Ui.fontSize.rem1
+                , Ui.fontColor Ui.Theme.nearlyWhite
+                , Ui.backgroundColor Ui.Theme.darkGray
+                , Ui.padding.remQuarter
+                , Ui.borderRadius.remQuarter
                 ]
-                [ text "For issues or to follow development, checkout the "
-                , newTabLink
-                    [ Font.color Ui.Theme.green ]
+                [ Ui.text "For issues or to follow development, checkout the "
+                , Ui.link.external
+                    [ Ui.fontColor Ui.Theme.green ]
                     { url = "https://github.com/wolfadex/space-sim"
-                    , label = text "GitHub page."
+                    , label = Ui.text "GitHub page."
                     }
                 ]
             ]
         )
+
+
+type alias SettingsFormState =
+    ( Control.State String
+    , ( Control.State ( Control.State Bool, Control.End )
+      , ( Control.State ( Control.State Bool, Control.End )
+        , ( Control.State
+                ( Control.State Input.Slider.Float.Model, Control.End )
+          , ( Control.State ( Control.State Bool, Control.End )
+            , Control.End
+            )
+          )
+        )
+      )
+    )
+
+
+type alias SettingsFormDelta =
+    ( Control.Delta String
+    , ( Control.Delta ( Control.Delta Bool, Control.End )
+      , ( Control.Delta ( Control.Delta Bool, Control.End )
+        , ( Control.Delta
+                ( Control.Delta Input.Slider.Float.Msg, Control.End )
+          , ( Control.Delta ( Control.Delta Bool, Control.End )
+            , Control.End
+            )
+          )
+        )
+      )
+    )
+
+
+settingsForm : Control.Form SettingsFormState SettingsFormDelta Settings SharedMsg
+settingsForm =
+    Control.form
+        { onUpdate = SettingsFormSentMsg
+        , onSubmit = SettingsFormSubmitted
+        , control =
+            Control.record
+                (\version realisticLighting planetsOrbit planetRotationSpeed showPlanetsOrbit ->
+                    { version = version
+                    , realisticLighting = realisticLighting
+                    , planetsOrbit = planetsOrbit
+                    , planetRotationSpeed = planetRotationSpeed
+                    , showPlanetsOrbit = showPlanetsOrbit
+                    }
+                )
+                |> Control.hiddenField .version Control.int
+                |> Control.field .realisticLighting
+                    (Control.bool
+                        |> Control.label "Realistic Lighting"
+                        |> Control.map
+                            { convert =
+                                \b ->
+                                    if b then
+                                        Enabled
+
+                                    else
+                                        Disabled
+                            , revert = \e -> e == Enabled
+                            }
+                    )
+                |> Control.field .planetsOrbit
+                    (Control.bool
+                        |> Control.label "Planets Orbit"
+                        |> Control.map
+                            { convert =
+                                \b ->
+                                    if b then
+                                        Enabled
+
+                                    else
+                                        Disabled
+                            , revert = \e -> e == Enabled
+                            }
+                    )
+                |> Control.field .planetRotationSpeed
+                    (Input.Slider.Float.new { min = 0.0, max = 1.0 }
+                        |> Input.Slider.Float.withStep 0.01
+                        |> Input.Slider.Float.toControl
+                        |> Control.label "Planet Rotation Speed"
+                        |> Control.map
+                            { convert = Percent.fromFloat
+                            , revert = Percent.toFloat
+                            }
+                    )
+                |> Control.field .showPlanetsOrbit
+                    (Control.bool
+                        |> Control.label "Show Planets Orbit"
+                        |> Control.map
+                            { convert =
+                                \b ->
+                                    if b then
+                                        Enabled
+
+                                    else
+                                        Disabled
+                            , revert = \e -> e == Enabled
+                            }
+                    )
+                |> Control.endRecord
+        }

@@ -14,10 +14,6 @@ import Data.EarthYear
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Font as Font
 import Galaxy3d
 import Game.Components
     exposing
@@ -27,6 +23,9 @@ import Game.Components
         , Visible(..)
         , Water
         )
+import Html exposing (Html)
+import Html.Attributes
+import Html.Events
 import Length exposing (Meters)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
@@ -44,6 +43,7 @@ import Shared
         )
 import SubCmd exposing (SubCmd)
 import Temperature exposing (Temperature)
+import Ui
 import Ui.Button
 import Ui.Link
 import Ui.Theme
@@ -279,63 +279,65 @@ view sharedModel model =
     in
     { title = options.title
     , body =
-        el
-            [ width fill
-            , height fill
-            , behindContent
-                (Galaxy3d.viewSolarSystem
-                    { onPressStar = Nothing
-                    , onPressPlanet = Nothing
-                    , onZoom = Nothing
-                    , onZoomPress = Nothing
-                    , onRotationPress = Nothing
-                    , focusedCivilization = Nothing
-                    , stars = model.stars
-                    , planets = model.planets
-                    }
-                    sharedModel.settings
-                    model
-                )
-            , inFront
-                (el
-                    [ alignRight
-                    , alignTop
-                    , padding 16
-                    , inFront
-                        (case model.settingsVisible of
-                            Hidden ->
-                                none
-
-                            Visible ->
-                                map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-                        )
+        Ui.stack
+            [ Ui.height.fill ]
+            [ Galaxy3d.viewSolarSystem
+                { onPressStar = Nothing
+                , onPressPlanet = Nothing
+                , onZoom = Nothing
+                , onZoomPress = Nothing
+                , onRotationPress = Nothing
+                , focusedCivilization = Nothing
+                , stars = model.stars
+                , planets = model.planets
+                }
+                sharedModel.settings
+                model
+            , options.body
+            , Ui.column
+                [ Ui.height.shrink
+                , Ui.width.shrink
+                , Ui.justifySelf.end
+                ]
+                [ Ui.Button.default
+                    [ Ui.width.shrink
+                    , Ui.height.shrink
+                    , Ui.justifySelf.end
+                    , Ui.transform
+                        [ Ui.translate.left 10
+                        , Ui.translate.down 10
+                        ]
                     ]
-                    (Ui.Button.default
-                        { label = text "⚙"
-                        , onPress =
-                            Just
-                                (case model.settingsVisible of
-                                    Visible ->
-                                        GotSettingsVisible Hidden
+                    { label = Ui.text "⚙"
+                    , onPress =
+                        (case model.settingsVisible of
+                            Visible ->
+                                Hidden
 
-                                    Hidden ->
-                                        GotSettingsVisible Visible
-                                )
-                        }
-                    )
-                )
+                            Hidden ->
+                                Visible
+                        )
+                            |> GotSettingsVisible
+                            |> Just
+                    }
+                , case model.settingsVisible of
+                    Hidden ->
+                        Ui.none
+
+                    Visible ->
+                        Ui.map GotLocalSharedMessage (Shared.viewSettings sharedModel)
+                ]
             ]
-            options.body
     }
 
 
-contrastingBackground : Element msg -> Element msg
+contrastingBackground : Html msg -> Html msg
 contrastingBackground =
-    el
-        [ Font.color Ui.Theme.darkGray
-        , Background.color Ui.Theme.nearlyWhiteTransparent
-        , padding 8
-        , Border.rounded 8
+    Ui.el
+        [ Ui.fontColor Ui.Theme.darkGray
+        , Ui.backgroundColor Ui.Theme.nearlyWhiteTransparent
+        , Ui.padding.remHalf
+        , Ui.borderRadius.remHalf
         ]
 
 
@@ -343,35 +345,49 @@ viewMainMenu : View Msg
 viewMainMenu =
     { title = "Hello Space!"
     , body =
-        el
-            [ padding 16
-            , width fill
-            , height fill
+        Ui.el
+            [ Ui.padding.rem1
+            , Ui.height.fill
             ]
-            (column
-                [ centerX
-                , centerY
-                , spacing 64
+            (Ui.column
+                [ Ui.justifySelf.center
+                , Ui.alignSelf.center
+                , Ui.justifySelf.center
+                , Ui.alignSelf.center
+                , Ui.gap.rem3
+                , Ui.width.shrink
                 ]
-                [ contrastingBackground (el [ centerX, Font.size 64 ] (text "Space Sim!"))
-                , column
-                    [ centerX, spacing 16 ]
-                    [ el [ centerX ]
-                        (Ui.Link.internal
+                [ contrastingBackground
+                    (Ui.el
+                        [ Ui.justifySelf.center
+                        , Ui.fontSize.rem3
+                        ]
+                        (Ui.text "Space Sim!")
+                    )
+                , Ui.column
+                    [ Ui.justifySelf.center
+                    , Ui.gap.rem1
+                    ]
+                    [ Ui.el [ Ui.justifySelf.center ]
+                        (Ui.Link.internal [ Ui.width.shrink, Ui.justifySelf.center ]
                             { route = Route.NewGameParticipate
-                            , label = text "Participate"
+                            , label = Ui.text "Participate"
                             }
                         )
-                    , el [ centerX ]
-                        (Ui.Link.internal
+                    , Ui.el [ Ui.justifySelf.center ]
+                        (Ui.Link.internal [ Ui.width.shrink, Ui.justifySelf.center ]
                             { route = Route.NewGameObserve
-                            , label = text "Observe"
+                            , label = Ui.text "Observe"
                             }
                         )
-                    , el [ centerX, Font.strike ]
-                        (Ui.Button.default
+                    , Ui.el
+                        [ Ui.justifySelf.center
+
+                        -- , Font.strike
+                        ]
+                        (Ui.Button.default [ Ui.width.shrink, Ui.justifySelf.center ]
                             { onPress = Nothing
-                            , label = text "Load Simulation"
+                            , label = Ui.text "Load Simulation"
                             }
                         )
                     ]

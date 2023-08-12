@@ -1,17 +1,16 @@
 module View exposing (View, map, viewToTestDocument)
 
 import Browser exposing (Document)
-import Element exposing (..)
 import Html exposing (Html)
 
 
 type alias View msg =
     { title : String
-    , body : Element msg
+    , body : Html msg
     }
 
 
-viewToTestDocument : (Element msg -> Html msg) -> (model -> View msg) -> model -> Document msg
+viewToTestDocument : (Html msg -> Html msg) -> (model -> View msg) -> model -> Document msg
 viewToTestDocument fn view model =
     let
         renderedView : View msg
@@ -26,5 +25,5 @@ viewToTestDocument fn view model =
 map : (msg1 -> msg2) -> View msg1 -> View msg2
 map fn view =
     { title = view.title
-    , body = Element.map fn view.body
+    , body = Html.map fn view.body
     }

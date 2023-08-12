@@ -18,12 +18,6 @@ import Data.Name exposing (Name)
 import Data.Orbit exposing (Orbit)
 import Data.Star
 import Dict exposing (Dict)
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Extra
-import Element.Font as Font
-import Element.Input as Input
 import Galaxy3d
 import Game.Components
     exposing
@@ -65,9 +59,9 @@ import SubCmd exposing (SubCmd)
 import Svg
 import Svg.Attributes
 import Temperature exposing (Temperature)
+import Ui
 import Ui.Button
 import Ui.Link
-import Ui.Slider
 import Ui.Text
 import Ui.Theme
 import Validator exposing (Validator)
@@ -471,137 +465,144 @@ view : SharedModel -> Model -> View Msg
 view sharedModel model =
     { title = "Hello Space! - Participate"
     , body =
-        el
-            [ width fill
-            , height fill
-            , behindContent
-                (Galaxy3d.viewSolarSystem
-                    { onPressStar = Nothing
-                    , onPressPlanet = Nothing
-                    , onZoom = Nothing
-                    , onZoomPress = Nothing
-                    , onRotationPress = Nothing
-                    , focusedCivilization = Nothing
-                    , stars = model.stars
-                    , planets = model.planets
-                    }
-                    sharedModel.settings
-                    model
-                )
-            , inFront
-                (el
-                    [ alignRight
-                    , alignTop
-                    , padding 16
-                    , inFront
-                        (case model.settingsVisible of
-                            Hidden ->
-                                none
+        Ui.el
+            [ Ui.height.fill
 
-                            Visible ->
-                                map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-                        )
-                    ]
-                    (Ui.Button.default
-                        { label = text "⚙"
-                        , onPress =
-                            Just
-                                (case model.settingsVisible of
-                                    Visible ->
-                                        GotSettingsVisible Hidden
-
-                                    Hidden ->
-                                        GotSettingsVisible Visible
-                                )
-                        }
-                    )
-                )
-            , inFront
-                (el
-                    [ padding 16 ]
-                    (Ui.Link.internal
-                        { label = text "Main Menu"
-                        , route = Route.Home
-                        }
-                    )
-                )
+            -- , behindContent
+            --     (Galaxy3d.viewSolarSystem
+            --         { onPressStar = Nothing
+            --         , onPressPlanet = Nothing
+            --         , onZoom = Nothing
+            --         , onZoomPress = Nothing
+            --         , onRotationPress = Nothing
+            --         , focusedCivilization = Nothing
+            --         , stars = model.stars
+            --         , planets = model.planets
+            --         }
+            --         sharedModel.settings
+            --         model
+            --     )
+            -- , inFront
+            --     (el
+            --         [ alignRight
+            --         , alignTop
+            --         , padding 16
+            --         , inFront
+            --             (case model.settingsVisible of
+            --                 Hidden ->
+            --                     none
+            --                 Visible ->
+            --                     map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
+            --             )
+            --         ]
+            --         (Ui.Button.default
+            --             { label = text "⚙"
+            --             , onPress =
+            --                 Just
+            --                     (case model.settingsVisible of
+            --                         Visible ->
+            --                             GotSettingsVisible Hidden
+            --                         Hidden ->
+            --                             GotSettingsVisible Visible
+            --                     )
+            --             }
+            --         )
+            --     )
+            -- , inFront
+            --     (el
+            --         [ padding 16 ]
+            --         (Ui.Link.internal
+            --             { label = text "Main Menu"
+            --             , route = Route.Home
+            --             }
+            --         )
+            --     )
             ]
             (viewParticipate model)
     }
 
 
-contrastingBackground : Element msg -> Element msg
+contrastingBackground : Html msg -> Html msg
 contrastingBackground =
-    el
-        [ Font.color Ui.Theme.darkGray
-        , Background.color Ui.Theme.nearlyWhiteTransparent
-        , padding 8
-        , Border.rounded 8
-        , width fill
+    Ui.el
+        [ Ui.fontColor Ui.Theme.darkGray
+        , Ui.backgroundColor Ui.Theme.nearlyWhiteTransparent
+        , Ui.padding.remHalf
+        , Ui.borderRadius.remHalf
         ]
 
 
-viewParticipate : Model -> Element Msg
+viewParticipate : Model -> Html Msg
 viewParticipate model =
-    column
-        [ centerX
-        , centerY
-        , spacing 64
-        , width fill
+    Ui.column
+        [ -- centerX
+          -- , centerY
+          -- ,
+          Ui.gap.rem3
         ]
-        [ el [ centerX, Font.size 64, Font.underline ] (contrastingBackground (text "Participate in the Simulation"))
-        , wrappedRow
-            [ centerX
-            , centerY
-            , spacing 16
-            , paddingXY 32 16
-            , width fill
+        [ Ui.el
+            [-- centerX
+             -- , Font.size 64
+             -- , Font.underline
             ]
-            [ column
-                [ width fill
-                , spacing 16
+            (contrastingBackground (Ui.text "Participate in the Simulation"))
+        , Ui.rowWrapped
+            [ -- centerX
+              -- , centerY
+              -- ,
+              Ui.gap.rem1
+
+            -- , paddingXY 32 16
+            ]
+            [ Ui.column
+                [ Ui.gap.rem1
                 ]
                 [ contrastingBackground <|
                     case model.tab of
                         SolarSystemTab ->
-                            -- viewSolarSystemForm model
                             galaxyForm.view model.solarSystemForm
-                                |> html
 
                         CivilizationTab ->
-                            viewCivilizationForm model
+                            -- viewCivilizationForm model
+                            Ui.text "TODO"
                 , case Validator.run createGameValidator model of
                     Ok _ ->
-                        el [ height (px 36) ] none
+                        Ui.el
+                            [-- height (px 36)
+                            ]
+                            Ui.none
 
                     Err errors ->
-                        wrappedRow [ spacing 8 ] (List.map viewError errors)
-                , row [ width fill ]
-                    [ el [ alignLeft ]
+                        Ui.rowWrapped [ Ui.gap.remHalf ] (List.map viewError errors)
+                , Ui.row []
+                    [ Ui.el
+                        [-- alignLeft
+                        ]
                         (case model.tab of
                             SolarSystemTab ->
-                                none
+                                Ui.none
 
                             CivilizationTab ->
-                                Ui.Button.default
-                                    { label = text "Change Solar System"
+                                Ui.Button.default []
+                                    { label = Ui.text "Change Solar System"
                                     , onPress = Just (TabChanged SolarSystemTab)
                                     }
                         )
-                    , el
-                        [ alignRight ]
+                    , Ui.el
+                        [-- alignRight
+                        ]
                         (case model.tab of
                             SolarSystemTab ->
-                                Ui.Button.default
-                                    { label = text "Setup Civilization"
+                                Ui.Button.default []
+                                    { label = Ui.text "Setup Civilization"
                                     , onPress = Just (TabChanged CivilizationTab)
                                     }
 
                             CivilizationTab ->
                                 case Validator.run createGameValidator model of
                                     Ok ( validName, validHomeName ) ->
-                                        Ui.Link.internal
-                                            { label = text "Start Game"
+                                        Ui.Link.internal []
+                                            { label = Ui.text "Start Game"
                                             , route =
                                                 Route.Playing
                                                     { name = validName
@@ -616,8 +617,8 @@ viewParticipate model =
                                             }
 
                                     Err _ ->
-                                        Ui.Button.default
-                                            { label = text "Start Game"
+                                        Ui.Button.default []
+                                            { label = Ui.text "Start Game"
                                             , onPress = Nothing
                                             }
                         )
@@ -628,136 +629,132 @@ viewParticipate model =
         ]
 
 
-viewSolarSystemForm : Model -> Element Msg
-viewSolarSystemForm model =
-    column
-        [ spacing 16
-        , width fill
-        , height (px 600)
-        , scrollbarY
-        ]
-        (List.intersperse formSpacer
-            [ inputSolarSystems model
 
-            -- , inputSpline model
-            , inputPlanets model
-            , inputStarCounts model
-            ]
-        )
-
-
-inputSpline : Model -> Element Msg
-inputSpline model =
-    -- SplineInput.view { model = SplineInput.init }
-    --     |> html
-    none
-
-
-viewCivilizationForm : Model -> Element Msg
-viewCivilizationForm model =
-    column
-        [ spacing 16
-        , width fill
-        , height (px 600)
-        , scrollbarY
-        , alignLeft
-        ]
-        (List.intersperse formSpacer
-            [ inputGroup "Civilization"
-                [ Ui.Text.default
-                    []
-                    { onChange = SetNameSingular
-                    , text = model.civilizationNameSingular
-                    , label = Input.labelLeft [ width fill ] (text "Name Singular:")
-                    }
-                , Ui.Text.default
-                    []
-                    { onChange = SetHomePlanetName
-                    , text = model.homePlanetName
-                    , label = Input.labelLeft [ width fill ] (text "Home Planet Name:")
-                    }
-                , Input.slider
-                    []
-                    { label = Input.labelAbove [] (text "Cooperative or Competitive")
-                    , max = 1.0
-                    , min = 0.0
-                    , onChange = Debug.todo ""
-                    , step = Nothing
-                    , value = model.cooperationVsCompetition
-                    , thumb = Input.defaultThumb
-                    }
-                , column
-                    [ spacing 4, width (px 400) ]
-                    [ row [ spacing 64, width fill ]
-                        [ text "Cooperative"
-                        , el [ centerX ] (text "or")
-                        , el [ alignRight ] (text "Competitive")
-                        ]
-                    , el
-                        [ Border.width 1
-                        , width fill
-                        , moveDown 4
-                        , inFront
-                            (el
-                                [ height (px 16)
-                                , Border.width 2
-                                , moveUp 8
-                                , moveRight (model.cooperationVsCompetition * 400)
-                                ]
-                                none
-                            )
-                        ]
-                        none
-                    ]
-                , text "Senses:"
-                , text "descisionMakingStructure"
-                ]
-            ]
-        )
+-- viewCivilizationForm : Model -> Html Msg
+-- viewCivilizationForm model =
+--     Ui.column
+--         [ Ui.gap.rem1
+--         -- , height (px 600)
+--         -- , scrollbarY
+--         -- , alignLeft
+--         ]
+--         (List.intersperse formSpacer
+--             [ inputGroup "Civilization"
+--                 [ Ui.Text.default
+--                     []
+--                     { onChange = SetNameSingular
+--                     , text = model.civilizationNameSingular
+--                     , label = Input.labelLeft [] (Ui.text "Name Singular:")
+--                     }
+--                 , Ui.Text.default
+--                     []
+--                     { onChange = SetHomePlanetName
+--                     , text = model.homePlanetName
+--                     , label = Input.labelLeft [] (Ui.text "Home Planet Name:")
+--                     }
+--                 , Input.slider
+--                     []
+--                     { label = Input.labelAbove [] (Ui.text "Cooperative or Competitive")
+--                     , max = 1.0
+--                     , min = 0.0
+--                     , onChange = Debug.todo ""
+--                     , step = Nothing
+--                     , value = model.cooperationVsCompetition
+--                     , thumb = Input.defaultThumb
+--                     }
+--                 , Ui.column
+--                     [ Ui.gap.remQuarter
+--                     -- , width (px 400)
+--                     ]
+--                     [ Ui.row [ Ui.gap.rem3 ]
+--                         [ Ui.text "Cooperative"
+--                         , Ui.el
+--                             [-- centerX
+--                             ]
+--                             (text "or")
+--                         , Ui.el
+--                             [-- alignRight
+--                             ]
+--                             (text "Competitive")
+--                         ]
+--                     , Ui.el
+--                         [ Ui.borderWidth.px1
+--                         -- , moveDown 4
+--                         -- , inFront
+--                         --     (Ui.el
+--                         --         [ height (px 16)
+--                         --         , Border.width 2
+--                         --         , moveUp 8
+--                         --         , moveRight (model.cooperationVsCompetition * 400)
+--                         --         ]
+--                         --         Ui.none
+--                         -- )
+--                         ]
+--                         Ui.none
+--                     ]
+--                 , Ui.text "Senses:"
+--                 , Ui.text "descisionMakingStructure"
+--                 ]
+--             ]
+--         )
 
 
-viewError : String -> Element msg
+viewError : String -> Html msg
 viewError error =
-    el
-        [ Background.color Ui.Theme.nearlyWhite
-        , Font.color Ui.Theme.error
-        , paddingXY 16 8
-        , Border.rounded 32
+    Ui.el
+        [ Ui.backgroundColor Ui.Theme.nearlyWhite
+        , Ui.fontColor Ui.Theme.error
+
+        -- , paddingXY 16 8
+        -- , Border.rounded 32
         ]
-        (text error)
+        (Ui.text error)
 
 
-viewExample : Model -> Element Msg
+viewExample : Model -> Html Msg
 viewExample model =
-    el [ alignTop ]
+    Ui.el
+        [-- alignTop
+        ]
         (contrastingBackground
-            (column
-                [ spacing 8
-                , width (maximum 600 (minimum 400 fill))
+            (Ui.column
+                [ Ui.gap.remHalf
+
+                -- , width (maximum 600 (minimum 400 fill))
                 ]
-                [ text "Example:"
-                , paragraph
+                [ Ui.text "Example:"
+                , Ui.paragraph
                     []
-                    [ text
+                    [ Ui.text
                         "As the battle rages on between the "
-                    , el [ Font.underline ]
+                    , Ui.el
+                        [-- Font.underline
+                        ]
                         (displayGameValue "plural-name-example"
                             (showBlank
                                 (Data.Name.toString (Data.Name.plurualize (Data.Name.fromString model.civilizationNameSingular)))
                             )
                         )
-                    , text " and the Federation, the "
-                    , el [ Font.underline ] (displayGameValue "singular-name-example" (showBlank model.civilizationNameSingular))
-                    , text " people begin to question the morality of continuing the war. But the "
-                    , el [ Font.underline ]
+                    , Ui.text " and the Federation, the "
+                    , Ui.el
+                        [-- Font.underline
+                        ]
+                        (displayGameValue "singular-name-example" (showBlank model.civilizationNameSingular))
+                    , Ui.text " people begin to question the morality of continuing the war. But the "
+                    , Ui.el
+                        [-- Font.underline
+                        ]
                         (displayGameValue "possessive-name-example"
                             (showBlank
                                 (Data.Name.toString (Data.Name.possessive (Data.Name.fromString model.civilizationNameSingular)))
                             )
                         )
-                    , text " home planet, "
-                    , el [ Font.underline ] (displayGameValue "home-planet-name-example" (showBlank model.homePlanetName))
-                    , text ", hangs in the balance."
+                    , Ui.text " home planet, "
+                    , Ui.el
+                        [-- Font.underline
+                        ]
+                        (displayGameValue "home-planet-name-example" (showBlank model.homePlanetName))
+                    , Ui.text ", hangs in the balance."
                     ]
                 ]
             )
@@ -773,137 +770,45 @@ showBlank str =
         str
 
 
-displayGameValue : String -> String -> Element msg
+displayGameValue : String -> String -> Html msg
 displayGameValue id value =
-    el
-        [ Font.color (rgb 0.2 0.6 0.6)
-        , Element.Extra.id id
+    Ui.el
+        [ -- Font.color (rgb 0.2 0.6 0.6)
+          -- ,
+          Html.Attributes.id id
         ]
-        (text value)
+        (Ui.text value)
 
 
-formSpacer : Element msg
+formSpacer : Html msg
 formSpacer =
-    el
-        [ Border.width 1
-        , Border.color (rgb 0.6 0.6 0.4)
-        , width fill
+    Ui.el
+        [ Ui.borderWidth.px1
+
+        -- , Border.color (rgb 0.6 0.6 0.4)
         ]
-        none
+        Ui.none
 
 
-inputGroup : String -> List (Element Msg) -> Element Msg
+inputGroup : String -> List (Html Msg) -> Html Msg
 inputGroup label inputs =
-    column
-        [ spacing 8
-        , width fill
-        , padding 16
+    Ui.column
+        [ Ui.gap.remHalf
+        , Ui.padding.rem1
         ]
-        [ text (label ++ ":")
-        , column
-            [ spacing 8
-            , paddingEach
-                { left = 16
-                , top = 0
-                , right = 0
-                , bottom = 0
-                }
-            , width fill
+        [ Ui.text (label ++ ":")
+        , Ui.column
+            [ Ui.gap.remHalf
+
+            -- , paddingEach
+            --     { left = 16
+            --     , top = 0
+            --     , right = 0
+            --     , bottom = 0
+            --     }
             ]
             inputs
         ]
-
-
-inputSolarSystems : Model -> Element Msg
-inputSolarSystems model =
-    inputGroup "Solar Systems to Generate"
-        [ Ui.Slider.int []
-            { onChange = GotMinSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ text "Min: "
-                        , displayGameValue "min-solar-system-count" (String.fromInt model.minSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.minSolarSystemsToGenerate
-            , step = Just 10
-            }
-        , Ui.Slider.int []
-            { onChange = GotMaxSolarSystemCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ text "Max : "
-                        , displayGameValue "max-solar-system-count" (String.fromInt model.maxSolarSystemsToGenerate)
-                        ]
-                    )
-            , min = 10
-            , max = 800
-            , value = model.maxSolarSystemsToGenerate
-            , step = Just 10
-            }
-        ]
-
-
-inputPlanets : Model -> Element Msg
-inputPlanets model =
-    inputGroup "Planets per Solar System"
-        [ Ui.Slider.int []
-            { onChange = GotMinPlanetCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ text "Min: "
-                        , displayGameValue "min-planet-count" (String.fromInt model.minPlanetsPerSolarSystemToGenerate)
-                        ]
-                    )
-            , min = 0
-            , max = 40
-            , value = model.minPlanetsPerSolarSystemToGenerate
-            , step = Just 1
-            }
-        , Ui.Slider.int []
-            { onChange = GotMaxPlanetCount
-            , label =
-                Input.labelAbove []
-                    (paragraph []
-                        [ text "Max: "
-                        , displayGameValue "max-planet-count" (String.fromInt model.maxPlanetsPerSolarSystemToGenerate)
-                        ]
-                    )
-            , min = 1
-            , max = 40
-            , value = model.maxPlanetsPerSolarSystemToGenerate
-            , step = Just 1
-            }
-        ]
-
-
-inputStarCounts : Model -> Element Msg
-inputStarCounts model =
-    inputGroup "Odds that a Solar System has"
-        (List.indexedMap
-            (\index ( percent, count ) ->
-                Ui.Slider.float []
-                    { onChange = GotStarCountChange index
-                    , label =
-                        Input.labelAbove []
-                            (paragraph []
-                                [ text (String.fromInt count ++ " Stars: ")
-                                , displayGameValue (String.fromInt count ++ "-star-count") (Numeral.format "0.00[%]" percent)
-                                ]
-                            )
-                    , min = 0
-                    , max = 1
-                    , value = percent
-                    , step = Just 0.0005
-                    }
-            )
-            (List.Nonempty.toList model.starCounts)
-        )
 
 
 type alias FormState =

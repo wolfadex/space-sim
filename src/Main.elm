@@ -1,4 +1,4 @@
-port module Main exposing (Model, Msg, Page, main)
+module Main exposing (Model, Msg, Page, main)
 
 import Browser exposing (Document)
 import Browser.Navigation
@@ -197,11 +197,15 @@ update msg model =
 
                 GotSharedMessage change ->
                     let
-                        shared : SharedModel
-                        shared =
+                        ( sharedModel, sharedCmd ) =
                             Shared.update change model.shared
                     in
-                    ( { model | shared = shared }, saveSettings (Shared.encodeSettings shared.settings) )
+                    ( { model | shared = sharedModel }
+                      -- , Cmd.batch
+                      --     [ saveSettings (Shared.encodeSettings sharedModel.settings)
+                    , Cmd.map (GotSharedMessage >> GotSharedEffect) sharedCmd
+                      -- ]
+                    )
 
                 UpdateSeed seed ->
                     let
@@ -217,9 +221,6 @@ update msg model =
         --     )
         _ ->
             ( model, Cmd.none )
-
-
-port saveSettings : Value -> Cmd msg
 
 
 
@@ -245,5 +246,5 @@ view model =
                     View.map PagePlayingMessage (Page.Playing.view model.shared m)
     in
     { title = content.title
-    , body = [ layout [ width fill, height fill ] content.body ]
+    , body = [ content.body ]
     }

@@ -1,4 +1,4 @@
-module Input.Slider exposing (..)
+module Input.Slider.Float exposing (..)
 
 import Control exposing (Control)
 import Html exposing (Html)
@@ -6,7 +6,7 @@ import Html.Attributes
 import Html.Events
 
 
-toControl : Config -> Control Model Msg Int
+toControl : Config -> Control Model Msg Float
 toControl (Config config) =
     Control.create
         { label = "Slider"
@@ -24,7 +24,7 @@ type Model
 
 
 type alias InternalModel =
-    { value : Int
+    { value : Float
     , config : InternalConfig
     }
 
@@ -33,7 +33,7 @@ type Config
     = Config InternalConfig
 
 
-new : { min : Int, max : Int } -> Config
+new : { min : Float, max : Float } -> Config
 new opts =
     Config
         { min = opts.min
@@ -42,15 +42,15 @@ new opts =
         }
 
 
-withStep : Int -> Config -> Config
+withStep : Float -> Config -> Config
 withStep step (Config config) =
     Config { config | step = Just step }
 
 
 type alias InternalConfig =
-    { min : Int
-    , max : Int
-    , step : Maybe Int
+    { min : Float
+    , max : Float
+    , step : Maybe Float
     }
 
 
@@ -64,7 +64,7 @@ initEmpty config =
     )
 
 
-initWith : InternalConfig -> Int -> ( Model, Cmd Msg )
+initWith : InternalConfig -> Float -> ( Model, Cmd Msg )
 initWith config value =
     ( Model
         { value = value
@@ -75,7 +75,7 @@ initWith config value =
 
 
 type Msg
-    = ValueChanged Int
+    = ValueChanged Float
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -109,17 +109,17 @@ view { state, name, label, id, class } =
         , Html.input
             [ Html.Attributes.type_ "range"
             , Html.Attributes.name name
-            , Html.Attributes.min (String.fromInt model.config.min)
-            , Html.Attributes.max (String.fromInt model.config.max)
-            , Html.Attributes.value (String.fromInt model.value)
+            , Html.Attributes.min (String.fromFloat model.config.min)
+            , Html.Attributes.max (String.fromFloat model.config.max)
+            , Html.Attributes.value (String.fromFloat model.value)
             , case model.config.step of
                 Just step ->
-                    Html.Attributes.step (String.fromInt step)
+                    Html.Attributes.step (String.fromFloat step)
 
                 Nothing ->
                     Html.Attributes.class ""
             , Html.Events.onInput
-                (String.toInt
+                (String.toFloat
                     >> Maybe.withDefault model.value
                     >> ValueChanged
                 )

@@ -21,8 +21,6 @@ import Data.Star
 import Dict exposing (Dict)
 import Direction2d
 import Direction3d
-import Element exposing (..)
-import Element.Extra
 import Frame2d
 import Game.Components exposing (CelestialBodyForm(..), LightYear, SolarSystem, Water)
 import Geometry.Svg
@@ -61,6 +59,7 @@ import Svg.Attributes
 import Svg.Events
 import Task
 import Temperature exposing (Temperature)
+import Ui
 import Ui.Button
 import Viewpoint3d
 
@@ -98,7 +97,7 @@ viewGalaxy :
     , focusedCivilization : Maybe EntityID
     }
     -> MinRenderableWorld r
-    -> Element msg
+    -> Html msg
 viewGalaxy { onPressSolarSystem, onZoom, onZoomPress, onRotationPress, focusedCivilization } world =
     let
         solarSystemPoints : List ( EntityID, Point3d Meters LightYear )
@@ -303,7 +302,7 @@ viewSolarSystem :
     }
     -> Settings
     -> MinRenderableWorld r
-    -> Element msg
+    -> Html msg
 viewSolarSystem options settings world =
     let
         planetDetails : List PlanetRenderDetails
@@ -749,78 +748,73 @@ viewSpace :
     }
     -> Html msg
     -> Html msg
-    -> Element msg
+    -> Html msg
 viewSpace options labels scene =
-    el
-        [ spaceCss
-        , inFront (html labels)
-        , width fill
-        , height fill
-        , Element.Extra.id "galaxy-view"
-        , htmlAttribute
-            (case options.onZoom of
-                Nothing ->
-                    Html.Attributes.style "" ""
+    Ui.el
+        [ --spaceCss
+          -- , inFront (html labels)
+          -- ,
+          Ui.height.fill
+        , Html.Attributes.id "galaxy-view"
+        , case options.onZoom of
+            Nothing ->
+                Html.Attributes.classList []
 
-                Just onZoom ->
-                    Html.Events.preventDefaultOn "wheel"
-                        (Json.Decode.map (\v -> ( onZoom v, True ))
-                            Json.Decode.value
-                        )
-            )
-        , inFront
-            (row
-                [ alignRight, alignBottom, padding 16, spacing 8 ]
-                [ row
-                    [ alignBottom, spacing 8 ]
-                    [ case options.onRotationPress of
-                        Nothing ->
-                            none
+            Just onZoom ->
+                Html.Events.preventDefaultOn "wheel"
+                    (Json.Decode.map (\v -> ( onZoom v, True ))
+                        Json.Decode.value
+                    )
 
-                        Just onRotationPress ->
-                            Ui.Button.default
-                                { onPress = Just (onRotationPress -5)
-                                , label = text "<-"
-                                }
-                    , case options.onRotationPress of
-                        Nothing ->
-                            none
-
-                        Just onRotationPress ->
-                            Ui.Button.default
-                                { onPress = Just (onRotationPress 5)
-                                , label = text "->"
-                                }
-                    ]
-                , column [ spacing 8 ]
-                    [ case options.onZoomPress of
-                        Nothing ->
-                            none
-
-                        Just onZoomPress ->
-                            Ui.Button.default
-                                { onPress = Just (onZoomPress -10.0)
-                                , label = text "+"
-                                }
-                    , case options.onZoomPress of
-                        Nothing ->
-                            none
-
-                        Just onZoomPress ->
-                            Ui.Button.default
-                                { onPress = Just (onZoomPress 10.0)
-                                , label = text "-"
-                                }
-                    ]
-                ]
-            )
+        -- , inFront
+        --     (row
+        --         [ alignRight, alignBottom, padding 16, spacing 8 ]
+        --         [ row
+        --             [ alignBottom, spacing 8 ]
+        --             [ case options.onRotationPress of
+        --                 Nothing ->
+        --                     none
+        --                 Just onRotationPress ->
+        --                     Ui.Button.default
+        --                         { onPress = Just (onRotationPress -5)
+        --                         , label = text "<-"
+        --                         }
+        --             , case options.onRotationPress of
+        --                 Nothing ->
+        --                     none
+        --                 Just onRotationPress ->
+        --                     Ui.Button.default
+        --                         { onPress = Just (onRotationPress 5)
+        --                         , label = text "->"
+        --                         }
+        --             ]
+        --         , column [ spacing 8 ]
+        --             [ case options.onZoomPress of
+        --                 Nothing ->
+        --                     none
+        --                 Just onZoomPress ->
+        --                     Ui.Button.default
+        --                         { onPress = Just (onZoomPress -10.0)
+        --                         , label = text "+"
+        --                         }
+        --             , case options.onZoomPress of
+        --                 Nothing ->
+        --                     none
+        --                 Just onZoomPress ->
+        --                     Ui.Button.default
+        --                         { onPress = Just (onZoomPress 10.0)
+        --                         , label = text "-"
+        --                         }
+        --             ]
+        --         ]
+        --     )
         ]
-        (html scene)
+        scene
 
 
-spaceCss : Attribute msg
+spaceCss : Html msg
 spaceCss =
-    inFront (html (Html.node "style" [] [ Html.text """
+    Html.node "style" [] [ Html.text """
 .galactic-label * {
   opacity: 0;
   cursor: pointer;
@@ -862,7 +856,7 @@ spaceCss =
 .galactic-label-no-show {
   display: none;
 }
-""" ]))
+""" ]
 
 
 
@@ -1071,4 +1065,12 @@ getStarDetails world starId =
 
 getGalaxyViewport : (Result Browser.Dom.Error Viewport -> msg) -> SubCmd msg effect
 getGalaxyViewport gotViewport =
-    SubCmd.cmd (Task.attempt gotViewport (Task.andThen (\() -> Browser.Dom.getViewportOf "galaxy-view") (Process.sleep 100)))
+    SubCmd.cmd
+        (Task.attempt gotViewport
+            (Task.andThen
+                (\() ->
+                    Browser.Dom.getViewportOf "galaxy-view"
+                )
+                (Process.sleep 100)
+            )
+        )
