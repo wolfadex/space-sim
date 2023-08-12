@@ -50,9 +50,10 @@ import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
 import Rate exposing (Rate)
+import Route exposing (GenerationConfig, PlayType(..))
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
-import Shared exposing (PlayType(..), SharedMsg)
+import Shared exposing (SharedMsg)
 import Task.Parallel
 import Temperature exposing (Temperature)
 
@@ -172,7 +173,7 @@ emptyWorld =
 
 type PlayingMsg
     = DeleteGalaxy
-    | CreateGalaxy Shared.GenerationConfig
+    | CreateGalaxy GenerationConfig
     | SetSpaceFocus SpaceFocus
     | SetCivilizationFocus CivilizationFocus
     | Tick Float

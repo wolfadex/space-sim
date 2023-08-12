@@ -1,9 +1,16 @@
-module Route exposing (Route(..), fromUrl, toString)
+module Route exposing
+    ( GenerationConfig
+    , PlayType(..)
+    , Route(..)
+    , fromUrl
+    , toString
+    )
 
 import AppUrl
+import Data.Name exposing (Name)
 import Dict
-import Serialize
-import Shared
+import List.Nonempty exposing (Nonempty)
+import Serialize exposing (Codec)
 import Url
 
 
@@ -11,7 +18,7 @@ type Route
     = Home
     | NewGameParticipate
     | NewGameObserve
-    | Playing Shared.GenerationConfig
+    | Playing GenerationConfig
 
 
 fromUrl : Url.Url -> Route
@@ -34,7 +41,7 @@ fromUrl url =
         [ "playing" ] ->
             case Dict.get "config" appUrl.queryParameters of
                 Just [ config ] ->
-                    case Serialize.decodeFromString Shared.generationConfigCodec config of
+                    case Serialize.decodeFromString generationConfigCodec config of
                         Ok generationConfig ->
                             Playing generationConfig
 
@@ -71,8 +78,66 @@ toString route =
 
         Playing generationConfig ->
             { path = [ "playing" ]
-            , queryParameters = Dict.singleton "config" [ Serialize.encodeToString Shared.generationConfigCodec generationConfig ]
+            , queryParameters = Dict.singleton "config" [ Serialize.encodeToString generationConfigCodec generationConfig ]
             , fragment = Nothing
             }
     )
         |> AppUrl.toString
+
+
+type alias GenerationConfig =
+    { name : Name
+    , homePlanetName : String
+    , minSolarSystemsToGenerate : Int
+    , maxSolarSystemsToGenerate : Int
+    , minPlanetsPerSolarSystemToGenerate : Int
+    , maxPlanetsPerSolarSystemToGenerate : Int
+    , starCounts : Nonempty ( Float, Int )
+    , playType : PlayType
+    }
+
+
+generationConfigCodec : Codec e GenerationConfig
+generationConfigCodec =
+    Serialize.record
+        (\name homePlanetName minSolarSystemsToGenerate maxSolarSystemsToGenerate minPlanetsPerSolarSystemToGenerate maxPlanetsPerSolarSystemToGenerate starCounts playType ->
+            { name = Data.Name.fromString name
+            , homePlanetName = homePlanetName
+            , minSolarSystemsToGenerate = minSolarSystemsToGenerate
+            , maxSolarSystemsToGenerate = maxSolarSystemsToGenerate
+            , minPlanetsPerSolarSystemToGenerate = minPlanetsPerSolarSystemToGenerate
+            , maxPlanetsPerSolarSystemToGenerate = maxPlanetsPerSolarSystemToGenerate
+            , starCounts = starCounts
+            , playType = playType
+            }
+        )
+        |> Serialize.field (\rec -> Data.Name.toString rec.name) Serialize.string
+        |> Serialize.field .homePlanetName Serialize.string
+        |> Serialize.field .minSolarSystemsToGenerate Serialize.int
+        |> Serialize.field .maxSolarSystemsToGenerate Serialize.int
+        |> Serialize.field .minPlanetsPerSolarSystemToGenerate Serialize.int
+        |> Serialize.field .maxPlanetsPerSolarSystemToGenerate Serialize.int
+        |> Serialize.field .starCounts (List.Nonempty.codec (Serialize.tuple Serialize.float Serialize.int))
+        |> Serialize.field .playType playTypeCodec
+        |> Serialize.finishRecord
+
+
+type PlayType
+    = Observation
+    | Participation
+
+
+playTypeCodec : Codec e PlayType
+playTypeCodec =
+    Serialize.customType
+        (\observationEncoder participationEncoder value ->
+            case value of
+                Observation ->
+                    observationEncoder
+
+                Participation ->
+                    participationEncoder
+        )
+        |> Serialize.variant0 Observation
+        |> Serialize.variant0 Participation
+        |> Serialize.finishCustomType

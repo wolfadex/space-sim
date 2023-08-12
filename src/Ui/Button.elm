@@ -44,23 +44,25 @@ toggle config =
         [ config.label ]
 
 
-primary : { onPress : Maybe msg, label : Html msg } -> Html msg
-primary config =
+primary : List (Html.Attribute msg) -> { onPress : Maybe msg, label : Html msg } -> Html msg
+primary attributes config =
     Html.button
-        [ Ui.padding.xy.rem1.remHalf
-        , Ui.borderStyle.solid
-        , Ui.borderWidth.px3
-        , Ui.borderRadius.px3
-        , Ui.backgroundColor Ui.Theme.green
-        , Ui.fontColor Ui.Theme.darkGray
-        , Ui.borderColor Ui.Theme.darkGray
-        , case config.onPress of
+        ([ Ui.padding.xy.rem1.remHalf
+         , Ui.borderStyle.solid
+         , Ui.borderWidth.px3
+         , Ui.borderRadius.px3
+         , Ui.backgroundColor Ui.Theme.green
+         , Ui.fontColor Ui.Theme.darkGray
+         , Ui.borderColor Ui.Theme.darkGray
+         , case config.onPress of
             Nothing ->
                 Ui.noAttribute
 
             Just onPress ->
                 Html.Events.onClick onPress
-        ]
+         ]
+            ++ attributes
+        )
         [ config.label ]
 
 

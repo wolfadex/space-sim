@@ -53,13 +53,12 @@ import Random.Extra
 import Random.List
 import Rate exposing (Rate)
 import Round
+import Route exposing (GenerationConfig, PlayType(..))
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared
     exposing
         ( Effect(..)
-        , GenerationConfig
-        , PlayType(..)
         , Settings
         , SharedModel
         )

@@ -45,13 +45,12 @@ import Point3d exposing (Point3d)
 import Polyline2d
 import Population exposing (Population)
 import Quantity
-import Route
+import Route exposing (PlayType(..))
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared
     exposing
         ( Effect(..)
-        , PlayType(..)
         , SharedModel
         , SharedMsg
         )

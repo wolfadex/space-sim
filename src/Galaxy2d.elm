@@ -93,7 +93,7 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
                                     in
                                     Just
                                         (if Just civId == focusedCivilization then
-                                            Ui.Button.primary
+                                            Ui.Button.primary []
                                                 { label = Ui.text civName
                                                 , onPress = Just (onPressCivilization civId)
                                                 }
@@ -210,7 +210,7 @@ viewPlanetSimple { onPressPlanet, onPressCivilization, focusedCivilization } wor
                                 in
                                 Just
                                     (if Just civId == focusedCivilization then
-                                        Ui.Button.primary
+                                        Ui.Button.primary []
                                             { label = Ui.text civName
                                             , onPress = Just (onPressCivilization civId)
                                             }

@@ -213,6 +213,11 @@ update msg model =
                     in
                     ( { model | shared = { shared | seed = seed } }, Cmd.none )
 
+                NavigateTo route ->
+                    ( model
+                    , Browser.Navigation.pushUrl model.navKey (Route.toString route)
+                    )
+
         -- PlayAudio audio ->
         --     ( model
         --     , toWebAudio (Json.Encode.list WebAudio.encode audio)

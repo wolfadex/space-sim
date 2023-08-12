@@ -9,6 +9,7 @@ module Page.NewGameObserve exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
+import Browser.Navigation
 import Control
 import Data.EarthYear
 import Data.Name
@@ -179,11 +180,6 @@ type alias Model =
 
     ---- game stuff
     , errors : List String
-    , minSolarSystemsToGenerate : Int
-    , maxSolarSystemsToGenerate : Int
-    , minPlanetsPerSolarSystemToGenerate : Int
-    , maxPlanetsPerSolarSystemToGenerate : Int
-    , starCounts : Nonempty ( Float, Int )
     , solarSystemForm : Control.State Page.Shared.GalaxyFormState
     }
 
@@ -212,14 +208,6 @@ baseModel =
 
     -- game stuff
     , errors = []
-    , minSolarSystemsToGenerate = 40
-    , maxSolarSystemsToGenerate = 80
-    , minPlanetsPerSolarSystemToGenerate = 1
-    , maxPlanetsPerSolarSystemToGenerate = 12
-    , starCounts =
-        List.Nonempty.appendList
-            [ ( 0.33, 2 ), ( 0.08, 3 ), ( 0.01, 4 ), ( 0.01, 5 ), ( 0.01, 6 ), ( 0.01, 7 ) ]
-            (List.Nonempty.singleton ( 0.56, 1 ))
     , solarSystemForm = galaxyForm.init |> Tuple.first
     }
 
@@ -299,7 +287,29 @@ update _ msg model =
             )
 
         SolarSystemFormSubmitted ->
-            Debug.todo ""
+            let
+                ( solarSystemForm, result ) =
+                    galaxyForm.submit model.solarSystemForm
+            in
+            ( { model | solarSystemForm = solarSystemForm }
+            , case Debug.log "carl" result of
+                Ok options ->
+                    Route.Playing
+                        { name = Data.Name.fromString ""
+                        , homePlanetName = ""
+                        , minSolarSystemsToGenerate = options.minSolarSystemsToGenerate
+                        , maxSolarSystemsToGenerate = options.maxSolarSystemsToGenerate
+                        , minPlanetsPerSolarSystemToGenerate = options.minPlanetsPerSolarSystemToGenerate
+                        , maxPlanetsPerSolarSystemToGenerate = options.maxPlanetsPerSolarSystemToGenerate
+                        , starCounts = options.starCounts
+                        , playType = Route.Observation
+                        }
+                        |> NavigateTo
+                        |> SubCmd.effect
+
+                Err _ ->
+                    SubCmd.none
+            )
 
 
 
@@ -361,11 +371,11 @@ view sharedModel model =
                 ]
             , Ui.el
                 [ Ui.padding.rem1
+                , Ui.width.shrink
+                , Ui.height.shrink
                 ]
                 (Ui.Link.internal
-                    [ Ui.width.shrink
-                    , Ui.height.shrink
-                    ]
+                    []
                     { label = Ui.text "Main Menu"
                     , route = Route.Home
                     }
@@ -417,22 +427,12 @@ viewObserve model =
                         [ Ui.width.shrink
                         , Ui.justifySelf.center
                         ]
-                , Ui.Link.internal
+                , Ui.Button.primary
                     [ Ui.width.shrink
                     , Ui.justifySelf.center
                     ]
                     { label = Ui.text "Begin Simulation"
-                    , route =
-                        Route.Playing
-                            { name = Data.Name.fromString ""
-                            , homePlanetName = ""
-                            , minSolarSystemsToGenerate = model.minSolarSystemsToGenerate
-                            , maxSolarSystemsToGenerate = model.maxSolarSystemsToGenerate
-                            , minPlanetsPerSolarSystemToGenerate = model.minPlanetsPerSolarSystemToGenerate
-                            , maxPlanetsPerSolarSystemToGenerate = model.maxPlanetsPerSolarSystemToGenerate
-                            , starCounts = model.starCounts
-                            , playType = Shared.Observation
-                            }
+                    , onPress = Just SolarSystemFormSubmitted
                     }
                 ]
             ]
