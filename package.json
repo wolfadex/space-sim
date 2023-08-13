@@ -8,7 +8,6 @@
     "prebuild": "elm-tooling install",
     "dev": "run-pty run-pty.json",
     "dev:elm": "elm-watch hot",
-    "dev:server": "http-server --proxy http://localhost:8080?",
     "dev:test": "elm-test-rs --watch",
     "dev:review": "elm-review --fix --watch",
     "build": "elm-review && elm-test-rs && elm-watch make --optimize",
@@ -21,8 +20,9 @@
     "elm-json": "^0.2.13",
     "elm-review": "^2.9.1",
     "elm-tooling": "^1.7.0",
-    "elm-watch": "^1.1.2",
-    "http-server": "^14.1.1",
     "run-pty": "^4.0.3"
+  },
+  "dependencies": {
+    "elm-watch": "^1.2.0-beta.2"
   }
 }

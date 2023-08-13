@@ -21,9 +21,12 @@ import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
 import List.Nonempty exposing (Nonempty)
 import Percent exposing (Percent)
+import Process
 import Random exposing (Seed)
 import Route exposing (Route)
 import Serialize exposing (Codec)
+import Task
+import Time
 import Ui
 import Ui.Theme
 
@@ -49,6 +52,7 @@ init flags =
     , settingsModel =
         settingsForm.initWith settings
             |> Tuple.first
+    , lastSettingsChanage = Nothing
     }
 
 
@@ -61,6 +65,7 @@ type alias Flags =
 type alias SharedModel =
     { settings : Settings
     , settingsModel : Control.State SettingsFormState
+    , lastSettingsChanage : Maybe Time.Posix
     , seed : Seed
     }
 
@@ -79,6 +84,8 @@ type Effect
 type SharedMsg
     = SettingsFormSentMsg (Control.Delta SettingsFormDelta)
     | SettingsFormSubmitted
+    | StartSave Time.Posix
+    | AttemptToSaveSettings Time.Posix
 
 
 
@@ -93,9 +100,56 @@ update msg ({ settings } as model) =
                 ( settingsModel, cmd ) =
                     settingsForm.update msg_ model.settingsModel
             in
-            ( { model | settingsModel = settingsModel }
-            , cmd
+            let
+                ( settingsModel2, result ) =
+                    settingsForm.submit settingsModel
+            in
+            ( { model
+                | settingsModel = settingsModel2
+                , settings =
+                    case result of
+                        Ok newSettings ->
+                            newSettings
+
+                        Err _ ->
+                            model.settings
+              }
+            , case result of
+                Ok newSettings ->
+                    Cmd.batch
+                        [ cmd
+                        , Task.perform StartSave Time.now
+                        ]
+
+                Err _ ->
+                    Cmd.none
             )
+
+        StartSave time ->
+            ( { model | lastSettingsChanage = Just time }
+            , Process.sleep 3000
+                |> Task.andThen (\() -> Time.now)
+                |> Task.perform AttemptToSaveSettings
+            )
+
+        AttemptToSaveSettings time ->
+            case model.lastSettingsChanage of
+                Just lastSettingsChanage ->
+                    let
+                        carl =
+                            (Time.posixToMillis time - Time.posixToMillis lastSettingsChanage)
+                                |> toFloat
+                    in
+                    if carl >= 3000 then
+                        ( { model | lastSettingsChanage = Nothing }
+                        , saveSettings (encodeSettings settings)
+                        )
+
+                    else
+                        ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         SettingsFormSubmitted ->
             let
