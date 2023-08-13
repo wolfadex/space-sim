@@ -1503,110 +1503,119 @@ viewPlaying sharedModel world =
                     ]
 
         Nothing ->
-            Ui.column
-                [ Ui.height.fill
-
-                -- , inFront
-                --     (case world.settingsVisible of
-                --         Hidden ->
-                --             Ui.none
-                --         Visible ->
-                --             map GotLocalSharedMessage (Shared.viewSettings sharedModel.settings)
-                --     )
-                ]
-                [ viewControls world
-                , (case world.viewStyle of
-                    ThreeD ->
-                        Ui.column
-
-                    TwoD ->
-                        Ui.row
-                  )
+            Ui.stack []
+                [ Ui.column
                     [ Ui.height.fill
-
-                    -- , scrollbarY
-                    , Ui.padding.rem1
-                    , Ui.gap.remHalf
                     ]
-                    [ Ui.el
-                        ((case world.viewStyle of
-                            ThreeD ->
-                                []
+                    [ viewControls world
+                    , (case world.viewStyle of
+                        ThreeD ->
+                            Ui.column
 
-                            TwoD ->
-                                [-- scrollbarY
-                                ]
-                         )
-                            ++ [ -- alignTop
-                                 -- ,
-                                 Ui.height.fill
-                               , Ui.borderStyle.solid
-                               , Ui.borderWidth.px1
-                               ]
-                        )
-                        (case world.spaceFocus of
-                            FGalaxy ->
-                                viewGalaxy world
+                        TwoD ->
+                            Ui.row
+                      )
+                        [ Ui.height.fill
 
-                            FSolarSystem id ->
-                                case Logic.Component.get id world.solarSystems of
-                                    Just SolarSystem ->
+                        -- , scrollbarY
+                        , Ui.padding.rem1
+                        , Ui.gap.remHalf
+                        ]
+                        [ Ui.el
+                            ((case world.viewStyle of
+                                ThreeD ->
+                                    []
+
+                                TwoD ->
+                                    [-- scrollbarY
+                                    ]
+                             )
+                                ++ [ -- alignTop
+                                     Ui.height.fill
+                                   , Ui.borderStyle.solid
+                                   , Ui.borderWidth.px1
+                                   ]
+                            )
+                            (case world.spaceFocus of
+                                FGalaxy ->
+                                    viewGalaxy world
+
+                                FSolarSystem id ->
+                                    case Logic.Component.get id world.solarSystems of
+                                        Just SolarSystem ->
+                                            viewSlice
+                                                [ Ui.Button.default [ Ui.width.shrink, Ui.height.shrink ]
+                                                    { label = Ui.text "View Galaxy"
+                                                    , onPress = Just (SetSpaceFocus FGalaxy)
+                                                    }
+                                                ]
+                                                (viewSolarSystemDetailed sharedModel.settings world id)
+
+                                        Nothing ->
+                                            Ui.text "Missing solar system"
+
+                                FStar starId ->
+                                    if Set.member starId world.stars then
                                         viewSlice
-                                            [ Ui.Button.default []
+                                            [ Ui.Button.default [ Ui.width.shrink, Ui.height.shrink ]
                                                 { label = Ui.text "View Galaxy"
                                                 , onPress = Just (SetSpaceFocus FGalaxy)
                                                 }
+                                            , Ui.Button.default [ Ui.width.shrink, Ui.height.shrink ]
+                                                { label = Ui.text "View System"
+                                                , onPress =
+                                                    Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
+                                                        (Logic.Component.get starId world.parents)
+                                                }
                                             ]
-                                            (viewSolarSystemDetailed sharedModel.settings world id)
+                                            (viewStarDetailed world starId)
 
-                                    Nothing ->
-                                        Ui.text "Missing solar system"
+                                    else
+                                        Ui.text "Missing star"
 
-                            FStar starId ->
-                                if Set.member starId world.stars then
-                                    viewSlice
-                                        [ Ui.Button.default []
-                                            { label = Ui.text "View Galaxy"
-                                            , onPress = Just (SetSpaceFocus FGalaxy)
-                                            }
-                                        , Ui.Button.default []
-                                            { label = Ui.text "View System"
-                                            , onPress =
-                                                Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
-                                                    (Logic.Component.get starId world.parents)
-                                            }
-                                        ]
-                                        (viewStarDetailed world starId)
+                                FPlanet planetId ->
+                                    if Set.member planetId world.planets then
+                                        viewSlice
+                                            [ Ui.Button.default [ Ui.width.shrink, Ui.height.shrink ]
+                                                { label = Ui.text "View Galaxy"
+                                                , onPress = Just (SetSpaceFocus FGalaxy)
+                                                }
+                                            , Ui.Button.default [ Ui.width.shrink, Ui.height.shrink ]
+                                                { label = Ui.text "View System"
+                                                , onPress =
+                                                    Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
+                                                        (Logic.Component.get planetId world.parents)
+                                                }
+                                            ]
+                                            (viewPlanetDetailed world planetId)
 
-                                else
-                                    Ui.text "Missing star"
+                                    else
+                                        Ui.text "Missing planet"
+                            )
+                        , case world.civilizationFocus of
+                            FAll ->
+                                viewCivilizations world
 
-                            FPlanet planetId ->
-                                if Set.member planetId world.planets then
-                                    viewSlice
-                                        [ Ui.Button.default []
-                                            { label = Ui.text "View Galaxy"
-                                            , onPress = Just (SetSpaceFocus FGalaxy)
-                                            }
-                                        , Ui.Button.default []
-                                            { label = Ui.text "View System"
-                                            , onPress =
-                                                Maybe.map (\id -> SetSpaceFocus (FSolarSystem id))
-                                                    (Logic.Component.get planetId world.parents)
-                                            }
-                                        ]
-                                        (viewPlanetDetailed world planetId)
-
-                                else
-                                    Ui.text "Missing planet"
-                        )
-                    , case world.civilizationFocus of
-                        FAll ->
-                            viewCivilizations world
-
-                        FOne civId ->
-                            viewCivilizationDetailed world civId
+                            FOne civId ->
+                                viewCivilizationDetailed world civId
+                        ]
                     ]
+                , case world.settingsVisible of
+                    Hidden ->
+                        Ui.none
+
+                    Visible ->
+                        Shared.viewSettings sharedModel
+                            |> Ui.map GotLocalSharedMessage
+                            |> Ui.el
+                                [ Ui.transform
+                                    [ Ui.translate.down 64
+                                    , Ui.translate.left 16
+                                    ]
+                                , Ui.width.shrink
+                                , Ui.height.shrink
+                                , Ui.justifySelf.end
+                                ]
                 ]
 
 
@@ -1617,6 +1626,7 @@ viewControls world =
         , Ui.gap.rem1
         ]
         [ Ui.text "Game Speed:"
+            |> Ui.el [ Ui.alignSelf.center ]
         , Ui.Button.toggle
             { label = Ui.text "||"
             , onPress = Just (SetTickRate Paused)
@@ -1643,6 +1653,7 @@ viewControls world =
             , enabled = world.tickRate == ExtraFast
             }
         , Ui.text (Data.EarthYear.formatAsStarDate world.starDate)
+            |> Ui.el [ Ui.alignSelf.center ]
         , Ui.Button.default []
             (case world.viewStyle of
                 ThreeD ->
@@ -1682,12 +1693,18 @@ viewControls world =
 
 viewSlice : List (Html PlayingMsg) -> Html PlayingMsg -> Html PlayingMsg
 viewSlice menuItems slice =
-    Ui.el
+    Ui.stack
         [ Ui.height.fill
-
-        -- , inFront (row [ padding 8, spacing 8 ] menuItems)
         ]
-        slice
+        [ slice
+        , Ui.row
+            [ Ui.padding.remHalf
+            , Ui.gap.remHalf
+            , Ui.width.shrink
+            , Ui.height.shrink
+            ]
+            menuItems
+        ]
 
 
 viewGalaxy : World -> Html PlayingMsg
@@ -1827,15 +1844,15 @@ viewPlanetDetailed world planetId =
             in
             Ui.column
                 [ Ui.gap.remHalf
-
-                -- , paddingEach
-                --     { top = 64
-                --     , left = 8
-                --     , bottom = 8
-                --     , right = 8
-                --     }
+                , Ui.padding.each
+                    { top = 64
+                    , left = 8
+                    , bottom = 8
+                    , right = 8
+                    }
                 ]
                 [ Ui.text ("Name: P_" ++ String.fromInt planetId)
+                    |> Ui.el []
                 , Ui.text
                     ("Terrain: "
                         ++ (case planetType of
@@ -1846,7 +1863,9 @@ viewPlanetDetailed world planetId =
                                     "Gas"
                            )
                     )
+                    |> Ui.el []
                 , Ui.text "Civs on Planet:"
+                    |> Ui.el []
                 , case civsOnPlanet of
                     [] ->
                         Ui.text "None"
@@ -1855,7 +1874,7 @@ viewPlanetDetailed world planetId =
                         Ui.column [ Ui.gap.remQuarter ]
                             (List.map
                                 (\( civId, name ) ->
-                                    Ui.Button.default []
+                                    Ui.Button.default [ Ui.width.shrink ]
                                         { label = Ui.text (Data.Name.toString name)
                                         , onPress = Just (SetCivilizationFocus (FOne civId))
                                         }
@@ -1881,11 +1900,7 @@ viewCivilizations : World -> Html PlayingMsg
 viewCivilizations world =
     Ui.column
         [ Ui.gap.remHalf
-
-        -- , alignTop
-        , Ui.height.fill
-
-        -- , scrollbarY
+        , Ui.height.shrink
         ]
         (List.map (viewCivilizationSimple world) (Set.toList world.civilizations))
 
@@ -1903,6 +1918,7 @@ viewCivilizationSimple world civId =
                 ]
                 [ Ui.Button.inspect
                     (Just (SetCivilizationFocus (FOne civId)))
+                    |> Ui.el [ Ui.width.shrink ]
                 , Ui.text (Data.Name.toString name)
                 ]
 
@@ -1934,7 +1950,7 @@ viewCivilizationDetailed world civId =
                             (Population.millions 0)
                             (Dict.toList details.occupiedPlanets)
                 in
-                [ Ui.Button.default []
+                [ Ui.Button.default [ Ui.width.shrink ]
                     { label = Ui.text "Back"
                     , onPress = Just (SetCivilizationFocus FAll)
                     }
@@ -1977,25 +1993,28 @@ viewCivilizationDetailed world civId =
                                 Ui.none
                             ]
                 , Ui.text "They occupy planets:"
-                , Ui.column []
+                , Ui.column [ Ui.width.shrink, Ui.height.shrink ]
                     (List.map
                         (\( planetId, populationCount ) ->
                             Ui.row
-                                [ Ui.gap.remHalf ]
-                                [ Ui.Button.default []
+                                [ Ui.gap.remHalf, Ui.height.shrink ]
+                                [ Ui.Button.default
+                                    [ Ui.width.shrink
+                                    , Ui.height.shrink
+                                    ]
                                     { label = Ui.text ("P_" ++ String.fromInt planetId)
                                     , onPress = Just (SetSpaceFocus (FPlanet planetId))
                                     }
-                                , Ui.column [ Ui.gap.remQuarter ]
-                                    [ Ui.paragraph [] [ Ui.text ("Population: " ++ populationToString populationCount) ]
-                                    , Ui.paragraph []
-                                        [ case Dict.get planetId details.happiness of
+                                , Ui.column [ Ui.gap.remQuarter, Ui.height.shrink ]
+                                    [ Ui.text ("Population: " ++ populationToString populationCount)
+                                        |> Ui.el [ Ui.height.shrink ]
+                                    , Ui.el [ Ui.height.shrink ] <|
+                                        case Dict.get planetId details.happiness of
                                             Just happiness ->
                                                 Ui.text ("Happiness: " ++ happinessToString happiness)
 
                                             Nothing ->
                                                 Ui.none
-                                        ]
                                     ]
                                 ]
                         )
@@ -2056,19 +2075,19 @@ happinessToString happiness =
             Percent.toFloat happiness
     in
     if hap > 1.2 then
-        ":D"
+        ""
 
     else if hap > 1.0 then
-        ":)"
+        "🙂"
 
     else if hap == 1.0 then
-        ":|"
+        "😐"
 
     else if hap < 0.8 then
-        "D:"
+        "😠"
 
     else
-        "):"
+        "☹️"
 
 
 type alias CivilizationDetails =

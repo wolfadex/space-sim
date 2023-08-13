@@ -24,8 +24,6 @@ viewGalaxy :
 viewGalaxy onPress world =
     Ui.column
         [ Ui.gap.remHalf
-
-        -- , width fill
         , Ui.backgroundColor Ui.Theme.darkGray
         ]
         (List.map (viewSolarSystemSimple onPress world) (Dict.keys (Logic.Component.toDict world.solarSystems)))
@@ -58,15 +56,15 @@ viewSolarSystemSimple { onPressSolarSystem, onPressCivilization, focusedCiviliza
     Ui.column
         [ Ui.gap.remHalf
         , Ui.backgroundColor Ui.Theme.nearlyWhite
-
-        -- , width fill
         ]
         [ Ui.row
             [ Ui.gap.remHalf
             ]
-            [ Ui.el [] (Ui.text ("Solar System: SS_" ++ String.fromInt solarSystemId))
+            [ Ui.text ("Solar System: SS_" ++ String.fromInt solarSystemId)
+                |> Ui.el []
             , Ui.Button.inspect
                 (Just (onPressSolarSystem solarSystemId))
+                |> Ui.el [ Ui.width.shrink ]
             ]
         , Ui.text ("Stars: " ++ String.fromInt starCount)
         , Ui.text ("Planets: " ++ String.fromInt planetCount)

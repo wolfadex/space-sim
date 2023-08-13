@@ -70,6 +70,7 @@ padding :
     , remHalf : Html.Attribute msg
     , remQuarter : Html.Attribute msg
     , xy : { rem1 : { remHalf : Html.Attribute msg } }
+    , each : { top : Float, bottom : Float, right : Float, left : Float } -> Html.Attribute msg
     }
 padding =
     { rem1 = Html.Attributes.style "padding" "1rem"
@@ -80,6 +81,17 @@ padding =
             { remHalf = Html.Attributes.style "padding" "0.5rem 1rem"
             }
         }
+    , each =
+        \options ->
+            Html.Attributes.style
+                "padding"
+                (String.join " "
+                    [ String.fromFloat options.top ++ "px"
+                    , String.fromFloat options.right ++ "px"
+                    , String.fromFloat options.bottom ++ "px"
+                    , String.fromFloat options.left ++ "px"
+                    ]
+                )
     }
 
 

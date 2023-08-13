@@ -323,7 +323,14 @@ view sharedModel model =
                         Ui.none
 
                     Visible ->
-                        Ui.map GotLocalSharedMessage (Shared.viewSettings sharedModel)
+                        Shared.viewSettings sharedModel
+                            |> Ui.map GotLocalSharedMessage
+                            |> Ui.el
+                                [ Ui.transform
+                                    [ Ui.translate.down 16
+                                    , Ui.translate.left 8
+                                    ]
+                                ]
                 ]
             ]
     }

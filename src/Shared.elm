@@ -283,7 +283,6 @@ viewSettings model =
         [ Ui.justifySelf.end
         , Ui.width.shrink
         , Ui.height.shrink
-        , Ui.padding.rem1
         ]
         (Ui.column
             [ Ui.backgroundColor Ui.Theme.nearlyWhite
