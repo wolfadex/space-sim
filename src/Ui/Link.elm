@@ -30,15 +30,3 @@ internal attributes config =
                 , Ui.padding.xy.rem1.remHalf
                 ]
         ]
-
-
-external : List (Html.Attribute msg) -> { url : String, label : Html msg } -> Html msg
-external attributes options =
-    Html.a
-        (attributes
-            ++ [ Html.Attributes.href options.url
-               , Html.Attributes.target "_blank"
-               ]
-        )
-        [ options.label
-        ]

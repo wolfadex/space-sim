@@ -9,7 +9,6 @@ module Page.NewGameObserve exposing
 
 import Browser.Dom exposing (Viewport)
 import Browser.Events
-import Browser.Navigation
 import Control
 import Data.EarthYear
 import Data.Name
@@ -27,7 +26,6 @@ import Game.Components
         )
 import Html exposing (Html)
 import Length exposing (Meters)
-import List.Nonempty exposing (Nonempty)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
 import Page.Shared
@@ -292,7 +290,7 @@ update _ msg model =
                     galaxyForm.submit model.solarSystemForm
             in
             ( { model | solarSystemForm = solarSystemForm }
-            , case Debug.log "carl" result of
+            , case result of
                 Ok options ->
                     Route.Playing
                         { name = Data.Name.fromString ""

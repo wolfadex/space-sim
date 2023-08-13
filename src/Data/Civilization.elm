@@ -7,7 +7,6 @@ module Data.Civilization exposing
     )
 
 import Data.EarthYear exposing (EarthYear)
-import Dict exposing (Dict)
 import Logic.Component exposing (Spec)
 import Set.Any exposing (AnySet)
 

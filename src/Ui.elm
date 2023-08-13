@@ -22,7 +22,7 @@ text =
 el : List (Html.Attribute msg) -> Html msg -> Html msg
 el attributes child =
     Html.div
-        (Html.Attributes.class "wolfadex-row" :: attributes)
+        (Html.Attributes.class "wolfadex-el" :: attributes)
         [ child ]
 
 

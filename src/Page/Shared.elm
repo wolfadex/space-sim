@@ -60,6 +60,7 @@ galaxyForm config =
                         |> Input.MinMaxSlider.toControl
                         |> Control.label "Solar Systems to Generate"
                         |> Control.initWith { min = 40, max = 80 }
+                        |> Control.noteIf (\val -> val.min > 600) "This may be slow to generate."
                     )
                 |> Control.field
                     (\{ minPlanetsPerSolarSystemToGenerate, maxPlanetsPerSolarSystemToGenerate } ->
@@ -70,6 +71,7 @@ galaxyForm config =
                         |> Input.MinMaxSlider.toControl
                         |> Control.label "Planets per Solar System"
                         |> Control.initWith { min = 1, max = 12 }
+                        |> Control.noteIf (\val -> val.max == 0) "This will be a very empty galaxy!"
                     )
                 |> Control.field .starCounts starCountControl
                 |> Control.endRecord

@@ -14,17 +14,14 @@ port module Shared exposing
     )
 
 import Control
-import Data.Name exposing (Name)
 import Html exposing (Html)
 import Input.Slider.Float
 import Json.Decode exposing (Decoder)
 import Json.Encode exposing (Value)
-import List.Nonempty exposing (Nonempty)
 import Percent exposing (Percent)
 import Process
 import Random exposing (Seed)
 import Route exposing (Route)
-import Serialize exposing (Codec)
 import Task
 import Time
 import Ui
@@ -99,8 +96,7 @@ update msg ({ settings } as model) =
             let
                 ( settingsModel, cmd ) =
                     settingsForm.update msg_ model.settingsModel
-            in
-            let
+
                 ( settingsModel2, result ) =
                     settingsForm.submit settingsModel
             in
@@ -115,7 +111,7 @@ update msg ({ settings } as model) =
                             model.settings
               }
             , case result of
-                Ok newSettings ->
+                Ok _ ->
                     Cmd.batch
                         [ cmd
                         , Task.perform StartSave Time.now

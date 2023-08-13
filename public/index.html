@@ -41,8 +41,13 @@
             width: 100%;
         }
 
-        .wolfadex-row-wrapped {
+        .wolfadex-el {
             display: grid;
+            width: 100%;
+        }
+
+        .wolfadex-row-wrapped {
+            display: flex;
             flex-wrap: wrap;
             width: 100%;
         }
@@ -54,6 +59,16 @@
 
         .wolfadex-stacked>* {
             grid-area: 1 / 1 / 2 / 2;
+        }
+
+        /* Control Styling */
+
+        .control-feedback-fail {
+            color: red;
+        }
+
+        .control-feedback-note {
+            color: orange;
         }
     </style>
 </head>
