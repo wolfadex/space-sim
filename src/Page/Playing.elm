@@ -36,6 +36,7 @@ import Game.Components
         , emptyWorld
         )
 import Html exposing (Html)
+import Html.Attributes
 import Json.Decode
 import Length exposing (Meters)
 import List.Nonempty
@@ -1486,59 +1487,20 @@ viewPlaying : SharedModel -> World -> Html PlayingMsg
 viewPlaying sharedModel world =
     case world.buildingKnowledge of
         Just ( completed, total ) ->
-            Ui.column
-                [-- centerX
-                 -- , centerY
-                ]
-                [ Ui.text "Generating Galaxy"
-
-                -- , Ui.row
-                --     [-- width (px 300)
-                --      -- , inFront
-                --      --     (el
-                --      --         [ centerX
-                --      --         , centerY
-                --      --         , Background.color (rgba 1 1 1 0.5)
-                --      --         , Border.rounded 4
-                --      --         , padding 4
-                --      --         ]
-                --      --         (Ui.text (String.fromInt (completed * 100 // total) ++ "%"))
-                --      --     )
-                --     ]
-                --     [ Ui. el
-                --         [
-                --         -- Background.gradient
-                --         --     { angle = pi / 2
-                --         --     , steps =
-                --         --         [ rgb 1 0 1
-                --         --         , rgb 0.5 0.5 1
-                --         --         , rgb 0.1 1 0.1
-                --         --         ]
-                --         --     }
-                --         -- , width (fillPortion completed)
-                --         -- , height (px 35)
-                --         -- , Border.widthEach
-                --         --     { top = 3
-                --         --     , bottom = 3
-                --         --     , left = 3
-                --         --     , right = 0
-                --         --     }
-                --         ]
-                --         Ui.none
-                --     , Ui.el
-                --         [
-                --         -- width (fillPortion (total - completed))
-                --         -- , height (px 35)
-                --         -- , Border.widthEach
-                --         --     { top = 3
-                --         --     , bottom = 3
-                --         --     , left = 0
-                --         --     , right = 3
-                --         --     }
-                --         ]
-                --         Ui.none
-                --     ]
-                ]
+            Ui.el [ Ui.height.fill ] <|
+                Ui.column
+                    [ Ui.justifySelf.center
+                    , Ui.alignSelf.center
+                    , Ui.width.shrink
+                    , Ui.height.shrink
+                    ]
+                    [ Ui.text "Generating Galaxy"
+                    , Html.progress
+                        [ Html.Attributes.max (String.fromInt total)
+                        , Html.Attributes.value (String.fromInt completed)
+                        ]
+                        []
+                    ]
 
         Nothing ->
             Ui.column
