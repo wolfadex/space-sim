@@ -1928,11 +1928,7 @@ viewCivilizationDetailed world civId =
     Ui.column
         [ Ui.padding.rem1
         , Ui.height.fill
-
-        -- , scrollbarY
         , Ui.gap.rem1
-
-        -- , alignTop
         , Ui.borderStyle.solid
         , Ui.borderWidth.px2
         , Ui.borderColor Ui.Theme.darkGray
@@ -1963,8 +1959,6 @@ viewCivilizationDetailed world civId =
                     Just civStyle ->
                         Ui.column
                             [ Ui.gap.remQuarter
-
-                            -- , width (px 400)
                             ]
                             [ Ui.row [ Ui.gap.rem3 ]
                                 [ Ui.text "Cooperative"

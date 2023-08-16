@@ -610,6 +610,7 @@ viewSolarSystem options settings world =
                 Disabled ->
                     Scene3d.unlit
                         { entities =
+                            -- DEBUG
                             -- Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
                             --     (Point3d.meters -1500000000 -1500000000 0)
                             --     (Point3d.meters 1500000000 -1500000000 0)
@@ -630,6 +631,7 @@ viewSolarSystem options settings world =
                 Enabled ->
                     Scene3d.custom
                         { entities =
+                            -- DEBUG
                             -- Scene3d.quad (Material.color (Color.rgba 1 1 1 0.1))
                             --     (Point3d.meters -1500000000 -1500000000 0)
                             --     (Point3d.meters 1500000000 -1500000000 0)
@@ -649,7 +651,7 @@ viewSolarSystem options settings world =
                         , exposure = Scene3d.maxLuminance (Luminance.nits 100000)
                         , toneMapping = Scene3d.noToneMapping
 
-                        -- This should somehow use the colors of the stars in the scene
+                        -- TODO: This should somehow use the colors of the stars in the scene
                         , whiteBalance = Scene3d.Light.color Color.yellow
                         , antialiasing = Scene3d.noAntialiasing
                         }
@@ -750,11 +752,8 @@ viewSpace :
     -> Html msg
     -> Html msg
 viewSpace options labels scene =
-    Ui.el
-        [ --spaceCss
-          -- , inFront (html labels)
-          -- ,
-          Ui.height.fill
+    Ui.stack
+        [ Ui.height.fill
         , Html.Attributes.id "galaxy-view"
         , case options.onZoom of
             Nothing ->
@@ -765,98 +764,60 @@ viewSpace options labels scene =
                     (Json.Decode.map (\v -> ( onZoom v, True ))
                         Json.Decode.value
                     )
-
-        -- , inFront
-        --     (row
-        --         [ alignRight, alignBottom, padding 16, spacing 8 ]
-        --         [ row
-        --             [ alignBottom, spacing 8 ]
-        --             [ case options.onRotationPress of
-        --                 Nothing ->
-        --                     none
-        --                 Just onRotationPress ->
-        --                     Ui.Button.default
-        --                         { onPress = Just (onRotationPress -5)
-        --                         , label = text "<-"
-        --                         }
-        --             , case options.onRotationPress of
-        --                 Nothing ->
-        --                     none
-        --                 Just onRotationPress ->
-        --                     Ui.Button.default
-        --                         { onPress = Just (onRotationPress 5)
-        --                         , label = text "->"
-        --                         }
-        --             ]
-        --         , column [ spacing 8 ]
-        --             [ case options.onZoomPress of
-        --                 Nothing ->
-        --                     none
-        --                 Just onZoomPress ->
-        --                     Ui.Button.default
-        --                         { onPress = Just (onZoomPress -10.0)
-        --                         , label = text "+"
-        --                         }
-        --             , case options.onZoomPress of
-        --                 Nothing ->
-        --                     none
-        --                 Just onZoomPress ->
-        --                     Ui.Button.default
-        --                         { onPress = Just (onZoomPress 10.0)
-        --                         , label = text "-"
-        --                         }
-        --             ]
-        --         ]
-        --     )
         ]
-        scene
+        [ scene
+        , Ui.row
+            [ Ui.justifySelf.end
+            , Ui.alignSelf.end
+            , Ui.padding.rem1
+            , Ui.gap.remHalf
+            , Ui.width.shrink
+            ]
+            [ Ui.row
+                [ Ui.alignSelf.end
+                , Ui.gap.remHalf
+                ]
+                [ case options.onRotationPress of
+                    Nothing ->
+                        Ui.none
 
+                    Just onRotationPress ->
+                        Ui.Button.default []
+                            { onPress = Just (onRotationPress -5)
+                            , label = Ui.text "<-"
+                            }
+                , case options.onRotationPress of
+                    Nothing ->
+                        Ui.none
 
-spaceCss : Html msg
-spaceCss =
-    Html.node "style" [] [ Html.text """
-.galactic-label * {
-  opacity: 0;
-  cursor: pointer;
-}
+                    Just onRotationPress ->
+                        Ui.Button.default []
+                            { onPress = Just (onRotationPress 5)
+                            , label = Ui.text "->"
+                            }
+                ]
+            , Ui.column [ Ui.gap.remHalf ]
+                [ case options.onZoomPress of
+                    Nothing ->
+                        Ui.none
 
-.galactic-label:active *,
-.galactic-label:focus *,
-.galactic-label:focus-within *,
-.galactic-label:hover * {
-  opacity: 1;
-}
+                    Just onZoomPress ->
+                        Ui.Button.default []
+                            { onPress = Just (onZoomPress -10.0)
+                            , label = Ui.text "+"
+                            }
+                , case options.onZoomPress of
+                    Nothing ->
+                        Ui.none
 
-.galactic-label-focus-civ * {
-  visibility: hidden;
-  cursor: pointer;
-}
-
-.galactic-label-focus-civ circle {
-  visibility: visible;
-}
-
-.galactic-label-focus-civ:active *,
-.galactic-label-focus-civ:focus *,
-.galactic-label-focus-civ:focus-within *,
-.galactic-label-focus-civ:hover * {
-  visibility: visible;
-}
-
-.galactic-label-ignore {
-  pointer-events: none;
-}
-
-.galactic-label > .planet-orbit {
-  visibility: visible;
-  opacity: 1;
-  pointer-events: none;
-}
-
-.galactic-label-no-show {
-  display: none;
-}
-""" ]
+                    Just onZoomPress ->
+                        Ui.Button.default []
+                            { onPress = Just (onZoomPress 10.0)
+                            , label = Ui.text "-"
+                            }
+                ]
+            ]
+        ]
 
 
 

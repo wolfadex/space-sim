@@ -134,9 +134,14 @@ justifySelf =
     }
 
 
-alignSelf : { center : Html.Attribute msg }
+alignSelf :
+    { center : Html.Attribute msg
+    , end : Html.Attribute msg
+    }
 alignSelf =
-    { center = Html.Attributes.style "align-self" "center" }
+    { center = Html.Attributes.style "align-self" "center"
+    , end = Html.Attributes.style "align-self" "end"
+    }
 
 
 fontSize :
