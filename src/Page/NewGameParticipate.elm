@@ -331,14 +331,17 @@ update _ msg model =
             , Result.map2
                 (\galaxtOptions civilizationOptions ->
                     Route.Playing
-                        { name = civilizationOptions.name
-                        , homePlanetName = civilizationOptions.planetName
-                        , minSolarSystemsToGenerate = galaxtOptions.minSolarSystemsToGenerate
+                        { minSolarSystemsToGenerate = galaxtOptions.minSolarSystemsToGenerate
                         , maxSolarSystemsToGenerate = galaxtOptions.maxSolarSystemsToGenerate
                         , minPlanetsPerSolarSystemToGenerate = galaxtOptions.minPlanetsPerSolarSystemToGenerate
                         , maxPlanetsPerSolarSystemToGenerate = galaxtOptions.maxPlanetsPerSolarSystemToGenerate
                         , starCounts = galaxtOptions.starCounts
-                        , playType = Participation
+                        , playerStuff =
+                            Just
+                                { name = civilizationOptions.name
+                                , homePlanetName = civilizationOptions.planetName
+                                , reproductionMotivation = Debug.todo ""
+                                }
                         }
                         |> NavigateTo
                         |> SubCmd.effect

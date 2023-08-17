@@ -7,9 +7,11 @@ module Route exposing
     )
 
 import AppUrl
+import CubicSpline2d exposing (CubicSpline2d)
 import Data.Name exposing (Name)
 import Dict
 import List.Nonempty exposing (Nonempty)
+import Scalable exposing (Scalable)
 import Serialize exposing (Codec)
 import Url
 
@@ -86,39 +88,59 @@ toString route =
 
 
 type alias GenerationConfig =
-    { name : Name
-    , homePlanetName : String
-    , minSolarSystemsToGenerate : Int
+    { minSolarSystemsToGenerate : Int
     , maxSolarSystemsToGenerate : Int
     , minPlanetsPerSolarSystemToGenerate : Int
     , maxPlanetsPerSolarSystemToGenerate : Int
     , starCounts : Nonempty ( Float, Int )
-    , playType : PlayType
+    , playerStuff : Maybe PlayerStuff
     }
+
+
+type Game
+    = Game Never
 
 
 generationConfigCodec : Codec e GenerationConfig
 generationConfigCodec =
     Serialize.record
-        (\name homePlanetName minSolarSystemsToGenerate maxSolarSystemsToGenerate minPlanetsPerSolarSystemToGenerate maxPlanetsPerSolarSystemToGenerate starCounts playType ->
-            { name = Data.Name.fromString name
-            , homePlanetName = homePlanetName
-            , minSolarSystemsToGenerate = minSolarSystemsToGenerate
+        (\playerStuff minSolarSystemsToGenerate maxSolarSystemsToGenerate minPlanetsPerSolarSystemToGenerate maxPlanetsPerSolarSystemToGenerate starCounts ->
+            { minSolarSystemsToGenerate = minSolarSystemsToGenerate
             , maxSolarSystemsToGenerate = maxSolarSystemsToGenerate
             , minPlanetsPerSolarSystemToGenerate = minPlanetsPerSolarSystemToGenerate
             , maxPlanetsPerSolarSystemToGenerate = maxPlanetsPerSolarSystemToGenerate
             , starCounts = starCounts
-            , playType = playType
+            , playerStuff = playerStuff
             }
         )
-        |> Serialize.field (\rec -> Data.Name.toString rec.name) Serialize.string
-        |> Serialize.field .homePlanetName Serialize.string
+        |> Serialize.field .playerStuff (Serialize.maybe playerStuffCodec)
         |> Serialize.field .minSolarSystemsToGenerate Serialize.int
         |> Serialize.field .maxSolarSystemsToGenerate Serialize.int
         |> Serialize.field .minPlanetsPerSolarSystemToGenerate Serialize.int
         |> Serialize.field .maxPlanetsPerSolarSystemToGenerate Serialize.int
         |> Serialize.field .starCounts (List.Nonempty.codec (Serialize.tuple Serialize.float Serialize.int))
-        |> Serialize.field .playType playTypeCodec
+        |> Serialize.finishRecord
+
+
+type alias PlayerStuff =
+    { name : Name
+    , homePlanetName : String
+    , reproductionMotivation : Scalable
+    }
+
+
+playerStuffCodec : Codec e PlayerStuff
+playerStuffCodec =
+    Serialize.record
+        (\name homePlanetName reproductionMotivation ->
+            { name = Data.Name.fromString name
+            , homePlanetName = homePlanetName
+            , reproductionMotivation = reproductionMotivation
+            }
+        )
+        |> Serialize.field (\rec -> Data.Name.toString rec.name) Serialize.string
+        |> Serialize.field .homePlanetName Serialize.string
+        |> Serialize.field .reproductionMotivation Scalable.codec
         |> Serialize.finishRecord
 
 

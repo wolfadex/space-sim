@@ -293,14 +293,12 @@ update _ msg model =
             , case result of
                 Ok options ->
                     Route.Playing
-                        { name = Data.Name.fromString ""
-                        , homePlanetName = ""
-                        , minSolarSystemsToGenerate = options.minSolarSystemsToGenerate
+                        { minSolarSystemsToGenerate = options.minSolarSystemsToGenerate
                         , maxSolarSystemsToGenerate = options.maxSolarSystemsToGenerate
                         , minPlanetsPerSolarSystemToGenerate = options.minPlanetsPerSolarSystemToGenerate
                         , maxPlanetsPerSolarSystemToGenerate = options.maxPlanetsPerSolarSystemToGenerate
                         , starCounts = options.starCounts
-                        , playType = Route.Observation
+                        , playerStuff = Nothing
                         }
                         |> NavigateTo
                         |> SubCmd.effect

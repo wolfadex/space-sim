@@ -1,0 +1,107 @@
+@font-face {
+    font-family: "Exo2";
+    src: url("/Exo_2/Exo2-VariableFont_wght.ttf");
+}
+
+* {
+    font-family: "Exo2" !important;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+}
+
+button {
+    cursor: pointer;
+}
+
+form>button[type="submit"] {
+    display: none;
+}
+
+.wolfadex-column {
+    display: grid;
+    grid-auto-flow: row;
+    width: 100%;
+}
+
+.wolfadex-row {
+    display: grid;
+    width: 100%;
+    grid-auto-flow: column;
+}
+
+.wolfadex-el {
+    display: grid;
+    width: 100%;
+}
+
+.wolfadex-row-wrapped {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.wolfadex-stacked {
+    display: grid;
+    width: 100%;
+}
+
+.wolfadex-stacked>* {
+    grid-area: 1 / 1 / 2 / 2;
+}
+
+/* Control Styling */
+
+.control-feedback-fail {
+    color: red;
+}
+
+.control-feedback-note {
+    color: orange;
+}
+
+/* 3D view */
+.galactic-label * {
+    opacity: 0;
+    cursor: pointer;
+}
+
+.galactic-label:active *,
+.galactic-label:focus *,
+.galactic-label:focus-within *,
+.galactic-label:hover * {
+    opacity: 1;
+}
+
+.galactic-label-focus-civ * {
+    visibility: hidden;
+    cursor: pointer;
+}
+
+.galactic-label-focus-civ circle {
+    visibility: visible;
+}
+
+.galactic-label-focus-civ:active *,
+.galactic-label-focus-civ:focus *,
+.galactic-label-focus-civ:focus-within *,
+.galactic-label-focus-civ:hover * {
+    visibility: visible;
+}
+
+.galactic-label-ignore {
+    pointer-events: none;
+}
+
+.galactic-label>.planet-orbit {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: none;
+}
+
+.galactic-label-no-show {
+    display: none;
+}

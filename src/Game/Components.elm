@@ -29,11 +29,13 @@ module Game.Components exposing
     , planetSizeSpec
     , planetTypeSpec
     , positionSpec
+    , reproductionSpec
     , solarSystemSpec
     , waterSpec
     )
 
 import Browser.Dom exposing (Viewport)
+import CubicSpline2d exposing (CubicSpline2d)
 import Data.Civilization
 import Data.EarthYear exposing (EarthYear)
 import Data.Knowledge exposing (Knowledge, KnowledgeTree)
@@ -51,6 +53,7 @@ import Point3d exposing (Point3d)
 import Population exposing (Population)
 import Rate exposing (Rate)
 import Route exposing (GenerationConfig, PlayType(..))
+import Scalable exposing (Scalable)
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared exposing (SharedMsg)
@@ -77,6 +80,7 @@ type alias World =
     -- CIV
     , civilizationPopulations : Logic.Component.Set (Dict EntityID Population)
     , civilizationReproductionRates : Logic.Component.Set (Rate Reproduction)
+    , reproductionComponent : Logic.Component.Set Scalable
     , civilizationMortalityRates : Logic.Component.Set (Rate Mortality)
     , civilizationDensity : Logic.Component.Set Float
     , civilizationHappiness : Logic.Component.Set (Dict EntityID (Percent Happiness))
@@ -130,6 +134,7 @@ emptyWorld =
     , ecsInternals = Logic.Entity.Extra.initInternals
     , named = Logic.Component.empty
     , civilizationReproductionRates = Logic.Component.empty
+    , reproductionComponent = Logic.Component.empty
     , civilizationMortalityRates = Logic.Component.empty
     , civilizationDensity = Logic.Component.empty
     , planetTypes = Logic.Component.empty
@@ -236,6 +241,11 @@ civilizationPersonNameSourceSpec =
 civilizationReproductionRateSpec : Spec (Rate Reproduction) { world | civilizationReproductionRates : Logic.Component.Set (Rate Reproduction) }
 civilizationReproductionRateSpec =
     Logic.Component.Spec .civilizationReproductionRates (\comps world -> { world | civilizationReproductionRates = comps })
+
+
+reproductionSpec : Spec Scalable { world | reproductionComponent : Logic.Component.Set Scalable }
+reproductionSpec =
+    Logic.Component.Spec .reproductionComponent (\comps world -> { world | reproductionComponent = comps })
 
 
 type Reproduction

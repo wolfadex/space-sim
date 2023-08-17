@@ -177,15 +177,18 @@ update sharedModel msg world =
                         -- Filter out a civilization name if the player's chosen name matches
                         worldWithPlayerDataFilteredOut : World
                         worldWithPlayerDataFilteredOut =
-                            case generationConfig.playType of
-                                Participation ->
+                            case generationConfig.playerStuff of
+                                Just playerStuff ->
                                     { emptyWorld
                                         | availableCivilizationNames =
-                                            List.filter (\name -> String.toLower (Data.Name.toString name) /= String.toLower (Data.Name.toString generationConfig.name))
+                                            List.filter
+                                                (\name ->
+                                                    String.toLower (Data.Name.toString name) /= String.toLower (Data.Name.toString playerStuff.name)
+                                                )
                                                 emptyWorld.availableCivilizationNames
                                     }
 
-                                Observation ->
+                                Nothing ->
                                     emptyWorld
                     in
                     Random.step (generateGalaxy generationConfig worldWithPlayerDataFilteredOut) sharedModel.seed
@@ -218,17 +221,18 @@ update sharedModel msg world =
                         )
                         (Random.step (Random.List.shuffle viableStartingPlanets) seed)
 
-                ( playerCivId, worldWithPlayerCiv ) =
-                    Logic.Entity.Extra.create generatedWorld
-                        |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
-                        |> Logic.Entity.with ( Game.Components.namedSpec, generationConfig.name )
-                        |> Logic.Entity.with ( Game.Components.civilizationReproductionRateSpec, Rate.fromFloat 0.3 )
-                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
-                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets )
-
                 ( playerCiv, worldWithPlayerCivWithKnowledge ) =
-                    case generationConfig.playType of
-                        Participation ->
+                    case generationConfig.playerStuff of
+                        Just playerStuff ->
+                            let
+                                ( playerCivId, worldWithPlayerCiv ) =
+                                    Logic.Entity.Extra.create generatedWorld
+                                        |> Logic.Entity.with ( Game.Components.civilizationPopulationSpec, inhabitedPlanets )
+                                        |> Logic.Entity.with ( Game.Components.namedSpec, playerStuff.name )
+                                        |> Logic.Entity.with ( Game.Components.reproductionSpec, playerStuff.reproductionMotivation )
+                                        |> Logic.Entity.with ( Game.Components.civilizationMortalityRateSpec, Rate.fromFloat 0.1 )
+                                        |> Logic.Entity.with ( Game.Components.civilizationHappinessSpec, Dict.map (\_ _ -> Percent.oneHundred) inhabitedPlanets )
+                            in
                             ( playerCivId, worldWithPlayerCiv )
                                 |> Logic.Entity.with
                                     ( Data.Knowledge.spec
@@ -253,7 +257,7 @@ update sharedModel msg world =
                                     )
                                 |> Tuple.mapFirst Just
 
-                        Observation ->
+                        Nothing ->
                             ( Nothing, generatedWorld )
 
                 ( buildingKnowledgeState, parallelCmd ) =
@@ -269,13 +273,13 @@ update sharedModel msg world =
                                             let
                                                 solarSiblings : Set EntityID
                                                 solarSiblings =
-                                                    getSolarSiblings worldWithPlayerCiv planetId
+                                                    getSolarSiblings worldWithPlayerCivWithKnowledge planetId
                                             in
                                             List.concat
                                                 [ ---- Local solar knowledge
                                                   List.map
                                                     (\siblingId ->
-                                                        if Set.member siblingId worldWithPlayerCiv.stars then
+                                                        if Set.member siblingId worldWithPlayerCivWithKnowledge.stars then
                                                             -- No previous knowledge required
                                                             ( KnowsOf siblingId, [] )
 
@@ -291,7 +295,7 @@ update sharedModel msg world =
                                                     (\nonSiblingStarId ->
                                                         ( KnowsOf nonSiblingStarId, [ Set.Any.singleton Data.Knowledge.comparableConfig Optics ] )
                                                     )
-                                                    (Set.toList (Set.diff worldWithPlayerCiv.stars solarSiblings))
+                                                    (Set.toList (Set.diff worldWithPlayerCivWithKnowledge.stars solarSiblings))
 
                                                 -- Knowledge of extra solar planets requires Optics and knowledge of at least 1 parent local star
                                                 , List.map
@@ -302,38 +306,44 @@ update sharedModel msg world =
                                                                 Set.Any.fromList Data.Knowledge.comparableConfig
                                                                     [ Optics, KnowsOf foreignStarId ]
                                                             )
-                                                            (Set.toList (Set.intersect worldWithPlayerCiv.stars (getSolarSiblings worldWithPlayerCiv nonSiblingPlanetId)))
+                                                            (Set.toList (Set.intersect worldWithPlayerCivWithKnowledge.stars (getSolarSiblings worldWithPlayerCivWithKnowledge nonSiblingPlanetId)))
                                                         )
                                                     )
-                                                    (Set.toList (Set.diff worldWithPlayerCiv.planets solarSiblings))
+                                                    (Set.toList (Set.diff worldWithPlayerCivWithKnowledge.planets solarSiblings))
 
                                                 ---- Other Civ Knowledge
                                                 ]
                                         )
                                         (Process.sleep (toFloat delay))
                                 )
-                                (Set.toList worldWithPlayerCiv.planets)
+                                (Set.toList worldWithPlayerCivWithKnowledge.planets)
                         }
             in
             ( { worldWithPlayerCivWithKnowledge
                 | playerCiv = playerCiv
-                , playType = generationConfig.playType
+                , playType =
+                    case generationConfig.playerStuff of
+                        Nothing ->
+                            Observation
+
+                        Just _ ->
+                            Participation
                 , civilizations =
                     case playerCiv of
                         Nothing ->
-                            worldWithPlayerCiv.civilizations
+                            worldWithPlayerCivWithKnowledge.civilizations
 
                         Just civId ->
-                            Set.insert civId worldWithPlayerCiv.civilizations
+                            Set.insert civId worldWithPlayerCivWithKnowledge.civilizations
                 , zoom =
-                    Dict.keys (Logic.Component.toDict worldWithPlayerCiv.solarSystems)
+                    Dict.keys (Logic.Component.toDict worldWithPlayerCivWithKnowledge.solarSystems)
                         |> List.filterMap
                             (\solarSystemId ->
                                 Maybe.map
                                     (\galacticPosition ->
                                         Length.inMeters (Point3d.distanceFrom Point3d.origin galacticPosition)
                                     )
-                                    (Logic.Component.get solarSystemId worldWithPlayerCiv.galaxyPositions)
+                                    (Logic.Component.get solarSystemId worldWithPlayerCivWithKnowledge.galaxyPositions)
                             )
                         |> List.sort
                         |> List.reverse
@@ -341,7 +351,7 @@ update sharedModel msg world =
                         |> Maybe.map (\m -> m / 2)
                         |> Maybe.withDefault (25000 + (100 * 9460730000000000))
                 , buildingKnowledgeState = buildingKnowledgeState
-                , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCiv.planets )
+                , buildingKnowledge = Just ( 0, Set.size worldWithPlayerCivWithKnowledge.planets )
               }
             , SubCmd.batch
                 [ SubCmd.effect (UpdateSeed finalSeed)
