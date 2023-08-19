@@ -40,7 +40,11 @@ galaxyForm : { toMsg : Control.Delta GalaxyFormDelta -> msg, onSubmit : msg } ->
 galaxyForm config =
     Control.form
         { onUpdate = config.toMsg
-        , onSubmit = config.onSubmit
+        , view =
+            \fields ->
+                Html.form
+                    [ Html.Events.onSubmit config.onSubmit ]
+                    fields
         , control =
             Control.record
                 (\solarSystems planets starCounts ->

@@ -12,6 +12,7 @@ module Page.NewGameParticipate exposing
 import Browser.Dom exposing (Viewport)
 import Browser.Events
 import Control
+import CubicSpline2d exposing (CubicSpline2d)
 import Data.Civilization exposing (Sense)
 import Data.EarthYear
 import Data.Name exposing (Name)
@@ -28,6 +29,8 @@ import Game.Components
         , Water
         )
 import Html exposing (Html)
+import Html.Events
+import Input.Spline
 import Length exposing (Meters)
 import Logic.Component
 import Logic.Entity exposing (EntityID)
@@ -35,8 +38,9 @@ import Page.Shared
 import Percent exposing (Percent)
 import Point3d exposing (Point3d)
 import Population exposing (Population)
-import Quantity
+import Quantity exposing (Unitless)
 import Route exposing (PlayType(..))
+import Scalable
 import Set exposing (Set)
 import Set.Any exposing (AnySet)
 import Shared
@@ -340,7 +344,13 @@ update _ msg model =
                             Just
                                 { name = civilizationOptions.name
                                 , homePlanetName = civilizationOptions.planetName
-                                , reproductionMotivation = Debug.todo ""
+                                , reproductionMotivation =
+                                    Scalable.new
+                                        { spline = civilizationOptions.reproductionMotivation
+                                        , initialInput = 1
+                                        , min = 0
+                                        , max = 1
+                                        }
                                 }
                         }
                         |> NavigateTo
@@ -527,19 +537,28 @@ galaxyForm =
 
 type alias CivilizationFormState =
     ( Control.State ( Control.State String, Control.End )
-    , ( Control.State String, Control.End )
+    , ( Control.State String
+      , ( Control.State (Input.Spline.Model MotivationSpline), Control.End )
+      )
     )
+
+
+type MotivationSpline
+    = MotivationSpline Never
 
 
 type alias CivilizationFormDelta =
     ( Control.Delta ( Control.Delta String, Control.End )
-    , ( Control.Delta String, Control.End )
+    , ( Control.Delta String
+      , ( Control.Delta Input.Spline.Msg, Control.End )
+      )
     )
 
 
 type alias CivilizationFormResult =
     { name : Name
     , planetName : String
+    , reproductionMotivation : CubicSpline2d Unitless MotivationSpline
     }
 
 
@@ -548,9 +567,10 @@ civilizationForm =
     Control.form
         { control =
             Control.record
-                (\name planetName ->
+                (\name planetName reproductionMotivation ->
                     { name = name
                     , planetName = planetName
+                    , reproductionMotivation = reproductionMotivation
                     }
                 )
                 |> Control.field .name
@@ -564,10 +584,23 @@ civilizationForm =
                     )
                 |> Control.field .planetName
                     (Control.string
-                        |> Control.label "Planet Name"
+                        |> Control.label "Home Planet Name"
                         |> Control.failIf String.isEmpty "Home Planet Name cannot be empty"
+                    )
+                |> Control.field .reproductionMotivation
+                    (Input.Spline.new
+                        { xMin = 0
+                        , xMax = 1
+                        , yMin = 0
+                        , yMax = 1
+                        }
+                        |> Input.Spline.toControl
+                        |> Control.label "Reproduction Motivation"
                     )
                 |> Control.endRecord
         , onUpdate = CivilizationFormSentMsg
-        , onSubmit = CivilizationFormSubmitted
+        , view =
+            \fields ->
+                Html.form [ Html.Events.onSubmit CivilizationFormSubmitted ]
+                    fields
         }

@@ -352,7 +352,7 @@ settingsForm : Control.Form SettingsFormState SettingsFormDelta Settings SharedM
 settingsForm =
     Control.form
         { onUpdate = SettingsFormSentMsg
-        , onSubmit = SettingsFormSubmitted
+        , view = Html.div []
         , control =
             Control.record
                 (\version realisticLighting planetsOrbit planetRotationSpeed showPlanetsOrbit ->

@@ -10,7 +10,7 @@ module Scalable exposing
 import CubicSpline2d exposing (CubicSpline2d)
 import Point2d
 import Polyline2d
-import Quantity
+import Quantity exposing (Unitless)
 import Serialize exposing (Codec)
 
 
@@ -42,7 +42,7 @@ type Scalable
 
 
 new :
-    { spline : CubicSpline2d Float coordinates
+    { spline : CubicSpline2d Unitless coordinates
     , initialInput : Float
     , min : Float
     , max : Float

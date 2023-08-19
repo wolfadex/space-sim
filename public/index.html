@@ -24,6 +24,29 @@
       const ctx = new AudioContext();
       const virtualCtx = new VirtualAudioContext(ctx);
 
+      // SPLINE INPUT HELPERS - BEGIN
+      Object.defineProperty(HTMLElement.prototype, "___capturePointer", {
+        set(pointerId) {
+          if (pointerId == null) {
+            this.releasePointerCapture(this.___pointerId);
+          } else {
+            this.___pointerId = pointerId;
+            this.setPointerCapture(pointerId);
+          }
+        },
+      });
+      Object.defineProperty(SVGElement.prototype, "___capturePointer", {
+        set(pointerId) {
+          if (pointerId == null) {
+            this.releasePointerCapture(this.___pointerId);
+          } else {
+            this.___pointerId = pointerId;
+            this.setPointerCapture(pointerId);
+          }
+        },
+      });
+      // SPLINE INPUT HELPERS - END
+
       const app = Elm.Main.init({
         flags: {
           initialSeed: randomSeeds[0],

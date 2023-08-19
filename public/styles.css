@@ -17,9 +17,6 @@ button {
     cursor: pointer;
 }
 
-form>button[type="submit"] {
-    display: none;
-}
 
 .wolfadex-column {
     display: grid;
@@ -104,4 +101,22 @@ form>button[type="submit"] {
 
 .galactic-label-no-show {
     display: none;
+}
+
+.spline-input-control-connectors {
+    opacity: 0;
+}
+
+.spline-input-control-point {
+    opacity: 0;
+}
+
+.spline-input:hover .spline-input-control-connectors,
+.spline-input:focus-within .spline-input-control-connectors {
+    opacity: 1;
+}
+
+.spline-input:hover .spline-input-control-point,
+.spline-input:focus-within .spline-input-control-point {
+    opacity: 1;
 }
